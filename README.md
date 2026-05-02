@@ -17,11 +17,12 @@ FinTrack is a robust, privacy-focused Android expense tracker designed to help y
     - Seamlessly import existing database files.
 
 Check App screenshots here
-![SS 1](https://github.com/Dozzeyy/FinTrack/blob/main/fastlane/metadata/android/en-US/images/phoneScreenshots/1.png)
-![SS 2](https://github.com/Dozzeyy/FinTrack/blob/main/fastlane/metadata/android/en-US/images/phoneScreenshots/2.png)
-![SS 3](https://github.com/Dozzeyy/FinTrack/blob/main/fastlane/metadata/android/en-US/images/phoneScreenshots/3.png)
-![SS 4](https://github.com/Dozzeyy/FinTrack/blob/main/fastlane/metadata/android/en-US/images/phoneScreenshots/4.png)
-
+<div style="display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;">
+  <img src="https://github.com/Dozzeyy/FinTrack/blob/main/fastlane/metadata/android/en-US/images/phoneScreenshots/1.png?raw=true" alt="Screen 1" width="200">
+  <img src="https://github.com/Dozzeyy/FinTrack/blob/main/main/fastlane/metadata/android/en-US/images/phoneScreenshots/2.png?raw=true" alt="Screen 2" width="200">
+  <img src="https://github.com/Dozzeyy/FinTrack/blob/main/fastlane/metadata/android/en-US/images/phoneScreenshots/3.png?raw=true" alt="Screen 3" width="200">
+  <img src="https://github.com/Dozzeyy/FinTrack/blob/main/fastlane/metadata/android/en-US/images/phoneScreenshots/4.png?raw=true" alt="Screen 4" width="200">
+</div>
 ## 🛠 Tech Stack
 
 - **Language:** Kotlin
