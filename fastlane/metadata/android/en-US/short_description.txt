@@ -1,0 +1,1 @@
+Privacy-focused expense tracker with automated transaction detection and biometric security.

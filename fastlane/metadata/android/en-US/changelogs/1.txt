@@ -1,0 +1,6 @@
+Initial release of FinTrack.
+- Automated SMS parsing.
+- Biometric App Lock.
+- Budget management.
+- Multi-tag support.
+- Custom number systems.

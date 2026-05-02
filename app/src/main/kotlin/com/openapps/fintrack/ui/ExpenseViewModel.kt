@@ -310,9 +310,27 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun addTransaction(date: String, time: String, accountId: Int, categoryId: Int?, amount: Double, note: String?, toAccountId: Int? = null, tags: String? = null) {
+    fun addTransaction(date: String, time: String, accountId: Int, categoryId: Int?, amount: Double, note: String?, toAccountId: Int? = null, tags: String? = null, type: String) {
         viewModelScope.launch {
-            val txnNumber = "FT${System.currentTimeMillis()}"
+            val prefix = when (type) {
+                "income" -> "INC"
+                "expense" -> "EXP"
+                "transfer" -> "TNF"
+                else -> "TXN"
+            }
+            
+            val lastNum = dao.getLastTransactionNumber(prefix)
+            val nextSerial = if (lastNum != null) {
+                val parts = lastNum.split("/")
+                val lastSerial = parts.last().toIntOrNull() ?: 99999
+                lastSerial + 1
+            } else {
+                100000
+            }
+            
+            val year = try { LocalDate.parse(date).year } catch(e: Exception) { LocalDate.now().year }
+            val txnNumber = "$prefix/$year/$nextSerial"
+
             dao.insertTransaction(
                 Transaction(
                     date = date,

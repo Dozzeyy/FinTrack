@@ -1,0 +1,2 @@
+json_key_file("") # Path to the json secret file - not needed for F-Droid but good to have the file
+package_name("com.openapps.fintrack")

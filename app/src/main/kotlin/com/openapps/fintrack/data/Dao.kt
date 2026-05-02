@@ -120,6 +120,9 @@ interface ExpenseDao {
 
     @Query("DELETE FROM transactions WHERE id = :id")
     suspend fun deleteTransaction(id: Int)
+
+    @Query("SELECT transactionNumber FROM transactions WHERE transactionNumber LIKE :prefix || '%' ORDER BY id DESC LIMIT 1")
+    suspend fun getLastTransactionNumber(prefix: String): String?
 }
 
 data class TransactionWithDetails(

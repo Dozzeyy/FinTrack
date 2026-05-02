@@ -1,0 +1,12 @@
+FinTrack is a robust, privacy-focused Android expense tracker designed to help you manage your finances with ease.
+
+Key Features:
+- Automated SMS Detection: Automatically parse transaction messages.
+- Biometric Security: Secure your data with Fingerprint, Face ID, or PIN.
+- Budgeting System: Set targets for any category and track progress.
+- Advanced Tags: Organize transactions with multi-select tags.
+- Integrated Calculator: Quick calculations within the amount field.
+- Global Search: Search through notes, accounts, categories, and tags instantly.
+- Dual Number Systems: Toggle between Lakhs/Crores and Millions/Billions.
+
+FinTrack respects your privacy: no data leaves your device unless you manually export it or perform a backup to your chosen location.

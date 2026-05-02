@@ -86,10 +86,20 @@ fun AddTransactionScreen(
                 .verticalScroll(scrollState)
                 .padding(16.dp)
         ) {
-            if (txnDetail != null) {
-                Text("Txn No: ${txnDetail.transaction.transactionNumber ?: "N/A"}", style = MaterialTheme.typography.labelSmall)
-                Spacer(Modifier.height(8.dp))
-            }
+            // Transaction Number Field (Read-only)
+            OutlinedTextField(
+                value = txnDetail?.transaction?.transactionNumber ?: "Auto-generated on save",
+                onValueChange = {},
+                label = { Text("Transaction Number") },
+                readOnly = true,
+                enabled = false,
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                    disabledBorderColor = MaterialTheme.colorScheme.outline,
+                    disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            )
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                 FilterChip(
@@ -233,12 +243,12 @@ fun AddTransactionScreen(
                         val tagsString = if (selectedTagIds.isEmpty()) null else selectedTagIds.joinToString(",")
                         if (type == "transfer") {
                             if (selectedAccountId != null && selectedToAccountId != null) {
-                                viewModel.addTransaction(date, time, selectedAccountId!!, null, amt, note, selectedToAccountId, tagsString)
+                                viewModel.addTransaction(date, time, selectedAccountId!!, null, amt, note, selectedToAccountId, tagsString, type)
                                 onBack()
                             }
                         } else {
                             if (selectedCategoryId != null && selectedAccountId != null) {
-                                viewModel.addTransaction(date, time, selectedAccountId!!, selectedCategoryId, amt, note, null, tagsString)
+                                viewModel.addTransaction(date, time, selectedAccountId!!, selectedCategoryId, amt, note, null, tagsString, type)
                                 onBack()
                             }
                         }
@@ -247,6 +257,9 @@ fun AddTransactionScreen(
                 ) {
                     Text("Save Transaction")
                 }
+            } else {
+                Spacer(Modifier.height(24.dp))
+                Text("Viewing archived transaction data.", style = MaterialTheme.typography.bodySmall, color = Color.Gray, modifier = Modifier.align(Alignment.CenterHorizontally))
             }
         }
     }
