@@ -19,7 +19,7 @@ FinTrack is a robust, privacy-focused Android expense tracker designed to help y
 Check App screenshots here
 <div style="display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;">
   <img src="https://github.com/Dozzeyy/FinTrack/blob/main/fastlane/metadata/android/en-US/images/phoneScreenshots/1.png?raw=true" alt="Screen 1" width="200">
-  <img src="https://github.com/Dozzeyy/FinTrack/blob/main/main/fastlane/metadata/android/en-US/images/phoneScreenshots/2.png?raw=true" alt="Screen 2" width="200">
+  <img src="https://github.com/Dozzeyy/FinTrack/blob/main/fastlane/metadata/android/en-US/images/phoneScreenshots/5.png?raw=true" alt="Screen 2" width="200">
   <img src="https://github.com/Dozzeyy/FinTrack/blob/main/fastlane/metadata/android/en-US/images/phoneScreenshots/3.png?raw=true" alt="Screen 3" width="200">
   <img src="https://github.com/Dozzeyy/FinTrack/blob/main/fastlane/metadata/android/en-US/images/phoneScreenshots/4.png?raw=true" alt="Screen 4" width="200">
 </div>
