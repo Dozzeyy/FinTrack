@@ -16,6 +16,12 @@ FinTrack is a robust, privacy-focused Android expense tracker designed to help y
     - Export transactions to CSV/Excel.
     - Seamlessly import existing database files.
 
+check App screenshots here
+! [SS 1] (https://github.com/Dozzeyy/FinTrack/blob/main/fastlane/metadata/android/en-US/images/phoneScreenshots/1.png)
+! [SS 2] (https://github.com/Dozzeyy/FinTrack/blob/main/fastlane/metadata/android/en-US/images/phoneScreenshots/2.png)
+! [SS 3] (https://github.com/Dozzeyy/FinTrack/blob/main/fastlane/metadata/android/en-US/images/phoneScreenshots/3.png)
+! [SS 4] (https://github.com/Dozzeyy/FinTrack/blob/main/fastlane/metadata/android/en-US/images/phoneScreenshots/4.png)
+
 ## 🛠 Tech Stack
 
 - **Language:** Kotlin
