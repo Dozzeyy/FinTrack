@@ -1,0 +1,291 @@
+WindowManager:
+    HomeScreen:
+    SelectTransactionTypeScreen:
+    AddTransactionScreen:
+    AddCategoryScreen:
+    SummaryScreen:
+
+<HomeScreen>:
+    name: "home"
+    BoxLayout:
+        orientation: "vertical"
+        Label:
+            text: "Expense Tracker"
+            font_size: 32
+        Button:
+            text: "Add Transaction"
+            on_release: root.manager.current = "select_type"   # FIXED navigation
+        Button:
+            text: "Add Category" 
+            on_release: root.manager.current = "add_category"
+        Button:
+            text: "Remove Category"
+            size_hint_y: None
+            height: "50dp"
+            on_release:
+                app.open_remove_category_popup()
+        Button:
+            text: "View Summary"
+            on_release: root.manager.current = "summary"
+        Button:
+            text: "Export CSV"
+            on_release:
+                app.export_csv_with_date_range()
+        Button:
+            text: "Backup Data"
+            on_release:
+                app.backup_data()
+        Button:
+            text: "Restore Data"
+            on_release:
+                app.restore_data()
+
+<SelectTransactionTypeScreen>:
+    name: "select_type"
+    BoxLayout:
+        orientation: "vertical"
+        Label:
+            text: "Select Transaction Type"
+            font_size: 24
+        Button:
+            text: "Income"
+            on_release:
+                app.transaction_type = "income"
+                root.manager.current = "add"
+                app.prepare_add_transaction()
+        Button:
+            text: "Expense"
+            on_release:
+                app.transaction_type = "expense"
+                root.manager.current = "add"
+                app.prepare_add_transaction()
+        Button:                                                         
+            text: "Transfer"
+            on_release:
+                app.transaction_type = "transfer"
+                root.manager.current = "add"
+                app.schedule_prepare_add_transaction()
+
+
+        Button:
+            text: "Back"
+            on_release: root.manager.current = "home"
+
+<AddCategoryScreen>:
+    name: "add_category"
+    BoxLayout:
+        orientation: 'vertical'
+        spacing: 10
+        padding: 20
+
+        Label:
+            text: "Add New Category"
+            font_size: 24
+
+        TextInput:
+            id: category_name_input
+            hint_text: "Category/Account Name"
+            size_hint_y: None
+            height: '40dp'
+
+        Spinner:
+            id: category_type_spinner
+            text: "Select Type"
+            values: ["income", "expense", "accounts"]
+            size_hint_y: None
+            height: '40dp'
+            on_text:
+                opening_balance_input.opacity = 1 if self.text == "accounts" else 0
+                opening_balance_input.disabled = False if self.text == "accounts" else True
+
+        TextInput:
+            id: opening_balance_input
+            hint_text: "Opening Balance"
+            input_filter: 'float'
+            size_hint_y: None
+            height: '40dp'
+            opacity: 0
+            disabled: True
+
+        Button:
+            text: "Add"
+            size_hint_y: None
+            height: '40dp'
+            on_release: app.add_category()
+
+        Button:
+            text: "Back"
+            size_hint_y: None
+            height: '40dp'
+            on_release: root.manager.current = "home"
+
+
+<AddTransactionScreen>:
+    name: "add"
+    BoxLayout:
+        orientation: "vertical"
+        padding: 10
+        spacing: 10
+
+        Label:
+            id: form_title
+            text: "Add Transaction"
+            font_size: 24
+
+        # For non-transfer: show category spinner
+        Spinner:
+            id: category_spinner
+            text: "Select Category"
+            size_hint_y: None
+            height: '40dp'
+            opacity: 0 if app.transaction_type == "transfer" else 1
+            disabled: True if app.transaction_type == "transfer" else False
+
+        # For non-transfer: show account spinner
+        Spinner:
+            id: account_spinner
+            text: "Select Account"
+            size_hint_y: None
+            height: '40dp'
+            opacity: 0 if app.transaction_type == "transfer" else 1
+            disabled: True if app.transaction_type == "transfer" else False
+
+        # For transfer: show From Account spinner
+        Spinner:
+            id: from_account_spinner
+            text: "Select From Account"
+            values: []
+            size_hint_y: None
+            height: '40dp'
+            opacity: 1 if app.transaction_type == "transfer" else 0
+            disabled: False if app.transaction_type == "transfer" else True
+
+        # For transfer: show To Account spinner
+        Spinner:
+            id: to_account_spinner
+            text: "Select To Account"
+            values: []
+            size_hint_y: None
+            height: '40dp'
+            opacity: 1 if app.transaction_type == "transfer" else 0
+            disabled: False if app.transaction_type == "transfer" else True
+
+        # Date input button - show always
+        Button:
+            id: date_input
+            text: app.get_current_date_display()
+            on_release: app.open_calendar_popup()
+            size_hint_y: None
+            height: '40dp'
+
+        TextInput:
+            id: amount_input
+            hint_text: "Amount"
+            input_filter: "float"
+            size_hint_y: None
+            height: '40dp'
+            multiline: False
+
+        TextInput:
+            id: note_input
+            hint_text: "Additional note (optional)"
+            size_hint_y: None
+            height: '80dp'
+
+        BoxLayout:
+            size_hint_y: None
+            height: '40dp'
+            spacing: 10
+
+            Button:
+                text: "Add Category"
+                on_release: root.manager.current = "add_category"
+
+            Button:
+                text: "Remove Category"
+                on_release: app.open_remove_category_popup()
+
+        Button:
+            text: "Save Transaction"
+            size_hint_y: None
+            height: '50dp'
+            on_release: app.save_transaction()
+
+        Button:
+            text: "Back"
+            size_hint_y: None
+            height: '50dp'
+            on_release: root.manager.current = "home"
+
+<SummaryScreen>:
+    name: "summary"
+    BoxLayout:
+        orientation: "vertical"
+
+        # Scrollable summary display
+        ScrollView:
+            do_scroll_x: False
+            do_scroll_y: True
+
+            BoxLayout:
+                orientation: "vertical"
+                size_hint_y: None
+                height: self.minimum_height
+                padding: 10
+                spacing: 10
+
+                Label:
+                    id: summary_label
+                    text: root.summary_text
+                    markup: True
+                    size_hint_y: None
+                    text_size: self.width, None
+                    height: self.texture_size[1]
+                    halign: "left"
+                    valign: "top"
+                    on_size: self.texture_update()
+                    on_text: self.texture_update()
+
+                Label:
+                    id: detail_label
+                    text: root.detail_text
+                    markup: True
+                    size_hint_y: None
+                    text_size: self.width, None
+                    height: self.texture_size[1]
+                    halign: "left"
+                    valign: "top"
+                    on_size: self.texture_update()
+                    on_text: self.texture_update()
+
+        # --- CATEGORY FILTER SPINNER ---
+        Spinner:
+            id: category_filter_spinner
+            text: "All Categories"
+            values: app.get_category_list()
+            on_text: root.on_category_selected(self.text)
+            size_hint_y: None
+            height: '40dp'
+
+        # --- ACCOUNT FILTER SPINNER ---
+        Spinner:
+            id: account_filter_spinner
+            text: "All Accounts"
+            values: app.get_account_list()
+            on_text: root.on_account_selected(self.text)
+            size_hint_y: None
+            height: '40dp'
+
+        # Select Date Range button
+        Button:
+            text: "Select Date Range"
+            size_hint_y: None
+            height: '40dp'
+            on_release: root.open_date_range_popup()
+
+        # Back button
+        Button:
+            text: "Back"
+            size_hint_y: None
+            height: '40dp'
+            on_release: root.manager.current = "home"
