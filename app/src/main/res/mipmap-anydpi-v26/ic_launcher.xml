@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+ SPDX-License-Identifier: GPL-3.0-or-later
+ Copyright (C) 2026 Bhuvan
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_background"/>
+    <foreground>
+        <inset android:drawable="@drawable/app_icon"
+            android:insetLeft="-12%"
+            android:insetTop="-12%"
+            android:insetRight="-12%"
+            android:insetBottom="-12%" />
+    </foreground>
+</adaptive-icon>

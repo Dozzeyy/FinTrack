@@ -1,0 +1,254 @@
+<!--
+  FinTrack
+  Copyright (C) 2026 Dozzeyy
+
+  Licensed under GPL-3.0-or-later
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>FinTrack Web</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        :root { --bg: #f4f7f6; --card: #fff; --text: #2c3e50; --sec: #7f8c8d; --border: #dcdde1; --pri: #3498db; --inc: #27ae60; --exp: #e74c3c; --rad: 12px; }
+        [data-theme='oled'] { --bg: #000; --card: #121212; --text: #ecf0f1; --sec: #95a5a6; --border: #2c3e50; --pri: #3498db; }
+        body { font-family: -apple-system, system-ui, sans-serif; margin: 0; background: var(--bg); color: var(--text); min-height: 100vh; }
+        .header { background: var(--card); padding: 1rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .container { max-width: 800px; margin: 1rem auto; padding: 0 1rem; }
+        .card { background: var(--card); border-radius: var(--rad); padding: 1.5rem; margin-bottom: 1rem; border: 1px solid var(--border); box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        .nav-btn { background: var(--card); color: var(--pri); border: 2px solid var(--pri); padding: 1.5rem; border-radius: var(--rad); font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .nav-btn:hover { background: var(--pri); color: #fff; }
+        .type-bar { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; background: var(--bg); padding: 5px; border-radius: 10px; }
+        .type-btn { flex: 1; padding: 0.6rem; border: none; border-radius: 8px; background: transparent; color: var(--sec); cursor: pointer; font-weight: bold; }
+        .type-btn.active { background: var(--card); color: var(--pri); box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        label { display: block; margin: 0.8rem 0 0.3rem; font-size: 0.75rem; font-weight: bold; color: var(--sec); text-transform: uppercase; }
+        input, select { width: 100%; padding: 0.8rem; border: 1px solid var(--border); border-radius: 8px; background: var(--card); color: var(--text); box-sizing: border-box; font-size: 1rem; outline: none; }
+        input:focus { border-color: var(--pri); }
+        .submit-btn { width: 100%; padding: 1rem; background: var(--pri); color: white; border: none; border-radius: 10px; font-weight: bold; margin-top: 1.5rem; cursor: pointer; font-size: 1.1rem; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { text-align: left; padding: 1rem; border-bottom: 1px solid var(--border); }
+        th { font-size: 0.7rem; color: var(--sec); text-transform: uppercase; }
+        .inc { color: var(--inc); font-weight: bold; } .exp { color: var(--exp); font-weight: bold; } .tnf { color: var(--pri); font-weight: bold; }
+        .hidden { display: none !important; }
+        #log { background: #1a1a1a; color: #00ff00; font-family: monospace; font-size: 0.7rem; padding: 1rem; border-radius: 8px; max-height: 120px; overflow-y: auto; margin-top: 2rem; }
+        .theme-btn { background: none; border: 1.5px solid var(--pri); color: var(--pri); padding: 0.5rem 1rem; border-radius: 20px; cursor: pointer; font-size: 0.8rem; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h2 style="margin:0; color:var(--pri)">FinTrack</h2>
+        <button class="theme-btn" onclick="toggleTheme()" id="theme-btn">Theme</button>
+    </div>
+
+    <div class="container">
+        <div id="auth-section" class="card">
+            <h3 style="text-align:center">Device Connection</h3>
+            <div id="qr-container" style="text-align:center; min-height: 200px;"><p>Loading QR...</p></div>
+            <div id="log">Ready</div>
+        </div>
+
+        <div id="nav-section" class="hidden">
+            <div class="btn-grid">
+                <button class="nav-btn" onclick="showScreen('add')">+ Add Entry</button>
+                <button class="nav-btn" onclick="showScreen('list')">📋 History</button>
+            </div>
+        </div>
+
+        <div id="add-section" class="hidden">
+            <button onclick="showScreen('nav')" style="margin-bottom:1rem; cursor:pointer;">← Back</button>
+            <div class="card">
+                <div class="type-bar">
+                    <button class="type-btn active" id="btn-expense" onclick="setType('expense')">Expense</button>
+                    <button class="type-btn" id="btn-income" onclick="setType('income')">Income</button>
+                    <button class="type-btn" id="btn-transfer" onclick="setType('transfer')">Transfer</button>
+                </div>
+                <form id="txn-form">
+                    <div style="display:flex; gap:1rem">
+                        <div style="flex:1"><label>Date</label><input type="date" id="date" required></div>
+                        <div style="flex:1"><label>Time</label><input type="time" id="time" required></div>
+                    </div>
+                    <label>Amount</label><input type="number" step="0.01" id="amount" required>
+                    <label id="lbl-acc">Account</label><select id="account" required onchange="handleAcc()"></select>
+                    <div id="row-party" class="hidden"><label id="lbl-party">Party</label><select id="party"></select></div>
+
+                    <div id="row-to-acc" class="hidden">
+                        <label>To Account</label><select id="to-account" onchange="handleAcc()"></select>
+                        <div id="row-to-party" class="hidden"><label>To Party</label><select id="to-party"></select></div>
+                    </div>
+
+                    <div id="row-cat"><label>Category</label><select id="category"></select></div>
+                    <label>Tag (Optional)</label><select id="tag"><option value="">No Tag</option></select>
+                    <label>Note</label><input type="text" id="note">
+                    <button type="submit" class="submit-btn" id="save-btn">Save Record</button>
+                </form>
+            </div>
+        </div>
+
+        <div id="list-section" class="hidden">
+            <button onclick="showScreen('nav')" style="margin-bottom:1rem; cursor:pointer;">← Back</button>
+            <div class="card" style="padding:0; overflow-x:auto;">
+                <table id="txn-table">
+                    <thead><tr><th>Date</th><th>Detail</th><th style="text-align:right">Amount</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API = window.location.origin;
+        let token = localStorage.getItem('fintrack_jwt'), currentType = 'expense', pairingId = null, poller = null;
+        let accounts = [], categories = [], tags = [], parties = [];
+
+        function msg(m) { const el = document.getElementById('log'); if(el) el.innerText += '\n' + m; el.scrollTop = el.scrollHeight; console.log(m); }
+        function toggleTheme() { const t = document.documentElement.getAttribute('data-theme') === 'oled' ? 'light' : 'oled'; document.documentElement.setAttribute('data-theme', t); localStorage.setItem('fintrack_theme', t); }
+
+        async function init() {
+            document.documentElement.setAttribute('data-theme', localStorage.getItem('fintrack_theme') || 'light');
+            if(token) {
+                msg("Authenticating...");
+                try {
+                    const r = await fetch(`${API}/api/accounts`, { headers: { 'Authorization': `Bearer ${token}` } });
+                    if(r.ok) { showScreen('nav'); await loadData(); return; }
+                } catch(e) {}
+            }
+            startPairing();
+        }
+
+        async function startPairing() {
+            try {
+                const r = await fetch(`${API}/pairing/new`);
+                const d = await r.json(); pairingId = d.id;
+                document.getElementById('qr-container').innerHTML = `<img src="${API}/pairing/qr/${pairingId}" width="200" style="background:white;padding:10px;border-radius:10px;margin:1rem">`;
+                if(poller) clearInterval(poller);
+                poller = setInterval(async () => {
+                    const rs = await fetch(`${API}/pairing/status/${pairingId}`);
+                    if(rs.ok) {
+                        const ds = await rs.json();
+                        if(ds.token) { token = ds.token; localStorage.setItem('fintrack_jwt', token); clearInterval(poller); showScreen('nav'); await loadData(); }
+                    }
+                }, 2000);
+            } catch(e) { setTimeout(startPairing, 3000); }
+        }
+
+        function showScreen(s) {
+            ['auth-section','nav-section','add-section','list-section'].forEach(id => document.getElementById(id).classList.add('hidden'));
+            document.getElementById(s + '-section').classList.remove('hidden');
+            if(s === 'add') resetForm();
+            if(s === 'list') loadTxns();
+        }
+
+        function resetForm() {
+            const n = new Date();
+            document.getElementById('date').value = n.toISOString().split('T')[0];
+            document.getElementById('time').value = n.toTimeString().slice(0,5);
+            document.getElementById('amount').value = ''; document.getElementById('note').value = '';
+            setType('expense');
+        }
+
+        function setType(t) {
+            currentType = t;
+            document.querySelectorAll('.type-btn').forEach(b => b.classList.toggle('active', b.id === 'btn-'+t));
+            document.getElementById('row-cat').classList.toggle('hidden', t === 'transfer');
+            document.getElementById('row-to-acc').classList.toggle('hidden', t !== 'transfer');
+            document.getElementById('lbl-acc').innerText = t === 'transfer' ? 'Source Account' : 'Account';
+            renderCats(); handleAcc();
+        }
+
+        function handleAcc() {
+            const v = document.getElementById('account').value;
+            const a = accounts.find(i => i.id == v);
+            const isO = a && a.name.toLowerCase() === 'on account';
+            document.getElementById('row-party').classList.toggle('hidden', !isO);
+            if(isO) document.getElementById('lbl-party').innerText = currentType === 'transfer' ? 'From Party' : (currentType === 'income' ? 'Payer Name' : 'Payee Name');
+
+            if(currentType === 'transfer') {
+                const tv = document.getElementById('to-account').value;
+                const ta = accounts.find(i => i.id == tv);
+                const isToO = ta && ta.name.toLowerCase() === 'on account';
+                document.getElementById('row-to-party').classList.toggle('hidden', !isToO);
+            } else {
+                document.getElementById('row-to-party').classList.add('hidden');
+            }
+        }
+
+        async function loadData() {
+            try {
+                const h = { 'Authorization': `Bearer ${token}` };
+                const [rA, rC, rT, rP] = await Promise.all([
+                    fetch(`${API}/api/accounts`, { headers: h }),
+                    fetch(`${API}/api/categories`, { headers: h }),
+                    fetch(`${API}/api/tags`, { headers: h }),
+                    fetch(`${API}/api/parties`, { headers: h })
+                ]);
+                accounts = await rA.json(); categories = await rC.json(); tags = await rT.json(); parties = await rP.json();
+
+                const s1 = document.getElementById('account'), s2 = document.getElementById('to-account');
+                s1.innerHTML = s2.innerHTML = '<option value="">-- Choose Account --</option>';
+                accounts.forEach(a => { const o = `<option value="${a.id}">${a.name}</option>`; s1.innerHTML += o; s2.innerHTML += o; });
+
+                const sT = document.getElementById('tag');
+                sT.innerHTML = '<option value="">No Tag</option>';
+                tags.forEach(t => { if(t.isEnabled) sT.innerHTML += `<option value="${t.id}">${t.name}</option>`; });
+
+                const sP1 = document.getElementById('party'), sP2 = document.getElementById('to-party');
+                sP1.innerHTML = sP2.innerHTML = '<option value="">-- Select Person --</option>';
+                parties.forEach(p => { if(p.isEnabled) { const o = `<option value="${p.id}">${p.name}</option>`; sP1.innerHTML += o; sP2.innerHTML += o; } });
+
+                renderCats();
+            } catch(e) { msg("Data load error."); }
+        }
+
+        function renderCats() {
+            const s = document.getElementById('category');
+            s.innerHTML = '<option value="">-- Choose Category --</option>';
+            categories.filter(c => c.type === currentType).forEach(c => s.innerHTML += `<option value="${c.id}">${c.name}</option>`);
+        }
+
+        async function loadTxns() {
+            const b = document.querySelector('#txn-table tbody'); b.innerHTML = '<tr><td colspan="3">Loading...</td></tr>';
+            try {
+                const r = await fetch(`${API}/api/transactions`, { headers: { 'Authorization': `Bearer ${token}` } });
+                const d = await r.json();
+                b.innerHTML = d.slice(0, 50).map(t => {
+                    let cls = t.categoryType === 'income' ? 'inc' : (t.categoryId ? 'exp' : 'tnf');
+                    return `<tr><td>${t.date}<br><small style="color:var(--sec)">${t.time}</small></td><td><b>${t.categoryName || 'Transfer'}</b><br><small>${t.accountName}${t.toAccountName ? ' → '+t.toAccountName : ''}</small></td><td style="text-align:right" class="${cls}">${t.amount.toLocaleString()}</td></tr>`;
+                }).join('');
+            } catch(e) { b.innerHTML = '<tr><td colspan="3">Error.</td></tr>'; }
+        }
+
+        document.getElementById('txn-form').onsubmit = async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('save-btn');
+            btn.disabled = true; btn.innerText = 'Saving...';
+
+            const d = {
+                date: document.getElementById('date').value,
+                time: document.getElementById('time').value,
+                amount: parseFloat(document.getElementById('amount').value),
+                accountId: parseInt(document.getElementById('account').value),
+                categoryId: currentType !== 'transfer' ? parseInt(document.getElementById('category').value) : null,
+                toAccountId: currentType === 'transfer' ? parseInt(document.getElementById('to-account').value) : null,
+                note: document.getElementById('note').value,
+                tags: document.getElementById('tag').value || null,
+                partyId: (!document.getElementById('row-party').classList.contains('hidden')) ? parseInt(document.getElementById('party').value) : null,
+                toPartyId: (currentType === 'transfer' && !document.getElementById('row-to-party').classList.contains('hidden')) ? parseInt(document.getElementById('to-party').value) : null
+            };
+
+            try {
+                const r = await fetch(`${API}/api/transactions`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify(d)
+                });
+                if(r.ok) { alert('Saved successfully!'); showScreen('nav'); }
+                else { alert('Save failed: ' + await r.text()); }
+            } catch (err) { alert('Network error while saving.'); }
+            finally { btn.disabled = false; btn.innerText = 'Save Record'; }
+        };
+        init();
+    </script>
+</body>
+</html>

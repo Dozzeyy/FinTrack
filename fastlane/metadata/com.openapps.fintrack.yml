@@ -1,0 +1,22 @@
+Categories:
+  - Money
+License: GPL-3.0-or-later
+SourceCode: https://github.com/Dozzeyy/FinTrack
+IssueTracker: https://github.com/Dozzeyy/FinTrack/issues
+
+AutoName: FinTrack
+
+RepoType: git
+Repo: https://github.com/Dozzeyy/FinTrack.git
+
+Builds:
+  - versionName: 1.0.0
+    versionCode: 1
+    commit: v1.0.0
+    gradle:
+      - yes
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags
+CurrentVersion: 1.0.0
+CurrentVersionCode: 1

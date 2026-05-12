@@ -1,0 +1,48 @@
+# Android
+.gradle/
+local.properties
+.idea/
+build/
+app/build/
+captures/
+.DS_Store
+
+# Built variants
+*.apk
+*.aar
+*.ap_
+*.aab
+
+# Room
+schemas/
+
+# IDE files
+*.iml
+*.ipr
+*.iws
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/assetWizardSettings.xml
+.idea/dictionaries
+.idea/libraries
+.idea/caches
+
+# Logs & Dumps
+*.log
+java_pid*.hprof
+
+# Databases
+*.db
+*.db-shm
+*.db-wal
+
+# Temporary
+*.~lock.transactions.csv#
+
+#Others
+*.jks
+*.keystore 
+build/ 
+.gradle/.
+.env
+*.csv
