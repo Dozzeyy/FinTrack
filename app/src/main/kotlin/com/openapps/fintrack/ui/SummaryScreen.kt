@@ -45,7 +45,8 @@ fun SummaryScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                         }
                     }
                 )
-            }
+            },
+            contentWindowInsets = WindowInsets(0, 0, 0, 0)
         ) { padding ->
             Column(modifier = Modifier.padding(padding).fillMaxSize()) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {

@@ -108,10 +108,36 @@ fun ContactScreen(onBack: () -> Unit) {
             ContactRow(
                 icon = Icons.Default.Language,
                 label = "GitHub",
-                value = "https://github.com/Bhuvan",
+                value = "https://github.com/Dozzeyy/Fintrack",
                 isLink = true,
                 onClick = {
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/Bhuvan"))
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/Dozzeyy/Fintrack"))
+                    context.startActivity(intent)
+                }
+            )
+            
+            Spacer(Modifier.height(16.dp))
+
+            ContactRow(
+                icon = Icons.Default.Language,
+                label = "Website",
+                value = "vahak.org",
+                isLink = true,
+                onClick = {
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://vahak.org"))
+                    context.startActivity(intent)
+                }
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            ContactRow(
+                icon = Icons.Default.Language,
+                label = "Instagram",
+                value = "@samvaahak",
+                isLink = true,
+                onClick = {
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.instagram.com/samvaahak"))
                     context.startActivity(intent)
                 }
             )
@@ -143,6 +169,28 @@ fun ContactScreen(onBack: () -> Unit) {
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text("Export Logs")
+            }
+
+            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.height(32.dp))
+
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    "Copyright (C) 2026 Vahak Apps",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.Gray
+                )
+                Text(
+                    "Licensed under GPL-3.0-or-later",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.Gray
+                )
+                Text(
+                    "Version 1.0.6",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.Gray,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
             }
         }
     }

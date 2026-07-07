@@ -32,10 +32,9 @@ fun ManageCategoriesScreen(
 ) {
     val categories by viewModel.getAllCategories().collectAsState(initial = emptyList())
     val accounts by viewModel.getAllAccounts().collectAsState(initial = emptyList())
-    val parties by viewModel.getAllParties().collectAsState(initial = emptyList())
-    val filterTypes = remember { mutableStateListOf("Income", "Expense", "Accounts", "Payer/ee") }
+    val filterTypes = remember { mutableStateListOf("Income", "Expense", "Accounts") }
     
-    var showDeleteConfirm by remember { mutableStateOf<Any?>(null) } // Category, Account or Party
+    var showDeleteConfirm by remember { mutableStateOf<Any?>(null) } // Category or Account
     var isSearchActive by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
 
@@ -91,7 +90,7 @@ fun ManageCategoriesScreen(
                 )
             } else {
                 TopAppBar(
-                    title = { Text("Manage Categories/Accounts") },
+                    title = { Text("Categories & Accounts") },
                     navigationIcon = {
                         IconButton(onClick = onBack) {
                             Icon(Icons.Default.ArrowBack, contentDescription = "Back")
@@ -111,6 +110,8 @@ fun ManageCategoriesScreen(
                 }
                 FloatingActionButton(onClick = {
                     viewModel.editingCategory = null
+                    viewModel.editingAccount = null
+                    viewModel.editingParty = null
                     onEditCategory()
                 }) {
                     Icon(Icons.Default.Add, "Add Category/Account")
@@ -121,7 +122,7 @@ fun ManageCategoriesScreen(
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
             if (!isSearchActive) {
                 Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    listOf("Income", "Expense", "Accounts", "Payer/ee").forEach { type ->
+                    listOf("Income", "Expense", "Accounts").forEach { type ->
                         val isSelected = filterTypes.contains(type)
                         FilterChip(
                             selected = isSelected,
@@ -135,7 +136,7 @@ fun ManageCategoriesScreen(
                 }
             }
 
-            val displayedItems = remember(categories, accounts, parties, filterTypes.toList(), searchQuery, isSearchActive) {
+            val displayedItems = remember(categories, accounts, filterTypes.toList(), searchQuery, isSearchActive) {
                 val list = mutableListOf<Any>()
                 
                 val filteredCategories = categories.filter { 
@@ -147,15 +148,10 @@ fun ManageCategoriesScreen(
                     accounts.filter { it.name.contains(searchQuery, ignoreCase = true) }
                 } else emptyList()
 
-                val filteredParties = if (filterTypes.contains("Payer/ee")) {
-                    parties.filter { it.name.contains(searchQuery, ignoreCase = true) }
-                } else emptyList()
-
-                // Sort: Expense, Income, Accounts, Parties
+                // Sort: Expense, Income, Accounts
                 list.addAll(filteredCategories.filter { it.type == "expense" }.sortedBy { it.name })
                 list.addAll(filteredCategories.filter { it.type == "income" }.sortedBy { it.name })
                 list.addAll(filteredAccounts.sortedBy { it.name })
-                list.addAll(filteredParties.sortedBy { it.name })
                 
                 list
             }
@@ -167,7 +163,6 @@ fun ManageCategoriesScreen(
                     when(it) {
                         is Category -> "cat_${it.id}"
                         is Account -> "acc_${it.id}"
-                        is Party -> "party_${it.id}"
                         else -> it.hashCode()
                     }
                 }) { item ->
@@ -179,6 +174,8 @@ fun ManageCategoriesScreen(
                                     nature = if (item.type == "income") "Income" else "Expense",
                                     isEnabled = item.isEnabled,
                                     onEdit = {
+                                        viewModel.editingAccount = null
+                                        viewModel.editingParty = null
                                         viewModel.editingCategory = item
                                         onEditCategory()
                                     },
@@ -192,24 +189,13 @@ fun ManageCategoriesScreen(
                                     nature = "Account",
                                     isEnabled = item.isEnabled,
                                     onEdit = {
+                                        viewModel.editingCategory = null
+                                        viewModel.editingParty = null
                                         viewModel.editingAccount = item
                                         onEditAccount()
                                     },
                                     onDelete = { showDeleteConfirm = item },
                                     onToggle = { viewModel.toggleAccountEnabled(item) }
-                                )
-                            }
-                            is Party -> {
-                                CategoryItem(
-                                    name = item.name,
-                                    nature = "Payer/ee",
-                                    isEnabled = item.isEnabled,
-                                    onEdit = {
-                                        viewModel.editingParty = item
-                                        onEditCategory() // Re-using add category screen for party too? Or need new one.
-                                    },
-                                    onDelete = { showDeleteConfirm = item },
-                                    onToggle = { viewModel.togglePartyEnabled(item) }
                                 )
                             }
                         }

@@ -1,6 +1,7 @@
 /*
+ * FinTrack
+ * Copyright (C) 2026 Dozzeyy
  * SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (C) 2026 Bhuvan
  */
 
 package com.openapps.fintrack.ui
@@ -24,6 +25,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -92,7 +94,19 @@ fun HomeScreen(
                     icon = { Icon(Icons.Default.Assessment, null) }
                 )
                 NavigationDrawerItem(
-                    label = { Text("Manage Categories") },
+                    label = { Text("Credit Cards") },
+                    selected = false,
+                    onClick = { scope.launch { drawerState.close() }; onNavigate("credit_cards") },
+                    icon = { Icon(Icons.Default.CreditCard, null) }
+                )
+                NavigationDrawerItem(
+                    label = { Text("Loan & Subscriptions") },
+                    selected = false,
+                    onClick = { scope.launch { drawerState.close() }; onNavigate("subscriptions") },
+                    icon = { Icon(Icons.Default.CardMembership, null) }
+                )
+                NavigationDrawerItem(
+                    label = { Text("Categories & Accounts") },
                     selected = false,
                     onClick = { scope.launch { drawerState.close() }; onNavigate("manage_categories") },
                     icon = { Icon(Icons.Default.Category, null) }
@@ -104,16 +118,28 @@ fun HomeScreen(
                     icon = { Icon(Icons.Default.Dashboard, null) }
                 )
                 NavigationDrawerItem(
-                    label = { Text("Manage Tags") },
+                    label = { Text("Tags") },
                     selected = false,
                     onClick = { scope.launch { drawerState.close() }; onNavigate("manage_tags") },
                     icon = { Icon(Icons.Default.Label, null) }
                 )
                 NavigationDrawerItem(
-                    label = { Text("Manage Budgets") },
+                    label = { Text("Budgets") },
                     selected = false,
                     onClick = { scope.launch { drawerState.close() }; onNavigate("manage_budgets") },
                     icon = { Icon(Icons.Default.AccountBalanceWallet, null) }
+                )
+                NavigationDrawerItem(
+                    label = { Text("Notes") },
+                    selected = false,
+                    onClick = { scope.launch { drawerState.close() }; onNavigate("notes") },
+                    icon = { Icon(Icons.Default.Notes, null) }
+                )
+                NavigationDrawerItem(
+                    label = { Text("AI Chat") },
+                    selected = false,
+                    onClick = { scope.launch { drawerState.close() }; onNavigate("ai_chat") },
+                    icon = { Icon(Icons.Default.Chat, null) }
                 )
                 NavigationDrawerItem(
                     label = { Text("Permissions") },
@@ -134,7 +160,7 @@ fun HomeScreen(
                     icon = { Icon(Icons.Default.Storage, null) }
                 )
                 NavigationDrawerItem(
-                    label = { Text("Contact Support") },
+                    label = { Text("Contact Us") },
                     selected = false,
                     onClick = { scope.launch { drawerState.close() }; onNavigate("contact") },
                     icon = { Icon(Icons.Default.Email, null) }
@@ -142,7 +168,7 @@ fun HomeScreen(
                 
                 Spacer(Modifier.weight(1f))
                 Text(
-                    "v1.8.2",
+                    "v1.0.6",
                     modifier = Modifier.padding(16.dp),
                     style = MaterialTheme.typography.labelSmall,
                     color = Color.Gray
@@ -363,6 +389,78 @@ fun HomeView(
         )
     } else {
         Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
+            val ccAlerts by viewModel.getCcAlerts().collectAsState(initial = emptyList())
+            val subAlerts by viewModel.getSubscriptionAlerts().collectAsState(initial = emptyList())
+
+            ccAlerts.forEach { alert ->
+                var offsetX by remember { mutableStateOf(0f) }
+                Surface(
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp)
+                        .offset { IntOffset(offsetX.roundToInt(), 0) }
+                        .draggable(
+                            orientation = Orientation.Horizontal,
+                            state = rememberDraggableState { delta -> offsetX += delta },
+                            onDragStopped = {
+                                if (kotlin.math.abs(offsetX) > 300) {
+                                    viewModel.toggleCcPaid(alert.accountId, true)
+                                }
+                                offsetX = 0f
+                            }
+                        ),
+                    shape = MaterialTheme.shapes.medium
+                ) {
+                    Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.CreditCard, null, tint = MaterialTheme.colorScheme.onErrorContainer)
+                        Spacer(Modifier.width(12.dp))
+                        Column {
+                            Text("${alert.accountName} Due: ${alert.dueDate}", style = MaterialTheme.typography.labelLarge)
+                            Text("Amount Payable: ${viewModel.formatAmount(kotlin.math.abs(alert.amount))}", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            }
+
+            subAlerts.forEach { alert ->
+                var offsetX by remember { mutableStateOf(0f) }
+                Surface(
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp)
+                        .offset { IntOffset(offsetX.roundToInt(), 0) }
+                        .draggable(
+                            orientation = Orientation.Horizontal,
+                            state = rememberDraggableState { delta -> offsetX += delta },
+                            onDragStopped = {
+                                if (kotlin.math.abs(offsetX) > 300) {
+                                    viewModel.toggleCcPaidCustom("SUB_${alert.subName}", true)
+                                }
+                                offsetX = 0f
+                            }
+                        ),
+                    shape = MaterialTheme.shapes.medium
+                ) {
+                    Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            if (alert.isTransfer) Icons.Default.SwapHoriz else Icons.Default.CardMembership, 
+                            null, 
+                            tint = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Column {
+                            Text("${alert.subName} Due: ${alert.dueDate}", style = MaterialTheme.typography.labelLarge)
+                            Text(
+                                (if(alert.isTransfer) "Recurring Transfer: " else "Amount Due: ") + viewModel.formatAmount(alert.amount), 
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    }
+                }
+            }
+
             if (viewModel.draftTransaction != null) {
                 var offsetX by remember { mutableStateOf(0f) }
                 Surface(
@@ -463,20 +561,30 @@ fun HomeView(
             // Unnecessary gap removed
             val balances by viewModel.getAccountBalances(endDate).collectAsState(initial = emptyList())
             val netPosition = balances.sumOf { it.balance }
+            var isNetPositionVisible by remember { mutableStateOf(!viewModel.tapToShowNetPosition) }
             
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 8.dp)
-                    .clickable { 
-                        viewModel.summaryInitialTab = "Assets"
-                        onNavigate("summary")
-                    }, 
+                    .padding(top = 8.dp), 
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
             ) {
-                Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Net Position", fontWeight = FontWeight.Bold)
-                    Text(viewModel.formatAmount(netPosition), fontWeight = FontWeight.Bold)
+                Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "Net Position", 
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clickable {
+                            viewModel.summaryInitialTab = "Assets"
+                            onNavigate("summary")
+                        }
+                    )
+                    Text(
+                        if (isNetPositionVisible) viewModel.formatAmount(netPosition) else "****",
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clickable {
+                            isNetPositionVisible = !isNetPositionVisible
+                        }
+                    )
                 }
             }
 
@@ -543,9 +651,12 @@ fun HomeView(
                             val limit = budget.amount
                             val percent = if (limit != 0.0) (actual / limit * 100).toInt() else 0
                             
-                            val isExpense = performance?.categoryType != "income"
-                            val isRed = if (isExpense) actual > limit else actual < limit
-                            val statusColor = if (isRed) Color.Red else Color(0xFF4CAF50)
+                            val isGoalMet = if (budget.higherIsBetter) {
+                                actual >= limit
+                            } else {
+                                actual <= limit
+                            }
+                            val statusColor = if (isGoalMet) Color(0xFF4CAF50) else Color.Red
 
                             Card(
                                 modifier = Modifier.width(180.dp).clickable { onTabChange("budgets") }
@@ -612,25 +723,6 @@ fun ExpensePieChart(expenses: List<Pair<String, Double>>, viewModel: ExpenseView
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TransactionListOverlay(title: String, transactions: List<TransactionWithDetails>, viewModel: ExpenseViewModel, onBack: () -> Unit) {
-    Scaffold(
-        topBar = {
-            TopAppBar(title = { Text(title) }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "") } })
-        }
-    ) { padding ->
-        LazyColumn(modifier = Modifier.padding(padding).padding(16.dp)) {
-            items(transactions) { detail ->
-                Box(modifier = Modifier.clickable { viewModel.selectedTransactionDetail = detail }) {
-                    TransactionRow(detail = detail, viewModel = viewModel, showTxnNumber = true)
-                }
-                Divider()
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
 fun AnalysisView(
     viewModel: ExpenseViewModel, 
     onNavigate: (String) -> Unit, 
@@ -643,22 +735,71 @@ fun AnalysisView(
     var startDate by remember { mutableStateOf(initialDateRange?.first ?: month.withDayOfMonth(1).format(DateTimeFormatter.ISO_DATE)) }
     var endDate by remember { mutableStateOf(initialDateRange?.second ?: month.with(TemporalAdjusters.lastDayOfMonth()).format(DateTimeFormatter.ISO_DATE)) }
     var showFilter by remember { mutableStateOf(false) }
-
+    var categoryFilterIds by remember { mutableStateOf<Set<Int>?>(null) }
+    var showCategoryFilterDialog by remember { mutableStateOf(false) }
+    var isMainLevelAnalysis by remember { mutableStateOf(false) }
+    
+    var accountsSubTab by remember { mutableStateOf("Balance") }
+    var analysisSelectedAccountId by remember { mutableStateOf<Int?>(null) }
+    
     val transactions by viewModel.getFilteredTransactions(startDate, endDate).collectAsState(initial = emptyList())
     val balances by viewModel.getAccountBalances(endDate).collectAsState(initial = emptyList())
     val tags by viewModel.getAllTags().collectAsState(initial = emptyList())
+    val allAccountsList by viewModel.getEnabledAccounts().collectAsState(initial = emptyList())
+    val minorHeads by viewModel.getAllMinorHeads().collectAsState(initial = emptyList())
+    val majorHeads by viewModel.getAllMajorHeads().collectAsState(initial = emptyList())
+    val allCategories by viewModel.getEnabledCategories().collectAsState(initial = emptyList())
+
+    LaunchedEffect(allAccountsList) {
+        if (analysisSelectedAccountId == null && allAccountsList.isNotEmpty()) {
+            analysisSelectedAccountId = allAccountsList.first().id
+        }
+    }
 
     var showDetailList by remember { mutableStateOf<String?>(null) }
     var showTagDetailList by remember { mutableStateOf<Int?>(null) }
+    
+    val currentAccountName = remember(analysisSelectedAccountId, allAccountsList) {
+        allAccountsList.find { it.id == analysisSelectedAccountId }?.name ?: "Select Account"
+    }
 
     if (viewModel.selectedTransactionDetail != null) {
         BackHandler { viewModel.selectedTransactionDetail = null }
         AddTransactionScreen(viewModel = viewModel, onBack = { viewModel.selectedTransactionDetail = null }, onNavigate = onNavigate, readOnly = true)
     } else if (showDetailList != null) {
         BackHandler { showDetailList = null }
+        val filteredList = remember(transactions, type, accountsSubTab, analysisSelectedAccountId, showDetailList, isMainLevelAnalysis) {
+            if (type == "Accounts") {
+                // ... (Existing accounts logic remains unchanged)
+                if (accountsSubTab == "Spending") {
+                    transactions.filter { it.transaction.accountId == analysisSelectedAccountId && it.categoryName == showDetailList }
+                } else if (accountsSubTab == "Source") {
+                    transactions.filter { 
+                        it.transaction.categoryId == null &&
+                        ((it.transaction.accountId == analysisSelectedAccountId && it.toAccountName == showDetailList) || 
+                         (it.transaction.toAccountId == analysisSelectedAccountId && it.accountName == showDetailList))
+                    }
+                } else {
+                    transactions.filter { it.accountName == showDetailList || it.toAccountName == showDetailList }
+                }
+            } else if (type == "Expense" || type == "Income") {
+                transactions.filter { 
+                    val catName = it.categoryName ?: "Uncategorized"
+                    if (isMainLevelAnalysis) {
+                        val mainPart = if (catName.contains(":")) catName.split(":").first().trim() else catName
+                        mainPart == showDetailList
+                    } else {
+                        val minorPart = if (catName.contains(":")) catName.split(":").last().trim() else catName
+                        minorPart == showDetailList
+                    }
+                }
+            } else {
+                transactions.filter { it.accountName == showDetailList || it.toAccountName == showDetailList }
+            }
+        }
         TransactionListOverlay(
             title = showDetailList!!,
-            transactions = transactions.filter { (if (type == "Expense" || type == "Income") it.categoryName else it.accountName) == showDetailList },
+            transactions = filteredList,
             viewModel = viewModel,
             onBack = { showDetailList = null }
         )
@@ -672,6 +813,7 @@ fun AnalysisView(
             onBack = { showTagDetailList = null }
         )
     } else {
+        val chartColors = listOf(Color.Red, Color.Blue, Color.Green, Color.Yellow, Color.Magenta, Color.Cyan, Color.Gray, Color.DarkGray, Color.LightGray)
         Column(modifier = Modifier.fillMaxSize()) {
             Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -689,7 +831,24 @@ fun AnalysisView(
                             DropdownMenuItem(text = { Text("Income") }, onClick = { type = "Income"; expanded = false })
                             DropdownMenuItem(text = { Text("Accounts") }, onClick = { type = "Accounts"; expanded = false })
                             DropdownMenuItem(text = { Text("Tags") }, onClick = { type = "Tags"; expanded = false })
-                            DropdownMenuItem(text = { Text("Payer/ee") }, onClick = { type = "Payer/ee"; expanded = false })
+                            DropdownMenuItem(text = { Text("On Account (Loan)") }, onClick = { type = "On Account (Loan)"; expanded = false })
+                        }
+                    }
+                    if (type == "Expense" || type == "Income") {
+                        Spacer(Modifier.width(8.dp))
+                        FilterChip(
+                            selected = categoryFilterIds != null,
+                            onClick = { showCategoryFilterDialog = true },
+                            label = { Text("Filter") },
+                            leadingIcon = { Icon(Icons.Default.FilterAlt, null, modifier = Modifier.size(18.dp)) }
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        IconButton(onClick = { isMainLevelAnalysis = !isMainLevelAnalysis }) {
+                            Icon(
+                                if (isMainLevelAnalysis) Icons.Default.Layers else Icons.Default.LayersClear,
+                                contentDescription = if (isMainLevelAnalysis) "Main Level" else "Minor Level",
+                                tint = if (isMainLevelAnalysis) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
                 }
@@ -710,31 +869,115 @@ fun AnalysisView(
                 }) { Icon(Icons.Default.ChevronRight, "") }
             }
 
-            val chartColors = listOf(Color.Red, Color.Blue, Color.Green, Color.Yellow, Color.Magenta, Color.Cyan, Color.Gray, Color.DarkGray, Color.LightGray)
-
             val data = when (type) {
-                "Expense" -> transactions.filter { it.categoryType == "expense" }
-                    .groupBy { it.categoryName ?: "Uncategorized" }
-                    .mapValues { it.value.sumOf { t -> t.transaction.amount } }
-                    .toList().sortedByDescending { it.second }
-                "Income" -> transactions.filter { it.categoryType == "income" }
-                    .groupBy { it.categoryName ?: "Uncategorized" }
-                    .mapValues { it.value.sumOf { t -> t.transaction.amount } }
-                    .toList().sortedByDescending { it.second }
-                "Accounts" -> balances.filter { !it.name.equals("On Account", ignoreCase = true) }.map { it.name to it.balance }.sortedByDescending { it.second }
+                "Expense", "Income" -> {
+                    val filteredTxns = transactions.filter { 
+                        it.categoryType?.lowercase() == type.lowercase() && 
+                        (categoryFilterIds == null || it.transaction.categoryId in categoryFilterIds!!) 
+                    }
+                    
+                    if (isMainLevelAnalysis) {
+                        filteredTxns.groupBy { 
+                            val name = it.categoryName ?: "Uncategorized"
+                            if (name.contains(":")) name.split(":").first().trim() else name
+                        }.mapValues { it.value.sumOf { t -> t.transaction.amount } }
+                        .toList().sortedByDescending { it.second }
+                    } else {
+                        filteredTxns.groupBy { 
+                            val name = it.categoryName ?: "Uncategorized"
+                            if (name.contains(":")) name.split(":").last().trim() else name
+                        }.mapValues { it.value.sumOf { t -> t.transaction.amount } }
+                        .toList().sortedByDescending { it.second }
+                    }
+                }
+                "Accounts" -> {
+                    if (accountsSubTab == "Balance") {
+                        val onAccountLoanId = majorHeads.find { it.name.contains("On Account", ignoreCase = true) }?.id ?: 6
+                        balances.filter { b ->
+                            val minor = minorHeads.find { it.id == b.minorHeadId }
+                            minor?.majorHeadId != onAccountLoanId && !b.name.equals("On Account", ignoreCase = true)
+                        }.map { it.name to it.balance }.sortedByDescending { it.second }
+                    } else if (accountsSubTab == "Spending" && analysisSelectedAccountId != null) {
+                        transactions.filter { it.transaction.accountId == analysisSelectedAccountId && it.transaction.categoryId != null }
+                            .groupBy { it.categoryName ?: "Uncategorized" }
+                            .mapValues { entry -> 
+                                entry.value.sumOf { if (it.categoryType == "income") it.transaction.amount else -it.transaction.amount } 
+                            }
+                            .toList().sortedByDescending { Math.abs(it.second) }
+                    } else if (accountsSubTab == "Source" && analysisSelectedAccountId != null) {
+                        transactions.filter { (it.transaction.accountId == analysisSelectedAccountId || it.transaction.toAccountId == analysisSelectedAccountId) && it.transaction.categoryId == null }
+                            .groupBy { if (it.transaction.accountId == analysisSelectedAccountId) it.toAccountName ?: "Other" else it.accountName }
+                            .mapValues { entry ->
+                                entry.value.sumOf {
+                                    if (it.transaction.toAccountId == analysisSelectedAccountId) it.transaction.amount
+                                    else -it.transaction.amount
+                                }
+                            }
+                            .toList().sortedByDescending { Math.abs(it.second) }
+                    } else {
+                        emptyList()
+                    }
+                }
                 "Tags" -> tags.map { tag ->
                     val total = transactions.filter { t -> t.transaction.tags?.split(",")?.contains(tag.id.toString()) == true }.sumOf { it.transaction.amount }
                     tag.name to total
                 }.filter { it.second > 0 }.sortedByDescending { it.second }
-                "Payer/ee" -> {
-                    val partyBalances = runBlocking { viewModel.getPartyBalances(endDate).first() }
-                    partyBalances.map { it.name to it.balance }.sortedByDescending { kotlin.math.abs(it.second) }
+                "On Account (Loan)" -> {
+                    val onAccountLoanId = majorHeads.find { it.name.contains("On Account", ignoreCase = true) }?.id ?: 6
+                    balances.filter { b ->
+                        val minor = minorHeads.find { it.id == b.minorHeadId }
+                        minor?.majorHeadId == onAccountLoanId
+                    }.map { it.name to it.balance }.sortedByDescending { kotlin.math.abs(it.second) }
                 }
                 else -> emptyList()
             }
 
-            if (data.isNotEmpty()) {
-                val chartData = if (type == "Payer/ee" || type == "Accounts") {
+            if (type == "Accounts") {
+                TabRow(
+                    selectedTabIndex = when(accountsSubTab) { "Spending" -> 0; "Source" -> 1; else -> 2 },
+                    modifier = Modifier.fillMaxWidth(),
+                    containerColor = Color.Transparent,
+                    divider = {}
+                ) {
+                    Tab(selected = accountsSubTab == "Spending", onClick = { accountsSubTab = "Spending" }) {
+                        Text("Spending", modifier = Modifier.padding(12.dp), style = MaterialTheme.typography.labelLarge)
+                    }
+                    Tab(selected = accountsSubTab == "Source", onClick = { accountsSubTab = "Source" }) {
+                        Text("Source", modifier = Modifier.padding(12.dp), style = MaterialTheme.typography.labelLarge)
+                    }
+                    Tab(selected = accountsSubTab == "Balance", onClick = { accountsSubTab = "Balance" }) {
+                        Text("Balance", modifier = Modifier.padding(12.dp), style = MaterialTheme.typography.labelLarge)
+                    }
+                }
+
+                if (accountsSubTab != "Balance") {
+                    var accountMenuExpanded by remember { mutableStateOf(false) }
+                    Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                        OutlinedButton(
+                            onClick = { accountMenuExpanded = true },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(currentAccountName)
+                            Icon(Icons.Default.ArrowDropDown, null)
+                        }
+                        DropdownMenu(expanded = accountMenuExpanded, onDismissRequest = { accountMenuExpanded = false }) {
+                            allAccountsList.forEach { acc ->
+                                DropdownMenuItem(text = { Text(acc.name) }, onClick = {
+                                    analysisSelectedAccountId = acc.id
+                                    accountMenuExpanded = false
+                                })
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (data.isEmpty() && type == "Accounts" && accountsSubTab != "Balance" && analysisSelectedAccountId == null) {
+                Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    Text("Please select an account to analyze", color = Color.Gray)
+                }
+            } else if (data.isNotEmpty()) {
+                val chartData = if (type == "On Account (Loan)" || type == "Accounts") {
                     data.map { it.first to kotlin.math.abs(it.second) }
                 } else data
 
@@ -754,11 +997,21 @@ fun AnalysisView(
                         }
                     }
                 }
+            } else if (type != "Accounts" || accountsSubTab == "Balance") {
+                 Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    Text("No data for the selected period", color = Color.Gray)
+                }
             }
 
             LazyColumn(modifier = Modifier.weight(1f)) {
                 items(data) { (name, amount) ->
                     val index = data.indexOfFirst { it.first == name }
+                    val itemColor = if (type == "Accounts") {
+                        if (amount >= 0) Color(0xFF4CAF50) else Color.Red
+                    } else if (type == "On Account (Loan)" || type == "Accounts") {
+                        if (amount >= 0) Color(0xFF4CAF50) else Color.Red
+                    } else MaterialTheme.colorScheme.onSurface
+
                     ListItem(
                         headlineContent = { 
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -767,12 +1020,18 @@ fun AnalysisView(
                                 Text(name, style = MaterialTheme.typography.bodyLarge)
                             }
                         },
-                        trailingContent = { Text(viewModel.formatAmount(amount), style = MaterialTheme.typography.bodyLarge) },
+                        trailingContent = { 
+                            Text(
+                                viewModel.formatAmount(amount), 
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = itemColor
+                            ) 
+                        },
                         modifier = Modifier.clickable { 
                             if (type == "Tags") {
                                 showTagDetailList = tags.find { it.name == name }?.id
-                            } else if (type == "Payer/ee") {
-                                // Party logic
+                            } else if (type == "Accounts" && accountsSubTab != "Balance") {
+                                showDetailList = name
                             } else {
                                 showDetailList = name 
                             }
@@ -791,6 +1050,72 @@ fun AnalysisView(
 
     if (showFilter) {
         DateRangeFilterDialog(onDismiss = { showFilter = false }, onApply = { s, e -> startDate = s; endDate = e; showFilter = false })
+    }
+
+    if (showCategoryFilterDialog) {
+        var searchText by remember { mutableStateOf("") }
+        val filteredCats = allCategories.filter { 
+            it.type.equals(type, ignoreCase = true) && 
+            it.name.contains(searchText, ignoreCase = true) 
+        }
+        val tempSelectedIds = remember { mutableStateListOf<Int>().apply { categoryFilterIds?.let { addAll(it) } } }
+
+        AlertDialog(
+            onDismissRequest = { showCategoryFilterDialog = false },
+            title = { Text("Filter Categories") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = searchText,
+                        onValueChange = { searchText = it },
+                        label = { Text("Search Category") },
+                        modifier = Modifier.fillMaxWidth(),
+                        leadingIcon = { Icon(Icons.Default.Search, null) }
+                    )
+                    
+                    Box(Modifier.height(300.dp)) {
+                        if (filteredCats.isEmpty() && searchText.isNotEmpty()) {
+                            Text("No categories found matching \"$searchText\"", modifier = Modifier.align(Alignment.Center), color = Color.Gray)
+                        } else {
+                            LazyColumn {
+                                items(filteredCats) { cat ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().clickable {
+                                            if (cat.id in tempSelectedIds) tempSelectedIds.remove(cat.id)
+                                            else tempSelectedIds.add(cat.id)
+                                        }.padding(vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Checkbox(
+                                            checked = cat.id in tempSelectedIds,
+                                            onCheckedChange = {
+                                                if (cat.id in tempSelectedIds) tempSelectedIds.remove(cat.id)
+                                                else tempSelectedIds.add(cat.id)
+                                            }
+                                        )
+                                        Text(cat.name)
+                                    }
+                                    Divider(modifier = Modifier.alpha(0.3f))
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = { categoryFilterIds = null; showCategoryFilterDialog = false }) {
+                        Text("Remove Filter", color = Color.Red)
+                    }
+                    Button(onClick = { 
+                        categoryFilterIds = if (tempSelectedIds.isEmpty()) null else tempSelectedIds.toSet()
+                        showCategoryFilterDialog = false 
+                    }) {
+                        Text("Apply")
+                    }
+                }
+            }
+        )
     }
 }
 

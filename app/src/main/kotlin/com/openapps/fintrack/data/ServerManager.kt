@@ -1,6 +1,7 @@
 /*
+ * FinTrack
+ * Copyright (C) 2026 Dozzeyy
  * SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (C) 2026 Bhuvan
  */
 
 package com.openapps.fintrack.data
@@ -49,7 +50,9 @@ data class TransactionDto(
     val toAccountId: Int? = null, val categoryId: Int?, val amount: Double,
     val note: String?, val tags: String? = null, val transactionNumber: String? = null,
     val partyId: Int? = null, val toPartyId: Int? = null,
-    val categoryName: String? = null, val accountName: String? = null, val toAccountName: String? = null,
+    val subName: String? = null, val subFrequency: Int? = null,
+    val categoryName: String? = null, val categoryType: String? = null, 
+    val accountName: String? = null, val toAccountName: String? = null,
     val partyName: String? = null, val toPartyName: String? = null
 )
 
@@ -57,7 +60,13 @@ data class TransactionDto(
 data class CategoryDto(val id: Int, val name: String, val type: String)
 
 @Serializable
-data class AccountDto(val id: Int, val name: String, val type: String, val balance: Double)
+data class MajorHeadDto(val id: Int, val name: String)
+
+@Serializable
+data class MinorHeadDto(val id: Int, val name: String, val majorHeadId: Int)
+
+@Serializable
+data class AccountDto(val id: Int, val name: String, val type: String, val balance: Double, val majorHeadId: Int? = null, val minorHeadId: Int? = null, val openingBalance: Double = 0.0)
 
 @Serializable
 data class TagDto(val id: Int, val name: String, val isEnabled: Boolean)
@@ -71,6 +80,12 @@ data class TemplateDto(
 
 @Serializable
 data class ClientConnection(val ip: String, val lastSeen: Long, val userAgent: String)
+
+@Serializable
+data class NoteDto(val id: Int = 0, val title: String, val content: String, val type: String = "text", val notebookId: Int? = null, val createdAt: Long, val tags: String? = null, val editedAt: Long? = null)
+
+@Serializable
+data class NotebookDto(val id: Int, val name: String, val createdAt: Long)
 
 @Serializable
 data class PairingNewResponse(val id: String)
@@ -108,7 +123,8 @@ class ServerManager(private val context: Context, private val dao: ExpenseDao) {
     private val _terminationLogs = MutableStateFlow<List<TerminationLog>>(emptyList())
     val terminationLogs = _terminationLogs.asStateFlow()
 
-    private var server: NettyApplicationEngine? = null
+    private var server: EmbeddedServer<NettyApplicationEngine, NettyApplicationEngine.Configuration>? = null
+    private var serverJob: Job? = null
     private val serverScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val dbWriteMutex = Mutex()
 
@@ -129,6 +145,20 @@ class ServerManager(private val context: Context, private val dao: ExpenseDao) {
 
         val ip = getLocalIpAddress() ?: "127.0.0.1"
         _httpUrl.value = "http://$ip:$httpPort"
+        Log.d("ServerManager", "Starting server on ${_httpUrl.value}")
+
+        // Start active client pruning job
+        serverJob = serverScope.launch {
+            while (isActive) {
+                delay(60000) // Prune every minute
+                val now = System.currentTimeMillis()
+                val currentClients = _activeClients.value
+                val pruned = currentClients.filter { now - it.value.lastSeen < 300000 } // 5 minute TTL
+                if (pruned.size != currentClients.size) {
+                    _activeClients.value = pruned
+                }
+            }
+        }
 
         try {
             server = embeddedServer(Netty, port = httpPort, host = "0.0.0.0") {
@@ -162,12 +192,14 @@ class ServerManager(private val context: Context, private val dao: ExpenseDao) {
 
                 routing {
                     get("/") {
+                        addLog("Web", "Client loaded index.html")
                         call.respondText(getWebClientHtml(), ContentType.Text.Html)
                     }
 
                     get("/pairing/new") {
                         val pairingId = UUID.randomUUID().toString()
                         pendingPairings[pairingId] = false
+                        addLog("Pairing", "New session: $pairingId")
                         call.respond(PairingNewResponse(pairingId))
                     }
 
@@ -176,8 +208,10 @@ class ServerManager(private val context: Context, private val dao: ExpenseDao) {
                         if (id != null && pendingPairings.containsKey(id)) {
                             val stream = ByteArrayOutputStream()
                             generateQrBitmap(id).compress(Bitmap.CompressFormat.PNG, 100, stream)
+                            addLog("QR", "QR served for $id")
                             call.respondBytes(stream.toByteArray(), ContentType.Image.PNG)
                         } else {
+                            addLog("QR", "QR NOT FOUND: $id")
                             call.respond(HttpStatusCode.NotFound)
                         }
                     }
@@ -215,10 +249,36 @@ class ServerManager(private val context: Context, private val dao: ExpenseDao) {
                                 try {
                                     val dateStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
                                     val data = dao.getAccountBalances(dateStr).first()
-                                    call.respond(data.map { AccountDto(it.id, it.name, it.type, it.balance) })
+                                    val minorHeads = dao.getAllMinorHeads().first()
+                                    val accountsRaw = dao.getAllAccounts().first()
+                                    
+                                    call.respond(data.map { acc ->
+                                        val minor = minorHeads.find { it.id == acc.minorHeadId }
+                                        val majorId = minor?.majorHeadId
+                                        val accountRaw = accountsRaw.find { it.id == acc.id }
+                                        AccountDto(acc.id, acc.name, acc.type, acc.balance, majorId, acc.minorHeadId, accountRaw?.openingBalance ?: 0.0)
+                                    })
                                 } catch (e: Exception) {
                                     Log.e("ServerManager", "Error fetching accounts", e)
                                     call.respond(HttpStatusCode.InternalServerError, "DB Error: ${e.message}")
+                                }
+                            }
+
+                            get("/major_heads") {
+                                try {
+                                    val data = dao.getAllMajorHeads().first()
+                                    call.respond(data.map { MajorHeadDto(it.id, it.name) })
+                                } catch (e: Exception) {
+                                    call.respond(HttpStatusCode.InternalServerError, "DB Error")
+                                }
+                            }
+
+                            get("/minor_heads") {
+                                try {
+                                    val data = dao.getAllMinorHeads().first()
+                                    call.respond(data.map { MinorHeadDto(it.id, it.name, it.majorHeadId) })
+                                } catch (e: Exception) {
+                                    call.respond(HttpStatusCode.InternalServerError, "DB Error")
                                 }
                             }
 
@@ -239,6 +299,15 @@ class ServerManager(private val context: Context, private val dao: ExpenseDao) {
                                     call.respond(HttpStatusCode.InternalServerError, "DB Error")
                                 }
                             }
+
+                            get("/subscription_statuses") {
+                                try {
+                                    val data = dao.getAllSubscriptionStatuses().first()
+                                    call.respond(data)
+                                } catch (e: Exception) {
+                                    call.respond(HttpStatusCode.InternalServerError, "DB Error")
+                                }
+                            }
                             
                             get("/parties") {
                                 try {
@@ -252,6 +321,52 @@ class ServerManager(private val context: Context, private val dao: ExpenseDao) {
                             get("/transactions") {
                                 val transactions = dao.getAllTransactionsWithDetails().first()
                                 call.respond(transactions.map { it.toDto() })
+                            }
+
+                            get("/notes") {
+                                val notes = dao.getAllNotes().first()
+                                call.respond(notes.map { NoteDto(it.id, it.title, it.content, it.type, it.notebookId, it.createdAt, it.tags, it.editedAt) })
+                            }
+
+                            get("/notebooks") {
+                                val notebooks = dao.getAllNotebooks().first()
+                                call.respond(notebooks.map { NotebookDto(it.id, it.name, it.createdAt) })
+                            }
+
+                            post("/notebooks") {
+                                try {
+                                    val dto = call.receive<NotebookDto>()
+                                    dao.upsertNotebook(Notebook(dto.id, dto.name, dto.createdAt))
+                                    call.respond(HttpStatusCode.Created, "Saved")
+                                } catch (e: Exception) {
+                                    call.respond(HttpStatusCode.InternalServerError, "Save Fail")
+                                }
+                            }
+
+                            post("/notes") {
+                                try {
+                                    val dto = call.receive<NoteDto>()
+                                    dao.upsertNote(Note(dto.id, dto.title, dto.content, dto.type, dto.notebookId, dto.createdAt, dto.tags, dto.editedAt))
+                                    call.respond(HttpStatusCode.Created, "Saved")
+                                } catch (e: Exception) {
+                                    call.respond(HttpStatusCode.InternalServerError, "Save Fail")
+                                }
+                            }
+
+                            delete("/notes/{id}") {
+                                val id = call.parameters["id"]?.toIntOrNull()
+                                if (id != null) {
+                                    val notes = dao.getAllNotes().first()
+                                    val note = notes.find { it.id == id }
+                                    if (note != null) {
+                                        dao.deleteNote(note)
+                                        call.respond(HttpStatusCode.OK)
+                                    } else {
+                                        call.respond(HttpStatusCode.NotFound)
+                                    }
+                                } else {
+                                    call.respond(HttpStatusCode.BadRequest)
+                                }
                             }
                             
                             post("/transactions") {
@@ -387,6 +502,8 @@ class ServerManager(private val context: Context, private val dao: ExpenseDao) {
             } catch (e: Exception) {
                 Log.e("ServerManager", "Error stopping server", e)
             }
+            serverJob?.cancel()
+            serverJob = null
             _isRunning.value = false
             _httpUrl.value = null
             _activeClients.value = emptyMap()
@@ -426,7 +543,10 @@ class ServerManager(private val context: Context, private val dao: ExpenseDao) {
         transactionNumber = transaction.transactionNumber,
         partyId = transaction.partyId,
         toPartyId = transaction.toPartyId,
+        subName = transaction.subName,
+        subFrequency = transaction.subFrequency,
         categoryName = categoryName,
+        categoryType = categoryType,
         accountName = accountName,
         toAccountName = toAccountName,
         partyName = partyName,
@@ -439,13 +559,15 @@ class ServerManager(private val context: Context, private val dao: ExpenseDao) {
         time = time,
         accountId = accountId,
         toAccountId = toAccountId,
-        categoryId = categoryId,
+        categoryId = if (toAccountId != null) null else categoryId,
         amount = amount,
         note = note,
         tags = tags,
         transactionNumber = transactionNumber,
         partyId = partyId,
-        toPartyId = toPartyId
+        toPartyId = toPartyId,
+        subName = subName,
+        subFrequency = subFrequency
     )
 
     private fun getWebClientHtml(): String {

@@ -10,54 +10,323 @@
     <meta charset="UTF-8">
     <title>FinTrack Web</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
-        :root { --bg: #f4f7f6; --card: #fff; --text: #2c3e50; --sec: #7f8c8d; --border: #dcdde1; --pri: #3498db; --inc: #27ae60; --exp: #e74c3c; --rad: 12px; }
-        [data-theme='oled'] { --bg: #000; --card: #121212; --text: #ecf0f1; --sec: #95a5a6; --border: #2c3e50; --pri: #3498db; }
-        body { font-family: -apple-system, system-ui, sans-serif; margin: 0; background: var(--bg); color: var(--text); min-height: 100vh; }
-        .header { background: var(--card); padding: 1rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        .container { max-width: 800px; margin: 1rem auto; padding: 0 1rem; }
-        .card { background: var(--card); border-radius: var(--rad); padding: 1.5rem; margin-bottom: 1rem; border: 1px solid var(--border); box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-        .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-        .nav-btn { background: var(--card); color: var(--pri); border: 2px solid var(--pri); padding: 1.5rem; border-radius: var(--rad); font-weight: bold; cursor: pointer; transition: 0.2s; }
-        .nav-btn:hover { background: var(--pri); color: #fff; }
-        .type-bar { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; background: var(--bg); padding: 5px; border-radius: 10px; }
-        .type-btn { flex: 1; padding: 0.6rem; border: none; border-radius: 8px; background: transparent; color: var(--sec); cursor: pointer; font-weight: bold; }
-        .type-btn.active { background: var(--card); color: var(--pri); box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        label { display: block; margin: 0.8rem 0 0.3rem; font-size: 0.75rem; font-weight: bold; color: var(--sec); text-transform: uppercase; }
-        input, select { width: 100%; padding: 0.8rem; border: 1px solid var(--border); border-radius: 8px; background: var(--card); color: var(--text); box-sizing: border-box; font-size: 1rem; outline: none; }
-        input:focus { border-color: var(--pri); }
-        .submit-btn { width: 100%; padding: 1rem; background: var(--pri); color: white; border: none; border-radius: 10px; font-weight: bold; margin-top: 1.5rem; cursor: pointer; font-size: 1.1rem; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { text-align: left; padding: 1rem; border-bottom: 1px solid var(--border); }
-        th { font-size: 0.7rem; color: var(--sec); text-transform: uppercase; }
-        .inc { color: var(--inc); font-weight: bold; } .exp { color: var(--exp); font-weight: bold; } .tnf { color: var(--pri); font-weight: bold; }
+        :root {
+            --bg: #f0f4f8;
+            --card: #ffffff;
+            --text: #1a202c;
+            --sec: #718096;
+            --border: #e2e8f0;
+            --pri: #4299e1;
+            --pri-dark: #3182ce;
+            --inc: #48bb78;
+            --exp: #f56565;
+            --rad: 16px;
+            --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        [data-theme='oled'] {
+            --bg: #000000;
+            --card: #1a202c;
+            --text: #f7fafc;
+            --sec: #a0aec0;
+            --border: #2d3748;
+            --pri: #63b3ed;
+            --pri-dark: #4299e1;
+            --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            line-height: 1.5;
+            transition: var(--transition);
+        }
+
+        .header {
+            background: var(--card);
+            padding: 1rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            background-color: rgba(var(--card), 0.8);
+        }
+
+        .header h2 {
+            font-size: 1.5rem;
+            font-weight: 800;
+            margin: 0;
+            letter-spacing: -0.025em;
+            background: linear-gradient(135deg, var(--pri), var(--pri-dark));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 1.5rem auto;
+            padding: 0 1rem;
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .card {
+            background: var(--card);
+            border-radius: var(--rad);
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            transition: var(--transition);
+        }
+
+        .btn-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.25rem;
+        }
+
+        .nav-btn {
+            background: var(--card);
+            color: var(--pri);
+            border: 2px solid var(--pri);
+            padding: 1.75rem 1rem;
+            border-radius: var(--rad);
+            font-weight: 700;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 1.1rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .nav-btn:hover {
+            background: var(--pri);
+            color: #fff;
+            transform: translateY(-2px);
+        }
+
+        .tab-bar {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+            background: var(--bg);
+            padding: 5px;
+            border-radius: 12px;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 0.6rem;
+            border: none;
+            border-radius: 8px;
+            background: transparent;
+            color: var(--sec);
+            cursor: pointer;
+            font-weight: 700;
+            transition: var(--transition);
+            font-size: 0.9rem;
+        }
+
+        .tab-btn.active {
+            background: var(--card);
+            color: var(--pri);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .filter-group {
+            margin-bottom: 1.5rem;
+        }
+
+        select[multiple] {
+            height: 200px;
+            padding: 0.5rem;
+        }
+
+        .type-bar {
+            display: flex; gap: 0.5rem; margin-bottom: 2rem; background: var(--bg); padding: 6px; border-radius: 14px;
+        }
+
+        .type-btn {
+            flex: 1; padding: 0.75rem; border: none; border-radius: 10px; background: transparent; color: var(--sec); cursor: pointer; font-weight: 600; transition: var(--transition);
+        }
+
+        .type-btn.active {
+            background: var(--card); color: var(--pri); box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        label {
+            display: block; margin: 1.2rem 0 0.5rem; font-size: 0.75rem; font-weight: 700; color: var(--sec); text-transform: uppercase; letter-spacing: 0.05em;
+        }
+
+        input, select, textarea {
+            width: 100%; padding: 0.9rem 1rem; border: 2px solid var(--border); border-radius: 12px; background: var(--card); color: var(--text); box-sizing: border-box; font-size: 1rem; outline: none; transition: var(--transition);
+        }
+
+        input:focus, select:focus, textarea:focus {
+            border-color: var(--pri); box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.15);
+        }
+
+        .submit-btn {
+            width: 100%; padding: 1.1rem; background: linear-gradient(135deg, var(--pri), var(--pri-dark)); color: white; border: none; border-radius: 14px; font-weight: 700; margin-top: 2rem; cursor: pointer; font-size: 1.1rem; box-shadow: 0 4px 6px rgba(66, 153, 225, 0.25); transition: var(--transition);
+        }
+
+        .submit-btn:hover { transform: translateY(-2px); box-shadow: 0 7px 14px rgba(66, 153, 225, 0.35); }
+
+        table { width: 100%; border-collapse: separate; border-spacing: 0; }
+        th { background: var(--bg); text-align: left; padding: 1rem; font-size: 0.75rem; color: var(--sec); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; border-bottom: 2px solid var(--border); }
+        td { padding: 1.25rem 1rem; border-bottom: 1px solid var(--border); }
+
+        .inc { color: var(--inc); font-weight: 700; }
+        .exp { color: var(--exp); font-weight: 700; }
+        .tnf { color: var(--pri); font-weight: 700; }
+
         .hidden { display: none !important; }
-        #log { background: #1a1a1a; color: #00ff00; font-family: monospace; font-size: 0.7rem; padding: 1rem; border-radius: 8px; max-height: 120px; overflow-y: auto; margin-top: 2rem; }
-        .theme-btn { background: none; border: 1.5px solid var(--pri); color: var(--pri); padding: 0.5rem 1rem; border-radius: 20px; cursor: pointer; font-size: 0.8rem; }
+
+        #log {
+            background: #1a202c; color: #48bb78; font-family: monospace; font-size: 0.75rem; padding: 1.25rem; border-radius: 12px; max-height: 120px; overflow-y: auto; margin-top: 2.5rem; border: 1px solid var(--border);
+        }
+
+        .theme-btn {
+            background: transparent; border: 2px solid var(--pri); color: var(--pri); padding: 0.6rem 1.25rem; border-radius: 9999px; cursor: pointer; font-size: 0.875rem; font-weight: 600; transition: var(--transition);
+        }
+        .theme-btn:hover { background: var(--pri); color: white; }
+
+        .back-btn {
+            display: inline-flex; align-items: center; gap: 0.5rem; background: transparent; border: none; color: var(--pri); font-weight: 700; cursor: pointer; margin-bottom: 1rem; transition: var(--transition);
+        }
+        .back-btn:hover { transform: translateX(-4px); }
+
+        .fab-container {
+            position: fixed; bottom: 2rem; right: 2rem; display: flex; flex-direction: column; align-items: flex-end; gap: 1rem; z-index: 99;
+        }
+
+        .fab {
+            width: 3.5rem; height: 3.5rem; border-radius: 50%; background: var(--pri); color: white; border: none; font-size: 1.5rem; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; transition: var(--transition);
+        }
+        .fab:hover { transform: scale(1.1) translateY(-2px); }
+
+        .fab-sub {
+            width: 10rem; height: 3.5rem; border-radius: 2rem; background: var(--card); color: var(--pri); border: 2px solid var(--pri); font-size: 0.9rem; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 0 1.25rem; box-shadow: var(--shadow); transition: var(--transition); opacity: 0; transform: translateY(20px); pointer-events: none;
+        }
+
+        .fab-container.active .fab-sub {
+            opacity: 1; transform: translateY(0); pointer-events: auto;
+        }
+
+        .fab-container.active .fab {
+            background: var(--sec); transform: rotate(45deg);
+        }
+
+        .note-card {
+            padding: 1.25rem; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 1rem; cursor: pointer; transition: var(--transition); background: var(--card); box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .note-card:hover { transform: translateY(-2px); box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-color: var(--pri); }
+        .note-card h4 { margin: 0 0 0.5rem 0; color: var(--pri); font-weight: 700; }
+        .note-card p { margin: 0; font-size: 0.9rem; color: var(--sec); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+
+        /* Markdown Styles */
+        #v-note-content h1, #v-note-content h2, #v-note-content h3 { margin-top: 1rem; margin-bottom: 0.5rem; color: var(--pri); }
+        #v-note-content ul, #v-note-content ol { padding-left: 1.5rem; margin-bottom: 1rem; }
+        #v-note-content p { margin-bottom: 1rem; }
+        #v-note-content code { background: var(--bg); padding: 0.2rem 0.4rem; border-radius: 4px; font-family: monospace; }
+        #v-note-content pre { background: var(--bg); padding: 1rem; border-radius: 8px; overflow-x: auto; margin-bottom: 1rem; }
+        #v-note-content blockquote { border-left: 4px solid var(--pri); padding-left: 1rem; margin-left: 0; font-style: italic; color: var(--sec); }
+
+        .checklist-item {
+            display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem; padding: 0.5rem; background: var(--bg); border-radius: 8px;
+        }
+        .checklist-item input[type="checkbox"] { flex-shrink: 0; }
+        .checklist-item .text { flex: 1; }
+        .checklist-item .qty { font-size: 0.8rem; color: var(--sec); font-weight: bold; background: var(--card); padding: 4px 12px; border-radius: 4px; min-width: 40px; text-align: center; }
+
+        .e-checklist-item {
+            display: flex; gap: 0.5rem; margin-bottom: 0.75rem; align-items: center;
+        }
+
+        .drawing-placeholder {
+            aspect-ratio: 16/9; background: var(--bg); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: var(--sec); border: 2px dashed var(--border); margin-bottom: 1rem;
+        }
+
+        .search-input {
+            margin-bottom: 0.75rem; padding: 0.75rem 1rem; font-size: 0.95rem; border: 2px solid var(--border); border-radius: 12px; background: var(--bg); transition: var(--transition); width: 100%; box-sizing: border-box;
+        }
+        .search-input:focus { background: var(--card); border-color: var(--pri); }
+
+        .checkbox-container {
+            display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; cursor: pointer; user-select: none; font-weight: 600; color: var(--text);
+        }
+        input[type="checkbox"] { width: 1.25rem; height: 1.25rem; border-radius: 6px; border: 2px solid var(--border); cursor: pointer; margin: 0; }
+
+        @media (max-width: 480px) {
+            .btn-grid { gap: 1rem; }
+            .nav-btn { padding: 1.25rem 0.75rem; font-size: 1rem; }
+        }
     </style>
 </head>
 <body>
     <div class="header">
-        <h2 style="margin:0; color:var(--pri)">FinTrack</h2>
+        <h2>FinTrack</h2>
         <button class="theme-btn" onclick="toggleTheme()" id="theme-btn">Theme</button>
     </div>
 
     <div class="container">
+        <!-- Auth Section -->
         <div id="auth-section" class="card">
-            <h3 style="text-align:center">Device Connection</h3>
-            <div id="qr-container" style="text-align:center; min-height: 200px;"><p>Loading QR...</p></div>
+            <h3 style="text-align:center; margin-top: 0;">Device Connection</h3>
+            <p style="text-align:center; color: var(--sec); font-size: 0.9rem;">Authorize this session using the mobile app.</p>
+            <div id="qr-container" style="text-align:center; min-height: 200px; display: flex; align-items: center; justify-content: center;">
+                <p>Loading QR...</p>
+            </div>
             <div id="log">Ready</div>
         </div>
 
+        <!-- Navigation Section -->
         <div id="nav-section" class="hidden">
             <div class="btn-grid">
-                <button class="nav-btn" onclick="showScreen('add')">+ Add Entry</button>
-                <button class="nav-btn" onclick="showScreen('list')">📋 History</button>
+                <button class="nav-btn" onclick="showScreen('add')">
+                    <span style="font-size: 1.75rem">➕</span>
+                    <span>Add Entry</span>
+                </button>
+                <button class="nav-btn" onclick="showScreen('list')">
+                    <span style="font-size: 1.75rem">📋</span>
+                    <span>History</span>
+                </button>
+                <button class="nav-btn" onclick="showScreen('export')" style="grid-column: span 2; flex-direction: row; padding: 1.25rem; margin-bottom: -0.75rem;">
+                    <span style="font-size: 1.25rem">📤</span>
+                    <span>Export Data</span>
+                </button>
+                <button class="nav-btn" onclick="showScreen('notes')" style="grid-column: span 2; flex-direction: row; padding: 1.25rem;">
+                    <span style="font-size: 1.5rem">📝</span>
+                    <span>Notes</span>
+                </button>
             </div>
         </div>
 
+        <!-- Add Transaction Section -->
         <div id="add-section" class="hidden">
-            <button onclick="showScreen('nav')" style="margin-bottom:1rem; cursor:pointer;">← Back</button>
+            <button class="back-btn" onclick="showScreen('nav')">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                Back to Menu
+            </button>
             <div class="card">
                 <div class="type-bar">
                     <button class="type-btn active" id="btn-expense" onclick="setType('expense')">Expense</button>
@@ -65,34 +334,227 @@
                     <button class="type-btn" id="btn-transfer" onclick="setType('transfer')">Transfer</button>
                 </div>
                 <form id="txn-form">
-                    <div style="display:flex; gap:1rem">
+                    <div style="display:flex; gap:1.25rem">
                         <div style="flex:1"><label>Date</label><input type="date" id="date" required></div>
                         <div style="flex:1"><label>Time</label><input type="time" id="time" required></div>
                     </div>
-                    <label>Amount</label><input type="number" step="0.01" id="amount" required>
-                    <label id="lbl-acc">Account</label><select id="account" required onchange="handleAcc()"></select>
+
+                    <label>Amount</label>
+                    <input type="number" step="0.01" id="amount" required placeholder="0.00">
+
+                    <label id="lbl-acc">Account</label>
+                    <input type="text" class="search-input" id="search-account" placeholder="Search account..." oninput="renderAccounts('account', this.value)">
+                    <select id="account" required onchange="handleAcc()"></select>
+
                     <div id="row-party" class="hidden"><label id="lbl-party">Party</label><select id="party"></select></div>
 
                     <div id="row-to-acc" class="hidden">
-                        <label>To Account</label><select id="to-account" onchange="handleAcc()"></select>
+                        <label>To Account</label>
+                        <input type="text" class="search-input" id="search-to-account" placeholder="Search to-account..." oninput="renderAccounts('to-account', this.value)">
+                        <select id="to-account" onchange="handleAcc()"></select>
                         <div id="row-to-party" class="hidden"><label>To Party</label><select id="to-party"></select></div>
                     </div>
 
-                    <div id="row-cat"><label>Category</label><select id="category"></select></div>
+                    <div id="row-cat">
+                        <label>Category</label>
+                        <input type="text" class="search-input" id="search-category" placeholder="Search category..." oninput="renderCats(this.value)">
+                        <select id="category"></select>
+                    </div>
+
                     <label>Tag (Optional)</label><select id="tag"><option value="">No Tag</option></select>
-                    <label>Note</label><input type="text" id="note">
+
+                    <div id="row-sub" style="margin-top: 1.5rem;">
+                        <label class="checkbox-container">
+                            <input type="checkbox" id="is-sub" onchange="handleSubCheckboxChange()">
+                            <span id="lbl-is-sub">This is a subscription</span>
+                        </label>
+
+                        <div id="sub-details" class="hidden" style="margin-left: 1.5rem; padding-left: 1rem; border-left: 2px solid var(--border); margin-bottom: 1rem;">
+                            <label class="checkbox-container">
+                                <input type="checkbox" id="is-existing-sub" onchange="handleExistingSubChange()">
+                                <span id="lbl-is-existing-sub">Existing subscription</span>
+                            </label>
+
+                            <div id="existing-sub-dropdown" class="hidden">
+                                <label id="lbl-sub-select">Select Subscription</label><select id="sub-select" onchange="handleSubSelectChange()"></select>
+                            </div>
+                            <div id="new-sub-details">
+                                <label id="lbl-sub-name">Subscription Name</label><input type="text" id="sub-name" placeholder="Name">
+                                <label>Frequency (Months)</label><input type="number" id="sub-freq" min="1" placeholder="1">
+                            </div>
+                        </div>
+                    </div>
+
+                    <label>Note</label><input type="text" id="note" placeholder="What was this for?">
                     <button type="submit" class="submit-btn" id="save-btn">Save Record</button>
                 </form>
             </div>
         </div>
 
+        <!-- History Section -->
         <div id="list-section" class="hidden">
-            <button onclick="showScreen('nav')" style="margin-bottom:1rem; cursor:pointer;">← Back</button>
-            <div class="card" style="padding:0; overflow-x:auto;">
+            <button class="back-btn" onclick="showScreen('nav')">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                Back to Menu
+            </button>
+            <div class="card" style="padding:0; overflow:auto;">
                 <table id="txn-table">
                     <thead><tr><th>Date</th><th>Detail</th><th style="text-align:right">Amount</th></tr></thead>
                     <tbody></tbody>
                 </table>
+            </div>
+        </div>
+
+        <!-- Export Section -->
+        <div id="export-section" class="hidden">
+            <button class="back-btn" onclick="showScreen('nav')">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                Back to Menu
+            </button>
+            <div class="card">
+                <div class="tab-bar">
+                    <button id="tab-txns" class="tab-btn active" onclick="setExportTab('txns')">Transactions</button>
+                    <button id="tab-bal" class="tab-btn" onclick="setExportTab('bal')">Balances</button>
+                </div>
+
+                <div id="export-txns">
+                    <div class="filter-group">
+                        <label>Date Range (Mandatory)</label>
+                        <div style="display:flex; gap:1rem">
+                            <input type="date" id="exp-start">
+                            <input type="date" id="exp-end">
+                        </div>
+                    </div>
+
+                    <div class="filter-group">
+                        <label>Accounts (Major, Micro)</label>
+                        <select id="exp-major" multiple onchange="updateCheckmarks(this); refreshExportDropdowns()"></select>
+                        <select id="exp-micro" multiple onchange="updateCheckmarks(this)" style="margin-top:0.75rem"></select>
+                    </div>
+
+                    <div class="filter-group">
+                        <label>Categories (Income/Expense)</label>
+                        <select id="exp-cat" multiple onchange="updateCheckmarks(this)"></select>
+                    </div>
+
+                    <div class="filter-group">
+                        <label>Tags</label>
+                        <select id="exp-tag" multiple onchange="updateCheckmarks(this)"></select>
+                    </div>
+
+                    <div class="filter-group">
+                        <label>Notes Containing (comma separated)</label>
+                        <input type="text" id="exp-notes" placeholder="e.g. rent, groceries">
+                    </div>
+
+                    <div class="filter-group">
+                        <label>Subscriptions</label>
+                        <select id="exp-sub" multiple onchange="updateCheckmarks(this)"></select>
+                    </div>
+                </div>
+
+                <div id="export-bal" class="hidden">
+                    <div class="filter-group">
+                        <label>As Of Date (Mandatory)</label>
+                        <input type="date" id="exp-asof">
+                    </div>
+                    <div class="filter-group">
+                        <label>Account Selection</label>
+                        <select id="bal-major" multiple onchange="updateCheckmarks(this); refreshBalDropdowns()"></select>
+                        <select id="bal-minor" multiple onchange="updateCheckmarks(this); refreshBalDropdowns()" style="margin-top:0.75rem"></select>
+                        <select id="bal-micro" multiple onchange="updateCheckmarks(this)" style="margin-top:0.75rem"></select>
+                    </div>
+                </div>
+
+                <button id="dl-btn" class="submit-btn" onclick="handleExport()">Download CSV</button>
+            </div>
+        </div>
+
+        <!-- Notes Section -->
+        <div id="notes-section" class="hidden">
+            <button class="back-btn" onclick="showScreen('nav')">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                Back to Menu
+            </button>
+
+            <div style="display: flex; gap: 1.5rem; height: 70vh;">
+                <!-- Left Pane: Notebooks -->
+                <div style="width: 250px; background: var(--card); border-radius: var(--rad); border: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden;">
+                    <div style="padding: 1rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background: var(--bg);">
+                        <span style="font-weight: 800; font-size: 0.8rem; text-transform: uppercase; color: var(--sec);">Notebooks</span>
+                        <button onclick="createNotebook()" style="background:none; border:none; color:var(--pri); cursor:pointer; font-size:1.2rem; font-weight:bold;">+</button>
+                    </div>
+                    <div id="notebooks-list" style="flex: 1; overflow-y: auto; padding: 0.5rem;"></div>
+                </div>
+
+                <!-- Right Pane: Notes -->
+                <div style="flex: 1; display: flex; flex-direction: column; gap: 1rem;">
+                    <div style="position: relative;">
+                        <input type="text" id="notes-search" class="search-input" placeholder="Search notes..." oninput="renderNotes(this.value)">
+                    </div>
+                    <div id="notes-list" style="flex: 1; overflow-y: auto;"></div>
+                </div>
+            </div>
+
+            <div class="fab-container" id="notes-fab-container">
+                <button class="fab-sub" onclick="showNoteEditorWithParams('checklist')">📋 Checklist</button>
+                <button class="fab-sub" onclick="showNoteEditorWithParams('text')">📝 Text</button>
+                <button class="fab" onclick="toggleFabMenu()">+</button>
+            </div>
+        </div>
+
+        <!-- View Note Section -->
+        <div id="note-view-section" class="hidden">
+            <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <button class="back-btn" onclick="showScreen('notes')" style="margin-bottom: 0;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                    Back
+                </button>
+                <div style="position: relative;">
+                    <button class="theme-btn" onclick="toggleNoteMenu()" style="border-radius: 12px; padding: 0.4rem 0.75rem;">⋮</button>
+                    <div id="note-menu" class="card hidden" style="position: absolute; right: 0; top: 2.5rem; z-index: 101; padding: 0.5rem; min-width: 120px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                        <button onclick="confirmDeleteNote()" style="color: var(--exp); background: none; border: none; width: 100%; text-align: left; padding: 0.5rem; cursor: pointer; font-weight: bold;">Delete Note</button>
+                    </div>
+                </div>
+            </div>
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+                    <h3 id="v-note-title" style="margin:0; font-weight: 800; color: var(--pri);"></h3>
+                    <div id="v-note-dates" style="font-size: 0.7rem; color: var(--sec); text-align: right;"></div>
+                </div>
+                <div id="v-note-content" style="font-size: 1.05rem;"></div>
+            </div>
+            <button class="fab" id="edit-note-btn" style="background: var(--sec)">✏️</button>
+        </div>
+
+        <!-- Edit Note Section -->
+        <div id="note-edit-section" class="hidden">
+            <button class="back-btn" onclick="showScreen('notes')">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                Cancel
+            </button>
+            <div class="card">
+                <label>Header</label>
+                <input type="text" id="e-note-title" placeholder="Note Title">
+
+                <label>Type</label>
+                <select id="e-note-type" onchange="handleNoteTypeChange()">
+                    <option value="text">Text / Markdown</option>
+                    <option value="checklist">Checklist</option>
+                </select>
+
+                <div id="e-note-text-container">
+                    <label>Content</label>
+                    <textarea id="e-note-content" rows="24" placeholder="Write your note here..."></textarea>
+                </div>
+
+                <div id="e-note-checklist-container" class="hidden">
+                    <label>Items</label>
+                    <div id="e-checklist-items"></div>
+                    <button class="theme-btn" onclick="addChecklistItem()" style="margin-top: 1rem;">+ Add Item</button>
+                </div>
+
+                <button class="submit-btn" id="save-note-btn" onclick="saveNote()">Save Note</button>
             </div>
         </div>
     </div>
@@ -100,9 +562,11 @@
     <script>
         const API = window.location.origin;
         let token = localStorage.getItem('fintrack_jwt'), currentType = 'expense', pairingId = null, poller = null;
-        let accounts = [], categories = [], tags = [], parties = [];
+        let accounts = [], categories = [], tags = [], parties = [], majorHeads = [], minorHeads = [], subStatuses = [], notes = [], notebooks = [];
+        let exportTab = 'txns', currentNote = null, selectedNotebookId = null;
+        let allTransactionsData = [];
 
-        function msg(m) { const el = document.getElementById('log'); if(el) el.innerText += '\n' + m; el.scrollTop = el.scrollHeight; console.log(m); }
+        function msg(m) { const el = document.getElementById('log'); if(el) el.innerText += '\n' + m; el.scrollTop = el.scrollHeight; }
         function toggleTheme() { const t = document.documentElement.getAttribute('data-theme') === 'oled' ? 'light' : 'oled'; document.documentElement.setAttribute('data-theme', t); localStorage.setItem('fintrack_theme', t); }
 
         async function init() {
@@ -121,7 +585,7 @@
             try {
                 const r = await fetch(`${API}/pairing/new`);
                 const d = await r.json(); pairingId = d.id;
-                document.getElementById('qr-container').innerHTML = `<img src="${API}/pairing/qr/${pairingId}" width="200" style="background:white;padding:10px;border-radius:10px;margin:1rem">`;
+                document.getElementById('qr-container').innerHTML = `<div style="background:white; padding: 1.5rem; border-radius: 20px; box-shadow: 0 10px 15px rgba(0,0,0,0.1);"><img src="${API}/pairing/qr/${pairingId}" width="200" style="display:block"></div>`;
                 if(poller) clearInterval(poller);
                 poller = setInterval(async () => {
                     const rs = await fetch(`${API}/pairing/status/${pairingId}`);
@@ -134,10 +598,19 @@
         }
 
         function showScreen(s) {
-            ['auth-section','nav-section','add-section','list-section'].forEach(id => document.getElementById(id).classList.add('hidden'));
-            document.getElementById(s + '-section').classList.remove('hidden');
+            ['auth-section','nav-section','add-section','list-section','export-section','notes-section','note-view-section','note-edit-section'].forEach(id => {
+                const el = document.getElementById(id); if (el) el.classList.add('hidden');
+            });
+            const target = document.getElementById(s + '-section');
+            if (target) {
+                target.classList.remove('hidden');
+                target.style.animation = 'fadeIn 0.4s ease-out';
+            }
             if(s === 'add') resetForm();
             if(s === 'list') loadTxns();
+            if(s === 'export') populateExportFilters();
+            if(s === 'notes') loadNotes();
+            if(document.getElementById('note-menu')) document.getElementById('note-menu').classList.add('hidden');
         }
 
         function resetForm() {
@@ -145,6 +618,8 @@
             document.getElementById('date').value = n.toISOString().split('T')[0];
             document.getElementById('time').value = n.toTimeString().slice(0,5);
             document.getElementById('amount').value = ''; document.getElementById('note').value = '';
+            document.getElementById('is-sub').checked = false; document.getElementById('sub-details').classList.add('hidden');
+            document.querySelectorAll('.search-input').forEach(i => i.value = '');
             setType('expense');
         }
 
@@ -154,20 +629,72 @@
             document.getElementById('row-cat').classList.toggle('hidden', t === 'transfer');
             document.getElementById('row-to-acc').classList.toggle('hidden', t !== 'transfer');
             document.getElementById('lbl-acc').innerText = t === 'transfer' ? 'Source Account' : 'Account';
-            renderCats(); handleAcc();
+
+            document.getElementById('lbl-is-sub').innerText = t === 'transfer' ? 'Recurring transfer' : 'This is a subscription';
+            document.getElementById('lbl-is-existing-sub').innerText = t === 'transfer' ? 'Existing recurring transfer' : 'Existing subscription';
+            document.getElementById('lbl-sub-name').innerText = t === 'transfer' ? 'Recurring Transfer Name' : 'Subscription Name';
+            document.getElementById('lbl-sub-select').innerText = t === 'transfer' ? 'Select Recurring Transfer' : 'Select Subscription';
+
+            populateSubDropdown(); renderCats();
+            renderAccounts('account'); renderAccounts('to-account'); handleAcc();
+        }
+
+        function handleSubCheckboxChange() {
+            const checked = document.getElementById('is-sub').checked;
+            document.getElementById('sub-details').classList.toggle('hidden', !checked);
+            if (checked) populateSubDropdown();
+        }
+
+        function handleExistingSubChange() {
+            const isExisting = document.getElementById('is-existing-sub').checked;
+            document.getElementById('existing-sub-dropdown').classList.toggle('hidden', !isExisting);
+            document.getElementById('new-sub-details').classList.toggle('hidden', isExisting);
+            if (isExisting) populateSubDropdown();
+        }
+
+        function populateSubDropdown() {
+            const isExisting = document.getElementById('is-existing-sub').checked;
+            if (!isExisting) return;
+            const subNames = [...new Set(allTransactionsData.filter(tx => tx.subName && tx.subName.trim()).map(tx => tx.subName))];
+            const activeSubs = subNames.filter(name => {
+                const st = subStatuses.find(s => s.subName === name);
+                const matchingTxns = allTransactionsData.filter(t => t.subName === name);
+                const tx = matchingTxns[0];
+                if (!tx) return false;
+
+                const isTransfer = tx.toAccountId && (!tx.categoryId || tx.categoryId === 0);
+                const matchesType = (currentType === 'transfer') ? isTransfer : !isTransfer;
+                return (!st || !st.isStopped) && matchesType;
+            });
+            const s = document.getElementById('sub-select');
+            if (!s) return;
+            const currentVal = s.value;
+            s.innerHTML = '<option value="">' + (currentType === 'transfer' ? '-- Select Transfer --' : '-- Select Subscription --') + '</option>';
+            activeSubs.forEach(n => {
+                const opt = new Option(n, n); if (n === currentVal) opt.selected = true; s.add(opt);
+            });
+        }
+
+        function handleSubSelectChange() {
+            const name = document.getElementById('sub-select').value;
+            const txn = allTransactionsData.find(t => t.subName === name);
+            if (txn) {
+                document.getElementById('sub-name').value = txn.subName;
+                document.getElementById('sub-freq').value = txn.subFrequency;
+            }
         }
 
         function handleAcc() {
             const v = document.getElementById('account').value;
             const a = accounts.find(i => i.id == v);
-            const isO = a && a.name.toLowerCase() === 'on account';
+            const isO = (v === 'on_account_loan') || (a && a.majorHeadId === 6);
             document.getElementById('row-party').classList.toggle('hidden', !isO);
             if(isO) document.getElementById('lbl-party').innerText = currentType === 'transfer' ? 'From Party' : (currentType === 'income' ? 'Payer Name' : 'Payee Name');
 
             if(currentType === 'transfer') {
                 const tv = document.getElementById('to-account').value;
                 const ta = accounts.find(i => i.id == tv);
-                const isToO = ta && ta.name.toLowerCase() === 'on account';
+                const isToO = (tv === 'on_account_loan') || (ta && ta.majorHeadId === 6);
                 document.getElementById('row-to-party').classList.toggle('hidden', !isToO);
             } else {
                 document.getElementById('row-to-party').classList.add('hidden');
@@ -177,77 +704,498 @@
         async function loadData() {
             try {
                 const h = { 'Authorization': `Bearer ${token}` };
-                const [rA, rC, rT, rP] = await Promise.all([
-                    fetch(`${API}/api/accounts`, { headers: h }),
-                    fetch(`${API}/api/categories`, { headers: h }),
-                    fetch(`${API}/api/tags`, { headers: h }),
-                    fetch(`${API}/api/parties`, { headers: h })
-                ]);
-                accounts = await rA.json(); categories = await rC.json(); tags = await rT.json(); parties = await rP.json();
+                const endpoints = [
+                    'accounts', 'categories', 'tags', 'parties',
+                    'major_heads', 'minor_heads', 'transactions', 'subscription_statuses', 'notes', 'notebooks'
+                ];
 
-                const s1 = document.getElementById('account'), s2 = document.getElementById('to-account');
-                s1.innerHTML = s2.innerHTML = '<option value="">-- Choose Account --</option>';
-                accounts.forEach(a => { const o = `<option value="${a.id}">${a.name}</option>`; s1.innerHTML += o; s2.innerHTML += o; });
+                const responses = await Promise.all(
+                    endpoints.map(ep => fetch(`${API}/api/${ep}`, { headers: h }).then(r => r.ok ? r.json() : []))
+                );
 
-                const sT = document.getElementById('tag');
-                sT.innerHTML = '<option value="">No Tag</option>';
-                tags.forEach(t => { if(t.isEnabled) sT.innerHTML += `<option value="${t.id}">${t.name}</option>`; });
-
-                const sP1 = document.getElementById('party'), sP2 = document.getElementById('to-party');
-                sP1.innerHTML = sP2.innerHTML = '<option value="">-- Select Person --</option>';
-                parties.forEach(p => { if(p.isEnabled) { const o = `<option value="${p.id}">${p.name}</option>`; sP1.innerHTML += o; sP2.innerHTML += o; } });
-
-                renderCats();
-            } catch(e) { msg("Data load error."); }
+                accounts = responses[0]; categories = responses[1]; tags = responses[2]; parties = responses[3];
+                majorHeads = responses[4]; minorHeads = responses[5]; allTransactionsData = responses[6]; subStatuses = responses[7];
+                notes = responses[8]; notebooks = responses[9];
+                renderAccounts('account'); renderAccounts('to-account'); renderCats(); renderTags(); renderParties(); populateSubDropdown();
+                renderNotebooks(); renderNotes();
+            } catch(e) { console.error("Data load error", e); }
         }
 
-        function renderCats() {
-            const s = document.getElementById('category');
-            s.innerHTML = '<option value="">-- Choose Category --</option>';
-            categories.filter(c => c.type === currentType).forEach(c => s.innerHTML += `<option value="${c.id}">${c.name}</option>`);
+        function renderAccounts(targetId, filter = "") {
+            const s = document.getElementById(targetId); if (!s) return;
+            const currentVal = s.value;
+            const filteredAccounts = accounts.filter(a => a.majorHeadId !== 6 && a.name.toLowerCase().includes(filter.toLowerCase()));
+            const onAccountLoanAccounts = accounts.filter(a => a.majorHeadId === 6);
+            const options = ['<option value="">-- Choose Account --</option>'];
+            const isOALSelected = currentVal === 'on_account_loan';
+            if (onAccountLoanAccounts.length > 0) {
+                if (isOALSelected || "on account (loan)".includes(filter.toLowerCase()) || filter === "") {
+                    options.push(`<option value="on_account_loan" ${isOALSelected ? 'selected' : ''}>On Account (Loan)</option>`);
+                }
+            }
+            filteredAccounts.forEach(a => {
+                if (a.id == currentVal || a.name.toLowerCase().includes(filter.toLowerCase())) {
+                    options.push(`<option value="${a.id}" ${a.id == currentVal ? 'selected' : ''}>${a.name}</option>`);
+                }
+            });
+            s.innerHTML = options.join('');
+            if (currentVal) s.value = currentVal;
+        }
+
+        function renderCats(filter = "") {
+            const s = document.getElementById('category'); if (!s) return;
+            const currentVal = s.value;
+            const filtered = categories.filter(c => c.type === currentType);
+            let html = '<option value="">-- Choose Category --</option>';
+            filtered.forEach(c => {
+                if (c.id == currentVal || c.name.toLowerCase().includes(filter.toLowerCase())) {
+                    html += `<option value="${c.id}" ${c.id == currentVal ? 'selected' : ''}>${c.name}</option>`;
+                }
+            });
+            s.innerHTML = html;
+        }
+
+        function renderTags() {
+            const sT = document.getElementById('tag'); if (!sT) return;
+            let html = '<option value="">No Tag</option>';
+            tags.forEach(t => { html += `<option value="${t.id}">${t.name}</option>`; });
+            sT.innerHTML = html;
+        }
+
+        function renderParties() {
+            const sP1 = document.getElementById('party'), sP2 = document.getElementById('to-party');
+            if (!sP1 || !sP2) return;
+            const onAccountLoanAccounts = accounts.filter(a => a.majorHeadId === 6);
+            let html = '<option value="">-- Select Person --</option>';
+            onAccountLoanAccounts.forEach(p => { html += `<option value="${p.id}">${p.name}</option>`; });
+            sP1.innerHTML = html; sP2.innerHTML = html;
         }
 
         async function loadTxns() {
-            const b = document.querySelector('#txn-table tbody'); b.innerHTML = '<tr><td colspan="3">Loading...</td></tr>';
+            const b = document.querySelector('#txn-table tbody'); b.innerHTML = '<tr><td colspan="3" style="text-align:center; padding: 2rem;">Loading history...</td></tr>';
             try {
                 const r = await fetch(`${API}/api/transactions`, { headers: { 'Authorization': `Bearer ${token}` } });
-                const d = await r.json();
+                const d = await r.json(); allTransactionsData = d;
                 b.innerHTML = d.slice(0, 50).map(t => {
                     let cls = t.categoryType === 'income' ? 'inc' : (t.categoryId ? 'exp' : 'tnf');
-                    return `<tr><td>${t.date}<br><small style="color:var(--sec)">${t.time}</small></td><td><b>${t.categoryName || 'Transfer'}</b><br><small>${t.accountName}${t.toAccountName ? ' → '+t.toAccountName : ''}</small></td><td style="text-align:right" class="${cls}">${t.amount.toLocaleString()}</td></tr>`;
+                    return `<tr>
+                        <td><div style="font-weight:700;">${t.date}</div><div style="font-size:0.75rem; color:var(--sec)">${t.time}</div></td>
+                        <td><div style="font-weight:700;">${t.categoryName || 'Transfer'}</div><div style="font-size:0.75rem; color:var(--sec)">${t.accountName}${t.toAccountName ? ' → '+t.toAccountName : ''}</div></td>
+                        <td style="text-align:right" class="${cls}">${t.amount.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                    </tr>`;
                 }).join('');
-            } catch(e) { b.innerHTML = '<tr><td colspan="3">Error.</td></tr>'; }
+            } catch(e) { b.innerHTML = '<tr><td colspan="3">Error loading transactions.</td></tr>'; }
+        }
+
+        async function loadNotes() {
+            const h = { 'Authorization': `Bearer ${token}` };
+            try {
+                const r = await fetch(`${API}/api/notes`, { h });
+                notes = await r.json(); renderNotes();
+            } catch(e) { msg("Notes load fail."); }
+        }
+
+        function renderNotes(filter = "") {
+            const container = document.getElementById('notes-list');
+            let filtered = notes.filter(n => n.title.toLowerCase().includes(filter.toLowerCase()) || n.content.toLowerCase().includes(filter.toLowerCase()));
+
+            if (selectedNotebookId !== null) {
+                filtered = filtered.filter(n => n.notebookId === selectedNotebookId);
+            }
+
+            container.innerHTML = filtered.map(n => {
+                let preview = n.content;
+                if (n.type === 'checklist') {
+                    try {
+                        const items = JSON.parse(n.content);
+                        preview = items.map(it => (it.checked ? '☑ ' : '☐ ') + it.text).join(', ');
+                    } catch(e) { preview = "Checklist Data"; }
+                }
+
+                const typeLabel = n.type === 'checklist' ? '📋 ' : '📝 ';
+                return `<div class="note-card" onclick="viewNote(${n.id})"><h4>${typeLabel}${n.title}</h4><p>${preview}</p></div>`;
+            }).join('');
+            if (filtered.length === 0) container.innerHTML = '<p style="text-align:center; color: var(--sec);">No notes found.</p>';
+        }
+
+        function viewNote(id) {
+            currentNote = notes.find(n => n.id === id); if (!currentNote) return;
+            document.getElementById('v-note-title').innerText = currentNote.title;
+
+            const datesEl = document.getElementById('v-note-dates');
+            const created = new Date(currentNote.createdAt).toLocaleString();
+            let datesHtml = `Created: ${created}`;
+            if (currentNote.editedAt) {
+                datesHtml += `<br>Edited: ${new Date(currentNote.editedAt).toLocaleString()}`;
+            }
+            datesEl.innerHTML = datesHtml;
+
+            const contentEl = document.getElementById('v-note-content');
+            if (currentNote.type === 'checklist') {
+                try {
+                    const items = JSON.parse(currentNote.content);
+                    contentEl.innerHTML = items.map((it, idx) => `
+                        <div class="checklist-item">
+                            <input type="checkbox" ${it.checked ? 'checked' : ''} onchange="toggleWebChecklist(${currentNote.id}, ${idx}, this.checked)">
+                            <span class="text" style="${it.checked ? 'text-decoration: line-through; color: var(--sec);' : ''}">${it.text}</span>
+                            ${it.quantity > 1 ? `<span class="qty">x${it.quantity}</span>` : ''}
+                        </div>
+                    `).join('');
+                } catch(e) { contentEl.innerText = "Error parsing checklist"; }
+            } else {
+                contentEl.innerHTML = marked.parse(currentNote.content);
+            }
+
+            document.getElementById('edit-note-btn').onclick = () => showNoteEditor(currentNote);
+            showScreen('note-view');
+        }
+
+        async function toggleWebChecklist(noteId, itemIdx, checked) {
+            const note = notes.find(n => n.id === noteId);
+            if (!note) return;
+            try {
+                const items = JSON.parse(note.content);
+                items[itemIdx].checked = checked;
+                const newContent = JSON.stringify(items);
+                const payload = { ...note, content: newContent };
+                const r = await fetch(`${API}/api/notes`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                if (r.ok) {
+                    note.content = newContent;
+                    viewNote(noteId); // Re-render
+                }
+            } catch(e) { alert("Update failed"); }
+        }
+
+        function renderNotebooks() {
+            const container = document.getElementById('notebooks-list');
+            let html = `
+                <div onclick="selectNotebook(null)" style="padding: 0.75rem 1rem; border-radius: 8px; cursor: pointer; margin-bottom: 0.25rem; font-weight: 600; font-size: 0.9rem; background: ${selectedNotebookId === null ? 'var(--pri)' : 'transparent'}; color: ${selectedNotebookId === null ? 'white' : 'var(--text)'}; transition: var(--transition);">
+                    All Notes
+                </div>
+            `;
+
+            notebooks.forEach(nb => {
+                const isActive = selectedNotebookId === nb.id;
+                html += `
+                    <div onclick="selectNotebook(${nb.id})" style="padding: 0.75rem 1rem; border-radius: 8px; cursor: pointer; margin-bottom: 0.25rem; font-weight: 600; font-size: 0.9rem; background: ${isActive ? 'var(--pri)' : 'transparent'}; color: ${isActive ? 'white' : 'var(--text)'}; transition: var(--transition);">
+                        📚 ${nb.name}
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        function selectNotebook(id) {
+            selectedNotebookId = id;
+            renderNotebooks();
+            renderNotes(document.getElementById('notes-search').value);
+        }
+
+        async function createNotebook() {
+            const name = prompt("Enter notebook name:");
+            if (!name || !name.trim()) return;
+            const payload = { id: 0, name: name.trim(), createdAt: Date.now() };
+            try {
+                const r = await fetch(`${API}/api/notebooks`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                if (r.ok) { await loadData(); } else { alert("Save failed"); }
+            } catch(e) { alert("Network error"); }
+        }
+
+        function handleNoteTypeChange() {
+            const type = document.getElementById('e-note-type').value;
+            document.getElementById('e-note-text-container').classList.toggle('hidden', type !== 'text');
+            document.getElementById('e-note-checklist-container').classList.toggle('hidden', type !== 'checklist');
+
+            if (type === 'checklist' && document.getElementById('e-checklist-items').children.length === 0) {
+                addChecklistItem();
+            }
+        }
+
+        function addChecklistItem(text = '', checked = false, qty = 1) {
+            const container = document.getElementById('e-checklist-items');
+            const item = document.createElement('div');
+            item.className = 'e-checklist-item';
+            item.innerHTML = `
+                <input type="checkbox" class="e-item-check" ${checked ? 'checked' : ''}>
+                <input type="text" class="e-item-text" value="${text}" placeholder="Item description" style="flex:1">
+                <input type="number" class="e-item-qty" value="${qty}" min="1" style="width: 120px">
+                <button onclick="this.parentElement.remove()" style="color:var(--exp); background:none; border:none; font-size:1.2rem; cursor:pointer;">×</button>
+            `;
+            container.appendChild(item);
+        }
+
+        function showNoteEditor(note = null, forceType = null) {
+            currentNote = note;
+            document.getElementById('e-note-title').value = note ? note.title : "";
+            const type = forceType || (note ? note.type : "text");
+            document.getElementById('e-note-type').value = type;
+
+            document.getElementById('e-checklist-items').innerHTML = '';
+            if (type === 'checklist' && note) {
+                try {
+                    const items = JSON.parse(note.content);
+                    items.forEach(it => addChecklistItem(it.text, it.checked, it.quantity));
+                } catch(e) {}
+            } else {
+                document.getElementById('e-note-content').value = note ? note.content : "";
+            }
+
+            handleNoteTypeChange();
+            showScreen('note-edit');
+        }
+
+        async function saveNote() {
+            const btn = document.getElementById('save-note-btn');
+            const title = document.getElementById('e-note-title').value;
+            const type = document.getElementById('e-note-type').value;
+            let content = "";
+
+            if (type === 'checklist') {
+                const items = [];
+                document.querySelectorAll('.e-checklist-item').forEach(el => {
+                    items.push({
+                        text: el.querySelector('.e-item-text').value,
+                        checked: el.querySelector('.e-item-check').checked,
+                        quantity: parseInt(el.querySelector('.e-item-qty').value) || 1
+                    });
+                });
+                content = JSON.stringify(items);
+            } else {
+                content = document.getElementById('e-note-content').value;
+            }
+
+            if (!title.trim()) { alert("Title is mandatory"); return; }
+
+            btn.disabled = true;
+            btn.innerText = "Saving Note...";
+
+            const payload = {
+                id: currentNote ? currentNote.id : 0,
+                title: title,
+                content: content,
+                type: type,
+                notebookId: currentNote ? currentNote.notebookId : selectedNotebookId,
+                createdAt: currentNote ? currentNote.createdAt : Date.now(),
+                editedAt: currentNote ? Date.now() : null
+            };
+            try {
+                const r = await fetch(`${API}/api/notes`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                if (r.ok) { await loadNotes(); showScreen('notes'); } else { alert("Save failed"); }
+            } catch(e) { alert("Network error"); }
+            finally {
+                btn.disabled = false;
+                btn.innerText = "Save Note";
+            }
+        }
+
+        function toggleNoteMenu() { document.getElementById('note-menu').classList.toggle('hidden'); }
+
+        function toggleFabMenu() {
+            document.getElementById('notes-fab-container').classList.toggle('active');
+        }
+
+        function showNoteEditorWithParams(type) {
+            toggleFabMenu();
+            showNoteEditor(null, type);
+        }
+
+        async function confirmDeleteNote() {
+            if (!currentNote) return;
+            if (confirm("Are you sure you want to delete this note?")) {
+                try {
+                    const r = await fetch(`${API}/api/notes/${currentNote.id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+                    if (r.ok) { showScreen('notes'); } else { alert("Delete failed"); }
+                } catch(e) { alert("Network error"); }
+            }
+        }
+
+        function setExportTab(t) {
+            exportTab = t;
+            document.getElementById('tab-txns').classList.toggle('active', t === 'txns');
+            document.getElementById('tab-bal').classList.toggle('active', t === 'bal');
+            document.getElementById('export-txns').classList.toggle('hidden', t !== 'txns');
+            document.getElementById('export-bal').classList.toggle('hidden', t !== 'bal');
+        }
+
+        function populateExportFilters() {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('exp-start').value = today;
+            document.getElementById('exp-end').value = today;
+            document.getElementById('exp-asof').value = today;
+            fillSelect('exp-major', majorHeads); fillSelect('bal-major', majorHeads);
+            fillSelect('exp-cat', categories.map(c => ({ id: c.id, name: `[${c.type.toUpperCase()}] ${c.name}` })));
+            fillSelect('exp-tag', tags);
+            refreshExportDropdowns(); refreshBalDropdowns();
+            const subs = [...new Set(allTransactionsData.filter(t => t.subName).map(t => t.subName))];
+            fillSelect('exp-sub', subs.map(s => ({ id: s, name: s })));
+        }
+
+        function updateCheckmarks(select) {
+            Array.from(select.options).forEach(opt => {
+                const text = opt.text.replace(/^✓ /, '');
+                opt.text = opt.selected ? '✓ ' + text : text;
+            });
+        }
+
+        function fillSelect(id, list, placeholder = null) {
+            const s = document.getElementById(id); if (!s) return;
+            const selectedValues = Array.from(s.selectedOptions).map(o => o.value);
+            s.innerHTML = ''; if (placeholder) s.innerHTML += `<option value="">${placeholder}</option>`;
+            list.forEach(i => {
+                const isSelected = selectedValues.includes(i.id.toString());
+                const name = isSelected ? '✓ ' + i.name : i.name;
+                const opt = new Option(name, i.id); opt.selected = isSelected; s.add(opt);
+            });
+        }
+
+        function refreshExportDropdowns() {
+            const selectedMajors = Array.from(document.getElementById('exp-major').selectedOptions).map(o => parseInt(o.value));
+            const filteredMicros = selectedMajors.length ? accounts.filter(a => selectedMajors.includes(a.majorHeadId)) : accounts;
+            fillSelect('exp-micro', filteredMicros);
+        }
+
+        function refreshBalDropdowns() {
+            const selectedMajors = Array.from(document.getElementById('bal-major').selectedOptions).map(o => parseInt(o.value));
+            const filteredMinors = selectedMajors.length ? minorHeads.filter(m => selectedMajors.includes(m.majorHeadId)) : minorHeads;
+            fillSelect('bal-minor', filteredMinors);
+            refreshMicroBal();
+        }
+
+        function refreshMicroBal() {
+            const selectedMinors = Array.from(document.getElementById('bal-minor').selectedOptions).map(o => parseInt(o.value));
+            const filteredMicros = selectedMinors.length ? accounts.filter(a => selectedMinors.includes(a.minorHeadId)) : accounts;
+            fillSelect('bal-micro', filteredMicros);
+        }
+
+        async function handleExport() {
+            const btn = document.getElementById('dl-btn'); btn.disabled = true; btn.innerText = 'Exporting...';
+            try {
+                if (exportTab === 'txns') {
+                    const start = document.getElementById('exp-start').value;
+                    const end = document.getElementById('exp-end').value;
+                    if (!start || !end) throw new Error("Dates mandatory");
+                    const majors = Array.from(document.getElementById('exp-major').selectedOptions).map(o => parseInt(o.value));
+                    const micros = Array.from(document.getElementById('exp-micro').selectedOptions).map(o => parseInt(o.value));
+                    const cats = Array.from(document.getElementById('exp-cat').selectedOptions).map(o => parseInt(o.value));
+                    const txnTags = Array.from(document.getElementById('exp-tag').selectedOptions).map(o => parseInt(o.value));
+                    const subs = Array.from(document.getElementById('exp-sub').selectedOptions).map(o => o.value);
+                    const notesFilter = document.getElementById('exp-notes').value.split(',').map(n => n.trim().toLowerCase()).filter(n => n);
+                    const filtered = allTransactionsData.filter(t => {
+                        if (t.date < start || t.date > end) return false;
+                        const acc = accounts.find(a => a.id === t.accountId);
+                        const minor = acc ? minorHeads.find(m => m.id === acc.minorHeadId) : null;
+                        const major = minor ? majorHeads.find(mj => mj.id === minor.majorHeadId) : null;
+                        if (majors.length && (!major || !majors.includes(major.id))) return false;
+                        if (micros.length && !micros.includes(t.accountId) && (!t.toAccountId || !micros.includes(t.toAccountId))) return false;
+                        if (cats.length && (!t.categoryId || !cats.includes(t.categoryId))) return false;
+                        if (txnTags.length) {
+                            const tTags = t.tags ? t.tags.split(',').map(it => parseInt(it)) : [];
+                            if (!tTags.some(it => txnTags.includes(it))) return false;
+                        }
+                        if (subs.length && (!t.subName || !subs.includes(t.subName))) return false;
+                        if (notesFilter.length) {
+                            const tNote = (t.note || "").toLowerCase();
+                            if (!notesFilter.some(n => tNote.includes(n))) return false;
+                        }
+                        return true;
+                    });
+
+                    const exportData = filtered.map(t => {
+                        const tTagsNames = t.tags ? t.tags.split(',').map(id => {
+                            const found = tags.find(tag => tag.id == id);
+                            return found ? found.name : id;
+                        }).join('; ') : "";
+
+                        const isSub = t.subName ? "Yes" : "No";
+
+                        return {
+                            Date: t.date,
+                            Time: t.time,
+                            TxnNumber: t.transactionNumber || "",
+                            Type: (t.categoryType || "Transfer").toUpperCase(),
+                            Account: t.accountName,
+                            ToAccount: t.toAccountName || "",
+                            Category: t.categoryName || "",
+                            Amount: t.amount,
+                            Note: t.note || "",
+                            Tags: tTagsNames,
+                            IsSubscription: isSub,
+                            SubscriptionName: t.subName || ""
+                        };
+                    });
+
+                    downloadCsv(exportData, "txns.csv");
+                } else {
+                    const asof = document.getElementById('exp-asof').value; if (!asof) throw new Error("As Of Date mandatory");
+                    const majors = Array.from(document.getElementById('bal-major').selectedOptions).map(o => parseInt(o.value));
+                    const minors = Array.from(document.getElementById('bal-minor').selectedOptions).map(o => parseInt(o.value));
+                    const micros = Array.from(document.getElementById('bal-micro').selectedOptions).map(o => parseInt(o.value));
+                    const computeBal = (accId, date) => {
+                        const acc = accounts.find(a => a.id === accId); let b = acc ? (acc.openingBalance || 0) : 0;
+                        allTransactionsData.filter(t => t.date <= date && (t.accountId === accId || t.toAccountId === accId)).forEach(t => {
+                            if (t.toAccountId === accId) b += t.amount;
+                            else if (t.accountId === accId) { if (t.categoryType === 'income') b += t.amount; else b -= t.amount; }
+                        });
+                        return b;
+                    };
+                    const balData = accounts.map(a => {
+                        const minor = minorHeads.find(m => m.id === a.minorHeadId);
+                        const major = minor ? majorHeads.find(mj => mj.id === minor.majorHeadId) : null;
+                        if (majors.length && (!major || !majors.includes(major.id))) return null;
+                        if (minors.length && (!minor || !minors.includes(minor.id))) return null;
+                        if (micros.length && !micros.includes(a.id)) return null;
+                        return { Account: a.name, Major: major ? major.name : "Others", Minor: minor ? minor.name : "Default", Balance: computeBal(a.id, asof) };
+                    }).filter(a => a !== null);
+                    downloadCsv(balData, "balances.csv");
+                }
+            } catch (err) { alert(err.message); }
+            finally { btn.disabled = false; btn.innerText = 'Download CSV'; }
+        }
+
+        function downloadCsv(data, filename) {
+            if (!data.length) { alert("No data"); return; }
+            const keys = Object.keys(data[0]);
+            const csv = [keys.join(','), ...data.map(row => keys.map(k => {
+                let v = row[k] === null || row[k] === undefined ? "" : row[k];
+                if (typeof v === 'string' && (v.includes(',') || v.includes('"') || v.includes('\n'))) v = `"${v.replace(/"/g, '""')}"`;
+                return v;
+            }).join(','))].join('\n');
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.setAttribute('hidden', ''); a.setAttribute('href', url); a.setAttribute('download', filename);
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
         }
 
         document.getElementById('txn-form').onsubmit = async (e) => {
             e.preventDefault();
-            const btn = document.getElementById('save-btn');
-            btn.disabled = true; btn.innerText = 'Saving...';
-
+            const btn = document.getElementById('save-btn'); btn.disabled = true; btn.innerText = 'Saving...';
+            const subNameVal = document.getElementById('is-sub').checked ? document.getElementById('sub-name').value : null;
+            const subFreqVal = document.getElementById('is-sub').checked ? parseInt(document.getElementById('sub-freq').value) : null;
+            const isExistingSub = document.getElementById('is-existing-sub').checked;
+            if (subNameVal && !isExistingSub && allTransactionsData.some(t => t.subName && t.subName.toLowerCase() === subNameVal.toLowerCase())) {
+                alert("Subscription exists"); btn.disabled = false; return;
+            }
             const d = {
-                date: document.getElementById('date').value,
-                time: document.getElementById('time').value,
+                date: document.getElementById('date').value, time: document.getElementById('time').value,
                 amount: parseFloat(document.getElementById('amount').value),
-                accountId: parseInt(document.getElementById('account').value),
+                accountId: document.getElementById('account').value === 'on_account_loan' ? (parseInt(document.getElementById('party').value) || 0) : parseInt(document.getElementById('account').value),
                 categoryId: currentType !== 'transfer' ? parseInt(document.getElementById('category').value) : null,
-                toAccountId: currentType === 'transfer' ? parseInt(document.getElementById('to-account').value) : null,
-                note: document.getElementById('note').value,
-                tags: document.getElementById('tag').value || null,
-                partyId: (!document.getElementById('row-party').classList.contains('hidden')) ? parseInt(document.getElementById('party').value) : null,
-                toPartyId: (currentType === 'transfer' && !document.getElementById('row-to-party').classList.contains('hidden')) ? parseInt(document.getElementById('to-party').value) : null
+                toAccountId: currentType === 'transfer' ? (document.getElementById('to-account').value === 'on_account_loan' ? parseInt(document.getElementById('to-party').value) : parseInt(document.getElementById('to-account').value)) : null,
+                note: document.getElementById('note').value, tags: document.getElementById('tag').value || null,
+                subName: subNameVal, subFrequency: subFreqVal
             };
-
             try {
-                const r = await fetch(`${API}/api/transactions`, {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify(d)
-                });
-                if(r.ok) { alert('Saved successfully!'); showScreen('nav'); }
-                else { alert('Save failed: ' + await r.text()); }
-            } catch (err) { alert('Network error while saving.'); }
+                const r = await fetch(`${API}/api/transactions`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(d) });
+                if(r.ok) {
+                    alert('Saved successfully!');
+                    await loadData(); // Refresh data to include new subscription if any
+                    showScreen('nav');
+                }
+                else { alert('Save failed'); }
+            } catch (err) { alert('Network error'); }
             finally { btn.disabled = false; btn.innerText = 'Save Record'; }
         };
+
         init();
     </script>
 </body>

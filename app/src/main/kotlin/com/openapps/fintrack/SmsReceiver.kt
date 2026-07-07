@@ -1,6 +1,7 @@
 /*
+ * FinTrack
+ * Copyright (C) 2026 Dozzeyy
  * SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (C) 2026 Bhuvan
  */
 
 package com.openapps.fintrack
@@ -75,7 +76,7 @@ class SmsReceiver : BroadcastReceiver() {
 
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            putExtra("sms_body", body)
+            putExtra("sms_body", body) 
             amount?.let { putExtra("amount", it) }
             putExtra("date", LocalDate.now().format(DateTimeFormatter.ISO_DATE))
             putExtra("time", LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm")))

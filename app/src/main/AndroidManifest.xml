@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   FinTrack
-  Copyright (C) 2026 Bhuvan
+  Copyright (C) 2026 Dozzeyy
 
   Licensed under GPL-3.0-or-later
 -->
@@ -23,7 +23,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:label="@string/app_name"
         android:supportsRtl="true"
-        android:theme="@style/Theme.ExpTracker"
+        android:theme="@style/Theme.FinTrack"
         android:enableOnBackInvokedCallback="true">
         <activity
             android:name=".MainActivity"

@@ -39,6 +39,9 @@ data class PermissionInfo(
 @Composable
 fun PermissionsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
+    val prefs = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+    val isSetupComplete = prefs.getBoolean("setup_complete", false)
+    
     var refreshKey by remember { mutableIntStateOf(0) }
 
     val permissions = remember(refreshKey) {
@@ -98,10 +101,19 @@ fun PermissionsScreen(onBack: () -> Unit) {
                             }
                             context.startActivity(intent)
                         },
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                        modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
                     ) {
                         Text("Open System Settings")
+                    }
+                    
+                    if (isSetupComplete) {
+                        TextButton(
+                            onClick = onBack,
+                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                        ) {
+                            Text("Skip / Continue to App")
+                        }
                     }
                 }
             }
@@ -111,19 +123,26 @@ fun PermissionsScreen(onBack: () -> Unit) {
 
 @Composable
 fun PermissionItem(info: PermissionInfo, context: Context, onResult: () -> Unit) {
-    val isGranted = if (info.permission == "android.permission.MANAGE_EXTERNAL_STORAGE") {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            android.os.Environment.isExternalStorageManager()
-        } else {
-            ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
-        }
-    } else {
-        ContextCompat.checkSelfPermission(context, info.permission) == PackageManager.PERMISSION_GRANTED
+    var isGranted by remember(info.permission) { 
+        mutableStateOf(
+            if (info.permission == "android.permission.MANAGE_EXTERNAL_STORAGE") {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    android.os.Environment.isExternalStorageManager()
+                } else {
+                    ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+                }
+            } else {
+                ContextCompat.checkSelfPermission(context, info.permission) == PackageManager.PERMISSION_GRANTED
+            }
+        )
     }
 
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { _ ->
+    ) { granted ->
+        if (granted) {
+            isGranted = true
+        }
         onResult()
     }
 

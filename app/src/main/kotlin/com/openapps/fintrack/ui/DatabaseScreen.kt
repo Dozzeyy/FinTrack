@@ -8,6 +8,7 @@ package com.openapps.fintrack.ui
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -20,11 +21,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.work.*
@@ -51,14 +54,18 @@ fun DatabaseScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
     var showSchedule by remember { mutableStateOf(false) }
     var showRemoteEncryptPassDialog by remember { mutableStateOf(false) }
     var showDisableE2EEDialog by remember { mutableStateOf(false) }
+    var showSecureModeE2EEPrompt by remember { mutableStateOf(false) }
     
     var showImportPasswordDialog by remember { mutableStateOf(false) }
     
     var showBackupOptionsDialog by remember { mutableStateOf(false) }
+    var showRemoteSyncWarning by remember { mutableStateOf(false) }
+    var showOpenDifferentDbConfirm by remember { mutableStateOf(false) }
 
     val openDbLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
         onResult = { uri ->
+            viewModel.isPickingFile = false
             uri?.let {
                 scope.launch {
                     val tempPicked = File(context.cacheDir, "picked_import.db")
@@ -72,7 +79,7 @@ fun DatabaseScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                     }
 
                     if (EncryptionService.isValidSQLite(tempPicked)) {
-                        viewModel.closeDatabase()
+                        viewModel.refreshDatabase(enqueueWorker = false)
                         if (importFileDirectly(context, tempPicked)) {
                             Toast.makeText(context, "Database imported successfully.", Toast.LENGTH_LONG).show()
                             (context as Activity).recreate()
@@ -131,7 +138,7 @@ fun DatabaseScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                             }
                             
                             if (result.isSuccess && validateDatabaseSchema(decrypted)) {
-                                viewModel.closeDatabase()
+                                viewModel.refreshDatabase(enqueueWorker = false)
                                 if (importFileDirectly(context, decrypted)) {
                                     Toast.makeText(context, "Decrypted and imported successfully.", Toast.LENGTH_LONG).show()
                                     showImportPasswordDialog = false
@@ -166,7 +173,7 @@ fun DatabaseScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
             title = { Text("Verify Password") },
             text = {
                 Column {
-                    Text("Please enter your current master password to disable remote encryption.")
+                    Text("Please enter your current master password to disable encryption.")
                     OutlinedTextField(
                         value = pass,
                         onValueChange = { pass = it },
@@ -195,13 +202,36 @@ fun DatabaseScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
         )
     }
 
+    if (showRemoteSyncWarning) {
+        AlertDialog(
+            onDismissRequest = { showRemoteSyncWarning = false },
+            title = { Text("Privacy Warning") },
+            text = { Text("PLEASE ENABLE E2EE IF YOU CARE ABOUT CONFIDENTIALITY OF YOUR DATA. This app is not designed to send any data from your phone to developer or 3rd parties - except when you turn on remote sync in which case database will be saved on your remote cloud account as a safe remote backup. Unless E2EE is enabled, your data will be will stored in plain text on that remote cloud and cloud operator might be able to access your data as per their own terms and conditions.") },
+            confirmButton = {
+                TextButton(onClick = { 
+                    viewModel.updateRemoteSyncEnabled(true)
+                    scheduleWebDavSync(context, viewModel.syncFrequency)
+                    showRemoteSyncWarning = false 
+                }) { Text("Enable Sync") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRemoteSyncWarning = false }) { Text("Cancel") }
+            }
+        )
+    }
+
     val backupLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/octet-stream"),
         onResult = { uri ->
+            viewModel.isPickingFile = false
             uri?.let {
                 scope.launch {
-                    viewModel.prepareForBackup()
-                    performBackupFile(context, dbFile, it)
+                    val success = viewModel.performSafeBackup(context, it)
+                    if (success) {
+                        Toast.makeText(context, "Backup saved successfully!", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(context, "Backup failed!", Toast.LENGTH_SHORT).show()
+                    }
                 }
             }
         }
@@ -210,20 +240,13 @@ fun DatabaseScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
     val encryptedBackupLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/octet-stream"),
         onResult = { uri ->
+            viewModel.isPickingFile = false
             uri?.let {
                 scope.launch {
-                    val tempEnc = File(context.cacheDir, "temp_export.ftd")
-                    viewModel.prepareForBackup()
-                    val result = withContext(Dispatchers.IO) {
-                        EncryptionService.encryptFile(dbFile, tempEnc, viewModel.remoteMasterPassword)
-                    }
-                    if (result.isSuccess) {
-                        context.contentResolver.openOutputStream(it)?.use { output ->
-                            tempEnc.inputStream().use { input -> input.copyTo(output) }
-                        }
-                        Toast.makeText(context, "Encrypted backup saved!", Toast.LENGTH_SHORT).show()
-                    } else {
-                        Toast.makeText(context, "Encryption failed: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                    val tempEnc = File(context.cacheDir, "temp_export.xpt")
+                    val success = viewModel.performSafeEncryptedBackup(context, tempEnc, uri)
+                    if (!success) {
+                        Toast.makeText(context, "Encrypted backup failed!", Toast.LENGTH_LONG).show()
                     }
                 }
             }
@@ -232,27 +255,93 @@ fun DatabaseScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
 
     if (showBackupOptionsDialog) {
         AlertDialog(
-            onDismissRequest = { showBackupOptionsDialog = false },
+            onDismissRequest = { 
+                showBackupOptionsDialog = false 
+                viewModel.isPickingFile = false
+            },
             title = { Text("Backup Options") },
-            text = { Text("How would you like to export your current database?") },
+            text = { Text(if (viewModel.secureModeEnabled) "Your database is in Ultra Secure Mode. Backups will be encrypted using your master password." else "How would you like to export your current database?") },
             confirmButton = {
                 Button(onClick = { 
                     showBackupOptionsDialog = false
-                    encryptedBackupLauncher.launch("fintrack_backup.ftd")
+                    encryptedBackupLauncher.launch("fintrack_backup.xpt")
                 }) {
                     Text("Encrypted (E2EE)")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { 
-                    showBackupOptionsDialog = false
-                    backupLauncher.launch("fintrack_backup.db")
-                }) {
-                    Text("Plaintext")
+                if (!viewModel.secureModeEnabled) {
+                    TextButton(onClick = { 
+                        showBackupOptionsDialog = false
+                        backupLauncher.launch("fintrack_backup.db")
+                    }) {
+                        Text("Plaintext")
+                    }
                 }
             }
         )
     }
+
+    if (showOpenDifferentDbConfirm) {
+        AlertDialog(
+            onDismissRequest = { 
+                showOpenDifferentDbConfirm = false 
+                viewModel.isPickingFile = false
+            },
+            title = { Text("Replace Database?") },
+            text = { Text("Opening a new database will permanently replace the existing one in the app. Make sure you have backed up your current database before proceeding.") },
+            confirmButton = {
+                Button(onClick = {
+                    showOpenDifferentDbConfirm = false
+                    openDbLauncher.launch(arrayOf("*/*"))
+                }) {
+                    Text("Proceed")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { 
+                    showOpenDifferentDbConfirm = false 
+                    viewModel.isPickingFile = false
+                }) { Text("Cancel") }
+            }
+        )
+    }
+
+    val exportConfigsLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json"),
+        onResult = { uri ->
+            viewModel.isPickingFile = false
+            uri?.let {
+                scope.launch {
+                    val json = viewModel.exportConfigsJson()
+                    context.contentResolver.openOutputStream(it)?.use { output ->
+                        output.write(json.toByteArray())
+                    }
+                    Toast.makeText(context, "Configurations exported!", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    )
+
+    val importConfigsLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument(),
+        onResult = { uri ->
+            viewModel.isPickingFile = false
+            uri?.let {
+                scope.launch {
+                    val json = context.contentResolver.openInputStream(it)?.bufferedReader()?.use { it.readText() }
+                    if (json != null) {
+                        val result = viewModel.importConfigsJson(json)
+                        if (result.isSuccess) {
+                            Toast.makeText(context, "Configurations imported successfully!", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "Import failed: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+            }
+        }
+    )
 
     Scaffold(
         topBar = {
@@ -279,15 +368,8 @@ fun DatabaseScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
             Spacer(Modifier.height(24.dp))
             
             Button(onClick = { 
-                openDbLauncher.launch(arrayOf("*/*"))
-            }, modifier = Modifier.fillMaxWidth()) {
-                Text("Open Different Database")
-            }
-            
-            Spacer(Modifier.height(8.dp))
-            
-            Button(onClick = { 
-                if (viewModel.encryptRemoteEnabled) {
+                viewModel.isPickingFile = true
+                if (viewModel.secureModeEnabled || viewModel.encryptRemoteEnabled) {
                     showBackupOptionsDialog = true
                 } else {
                     backupLauncher.launch("fintrack_backup.db")
@@ -302,8 +384,17 @@ fun DatabaseScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                 Text("Schedule Backup")
             }
             
+            Spacer(Modifier.height(8.dp))
+
+            Button(onClick = {
+                viewModel.isPickingFile = true
+                showOpenDifferentDbConfirm = true
+            }, modifier = Modifier.fillMaxWidth()) {
+                Text("Open Different Database")
+            }
+            
             if (showSchedule) {
-                ScheduleBackupDashboard(context) { showSchedule = false }
+                ScheduleBackupDashboard(context, viewModel) { showSchedule = false }
             }
 
             Spacer(Modifier.height(24.dp))
@@ -312,6 +403,34 @@ fun DatabaseScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
 
             Text("Encryption (E2EE)", style = MaterialTheme.typography.titleMedium)
             
+            // Secure Mode Toggle
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Ultra Secure Mode", color = if (viewModel.secureModeEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+                    Text("Encrypt database at rest when app is closed.", style = MaterialTheme.typography.labelSmall)
+                }
+                Switch(checked = viewModel.secureModeEnabled, onCheckedChange = { 
+                    if (it && !viewModel.encryptRemoteEnabled) {
+                        showSecureModeE2EEPrompt = true
+                    } else {
+                        viewModel.updateSecureMode(it)
+                    }
+                })
+            }
+
+            if (showSecureModeE2EEPrompt) {
+                AlertDialog(
+                    onDismissRequest = { showSecureModeE2EEPrompt = false },
+                    title = { Text("E2EE Required") },
+                    text = { Text("Ultra Secure Mode requires E2EE to be enabled. Please enable 'Encrypt Backups/Remote' and set a master password first.") },
+                    confirmButton = {
+                        Button(onClick = { showSecureModeE2EEPrompt = false }) { Text("Got it") }
+                    }
+                )
+            }
+
+            Spacer(Modifier.height(8.dp))
+
             // Encrypt Remote Toggle (E2EE)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
@@ -323,8 +442,15 @@ fun DatabaseScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                     }
                 }
                 Switch(checked = viewModel.encryptRemoteEnabled, onCheckedChange = { 
-                    if (it) showRemoteEncryptPassDialog = true
-                    else showDisableE2EEDialog = true
+                    if (it) {
+                        showRemoteEncryptPassDialog = true
+                    } else {
+                        if (viewModel.secureModeEnabled) {
+                            Toast.makeText(context, "Please turn off Ultra Secure Mode before disabling encryption.", Toast.LENGTH_LONG).show()
+                        } else {
+                            showDisableE2EEDialog = true
+                        }
+                    }
                 })
             }
 
@@ -338,7 +464,13 @@ fun DatabaseScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                     title = { Text("Set Sync Password") },
                     text = {
                         Column {
-                            Text("This password is used to encrypt your cloud data. Keep it safe.")
+                            Text(
+                                "We do not store your passwords anywhere. It's your sole responsibility to keep this password in a safe recoverable place.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                            Text("This password is used to encrypt your data. Keep it safe. Also, turn on scheduled backup to prevent any potential data loss during any decryption failures, if any.")
                             OutlinedTextField(
                                 value = pass,
                                 onValueChange = { pass = it; error = null },
@@ -383,6 +515,31 @@ fun DatabaseScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
             Divider()
             Spacer(Modifier.height(24.dp))
 
+            Text("Export Configs", style = MaterialTheme.typography.titleMedium)
+            Text("Export categories, accounts, heads, templates, and budgets without transactions.", style = MaterialTheme.typography.labelSmall)
+            
+            Spacer(Modifier.height(16.dp))
+            
+            Button(onClick = { 
+                viewModel.isPickingFile = true
+                exportConfigsLauncher.launch("fintrack_configs.json") 
+            }, modifier = Modifier.fillMaxWidth()) {
+                Text("Export Configs")
+            }
+            
+            Spacer(Modifier.height(8.dp))
+            
+            OutlinedButton(onClick = { 
+                viewModel.isPickingFile = true
+                importConfigsLauncher.launch(arrayOf("application/json")) 
+            }, modifier = Modifier.fillMaxWidth()) {
+                Text("Import Configs")
+            }
+
+            Spacer(Modifier.height(24.dp))
+            Divider()
+            Spacer(Modifier.height(24.dp))
+
             Text("Remote Sync (WebDAV)", style = MaterialTheme.typography.titleMedium)
             
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -391,11 +548,15 @@ fun DatabaseScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                     Text("Sync database to your cloud provider.", style = MaterialTheme.typography.labelSmall)
                 }
                 Switch(checked = viewModel.remoteSyncEnabled, onCheckedChange = { 
-                    viewModel.updateRemoteSyncEnabled(it)
-                    if (it) {
-                        scheduleWebDavSync(context, viewModel.syncFrequency)
+                    if (it && !viewModel.encryptRemoteEnabled) {
+                        showRemoteSyncWarning = true
                     } else {
-                        WorkManager.getInstance(context).cancelUniqueWork("webdav_sync")
+                        viewModel.updateRemoteSyncEnabled(it)
+                        if (it) {
+                            scheduleWebDavSync(context, viewModel.syncFrequency)
+                        } else {
+                            WorkManager.getInstance(context).cancelUniqueWork("webdav_sync")
+                        }
                     }
                 })
             }
@@ -430,7 +591,7 @@ fun DatabaseScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                         scope.launch {
                             val result = viewModel.testWebdavConnection()
                             result.onSuccess {
-                                Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "Connection Successful!", Toast.LENGTH_SHORT).show()
                             }.onFailure {
                                 Toast.makeText(context, "Failed: ${it.message}", Toast.LENGTH_LONG).show()
                             }
@@ -447,7 +608,7 @@ fun DatabaseScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                     scope.launch {
                         val result = viewModel.syncNow()
                         result.onSuccess {
-                            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Sync Successful!", Toast.LENGTH_SHORT).show()
                         }.onFailure {
                             Toast.makeText(context, "Failed: ${it.message}", Toast.LENGTH_LONG).show()
                         }
@@ -470,7 +631,7 @@ fun DatabaseScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                         val totalKb = String.format("%.2f", viewModel.syncTotalSize / 1024.0)
                         
                         Text(
-                            "$progressPercent% (${viewModel.syncMessage.lowercase()}) - $processedKb / $totalKb KB",
+                            "$progressPercent% (${viewModel.syncMessage.lowercase()}) $processedKb / $totalKb KB",
                             style = MaterialTheme.typography.labelSmall
                         )
                     }
@@ -483,7 +644,7 @@ fun DatabaseScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                             scope.launch {
                                 val result = viewModel.downloadRemoteToLocal(it)
                                 result.onSuccess {
-                                    Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "File downloaded successfully!", Toast.LENGTH_SHORT).show()
                                 }.onFailure {
                                     Toast.makeText(context, "Failed: ${it.message}", Toast.LENGTH_LONG).show()
                                 }
@@ -502,7 +663,7 @@ fun DatabaseScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                 Spacer(Modifier.height(16.dp))
                 Text("Sync Frequency:", style = MaterialTheme.typography.labelSmall)
                 var freqExpanded by remember { mutableStateOf(false) }
-                val frequencies = listOf("5 minutes", "10 minutes", "30 minutes", "2 hours", "8 hours", "1 day", "1 week")
+                val frequencies = listOf("On new record", "5 minutes", "10 minutes", "30 minutes", "2 hours", "8 hours", "1 day", "1 week")
                 
                 Box {
                     OutlinedTextField(
@@ -528,13 +689,32 @@ fun DatabaseScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                     }
                 }
 
-                if (viewModel.lastSyncTime != "Never") {
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        "Last Sync: ${viewModel.lastSyncTime} (${viewModel.lastSyncSize})",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                Spacer(Modifier.height(8.dp))
+                Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Last Success:", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(viewModel.syncLastSuccessTime, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Last Attempt:", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(viewModel.syncLastAttemptTime, style = MaterialTheme.typography.labelSmall)
+                    }
+                    if (viewModel.syncLastAttemptError.isNotEmpty()) {
+                        Text(
+                            "Status: ${viewModel.syncLastStatus} - ${viewModel.syncLastAttemptError}", 
+                            style = MaterialTheme.typography.labelSmall, 
+                            color = if (viewModel.syncLastStatus == "Failed" || viewModel.syncLastStatus == "Error") MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                    } else if (viewModel.syncLastStatus != "Never") {
+                        Text(
+                            "Status: ${viewModel.syncLastStatus}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                    }
                 }
             }
         }
@@ -542,7 +722,7 @@ fun DatabaseScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
 }
 
 @Composable
-fun ScheduleBackupDashboard(context: Context, onDismiss: () -> Unit) {
+fun ScheduleBackupDashboard(context: Context, viewModel: ExpenseViewModel, onDismiss: () -> Unit) {
     val prefs = context.getSharedPreferences("backup_prefs", Context.MODE_PRIVATE)
     
     var hour by remember { mutableStateOf(prefs.getString("hour", "00") ?: "00") }
@@ -552,6 +732,18 @@ fun ScheduleBackupDashboard(context: Context, onDismiss: () -> Unit) {
     var encryptScheduled by remember { mutableStateOf(prefs.getBoolean("encrypt_scheduled_backup", false)) }
     
     var backupPath by remember { mutableStateOf(prefs.getString("path", "Not Set") ?: "Not Set") }
+    var showE2EEWarning by remember { mutableStateOf(false) }
+
+    if (showE2EEWarning) {
+        AlertDialog(
+            onDismissRequest = { showE2EEWarning = false },
+            title = { Text("E2EE Required") },
+            text = { Text("Please enable and set up E2EE (Encryption) in the main database screen before enabling encrypted scheduled backups.") },
+            confirmButton = {
+                TextButton(onClick = { showE2EEWarning = false }) { Text("OK") }
+            }
+        )
+    }
 
     val pathLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree(),
@@ -598,7 +790,17 @@ fun ScheduleBackupDashboard(context: Context, onDismiss: () -> Unit) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Encrypt the backup (E2EE)")
                     Spacer(Modifier.weight(1f))
-                    Switch(checked = encryptScheduled, onCheckedChange = { encryptScheduled = it })
+                    Switch(
+                        checked = encryptScheduled || viewModel.secureModeEnabled, 
+                        enabled = !viewModel.secureModeEnabled,
+                        onCheckedChange = { 
+                            if (it && !viewModel.encryptRemoteEnabled) {
+                                showE2EEWarning = true
+                            } else {
+                                encryptScheduled = it 
+                            }
+                        }
+                    )
                 }
             }
         },
@@ -637,6 +839,14 @@ fun ScheduleBackupDashboard(context: Context, onDismiss: () -> Unit) {
 }
 
 fun scheduleWebDavSync(context: Context, frequency: String) {
+    if (frequency == "On new record") {
+        WorkManager.getInstance(context).cancelUniqueWork("webdav_sync")
+        return
+    }
+
+    // Also trigger an immediate sync
+    WorkManager.getInstance(context).enqueue(OneTimeWorkRequestBuilder<com.openapps.fintrack.data.WebDavWorker>().build())
+
     val minutes = when (frequency) {
         "5 minutes" -> 15L // WorkManager minimum
         "10 minutes" -> 15L
@@ -666,41 +876,67 @@ fun scheduleWebDavSync(context: Context, frequency: String) {
 }
 
 fun validateDatabaseSchema(file: File): Boolean {
+    if (!EncryptionService.isValidSQLite(file)) return false
+    var db: android.database.sqlite.SQLiteDatabase? = null
     return try {
-        FileInputStream(file).use { fis ->
-            val buffer = ByteArray(100)
-            if (fis.read(buffer) < 16) return false
-            val header = String(buffer, 0, 16)
-            header.startsWith("SQLite format 3")
+        // Open the file as a SQLite database temporarily to verify it contains the core FinTrack tables
+        db = android.database.sqlite.SQLiteDatabase.openDatabase(file.path, null, android.database.sqlite.SQLiteDatabase.OPEN_READONLY)
+        
+        val tablesToCheck = listOf("transactions", "major_heads", "minor_heads", "accounts", "categories")
+        var allTablesExist = true
+        
+        for (tableName in tablesToCheck) {
+            val cursor = db.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name=?", arrayOf(tableName))
+            val exists = cursor.count > 0
+            cursor.close()
+            if (!exists) {
+                allTablesExist = false
+                break
+            }
         }
+        
+        allTablesExist
     } catch (e: Exception) {
+        Log.e("DatabaseValidator", "Schema validation failed", e)
         false
+    } finally {
+        db?.close()
     }
 }
 
 suspend fun importFileDirectly(context: Context, file: File): Boolean = withContext(Dispatchers.IO) {
     try {
         val dbFile = context.getDatabasePath("expenses_database")
+        
+        // 1. Permanently delete all current session files
+        File(dbFile.path).delete()
         File(dbFile.path + "-shm").delete()
         File(dbFile.path + "-wal").delete()
         File(dbFile.path + "-journal").delete()
 
+        // 2. Perform a clean stream-copy of the backup to the active path
         FileInputStream(file).use { input ->
             dbFile.outputStream().use { output ->
                 input.copyTo(output)
             }
         }
+        
+        Log.d("DatabaseImport", "Full 360-degree file replacement successful")
         true
     } catch (e: Exception) {
-        e.printStackTrace()
+        Log.e("DatabaseImport", "Failed to import file", e)
         false
     }
 }
 
 suspend fun performBackupFile(context: Context, dbFile: File, destUri: Uri) = withContext(Dispatchers.IO) {
     try {
+        if (!dbFile.exists()) {
+            withContext(Dispatchers.Main) { Toast.makeText(context, "Database file not found", Toast.LENGTH_LONG).show() }
+            return@withContext
+        }
         context.contentResolver.openOutputStream(destUri)?.use { output ->
-            dbFile.inputStream().use { input ->
+            FileInputStream(dbFile).use { input ->
                 input.copyTo(output)
             }
         }

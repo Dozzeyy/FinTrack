@@ -8,6 +8,7 @@ package com.openapps.fintrack.ui
 import android.app.DatePickerDialog
 import android.content.Context
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -133,6 +134,7 @@ fun ManageBudgetsScreen(
 @Composable
 fun AddBudgetScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
     val categories by viewModel.getEnabledCategories().collectAsState(initial = emptyList())
+    val ccAccounts by viewModel.getCreditCardAccounts().collectAsState(initial = emptyList())
     
     var budgetName by remember { mutableStateOf(viewModel.editingBudgetRaw?.name ?: "") }
     val selectedCategoryIds = remember { 
@@ -140,9 +142,15 @@ fun AddBudgetScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
         viewModel.editingBudgetRaw?.categoryIds?.split(",")?.mapNotNull { it.toIntOrNull() }?.let { list.addAll(it) }
         list
     }
+    val selectedAccountIds = remember {
+        val list = mutableStateListOf<Int>()
+        viewModel.editingBudgetRaw?.accountIds?.split(",")?.mapNotNull { it.toIntOrNull() }?.let { list.addAll(it) }
+        list
+    }
     var amount by remember { mutableStateOf(viewModel.editingBudgetRaw?.amount?.toString() ?: "") }
     var duration by remember { mutableStateOf(viewModel.editingBudgetRaw?.duration ?: "Monthly") }
     var note by remember { mutableStateOf(viewModel.editingBudgetRaw?.note ?: "") }
+    var higherIsBetter by remember { mutableStateOf(viewModel.editingBudgetRaw?.higherIsBetter ?: false) }
 
     var showCategoryDialog by remember { mutableStateOf(false) }
 
@@ -168,11 +176,13 @@ fun AddBudgetScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
 
             Spacer(Modifier.height(8.dp))
 
-            val selectedNames = categories.filter { it.id in selectedCategoryIds }.map { it.name }.joinToString(", ")
+            val selectedNames = (categories.filter { it.id in selectedCategoryIds }.map { it.name } + 
+                                 ccAccounts.filter { it.id in selectedAccountIds }.map { it.name }).joinToString(", ")
+            
             OutlinedTextField(
-                value = if (selectedNames.isEmpty()) "Select Categories" else selectedNames,
+                value = if (selectedNames.isEmpty()) "Select Categories / Cards" else selectedNames,
                 onValueChange = {},
-                label = { Text("Categories") },
+                label = { Text("Categories / Credit Cards") },
                 readOnly = true,
                 modifier = Modifier.fillMaxWidth().clickable { showCategoryDialog = true },
                 enabled = false,
@@ -220,6 +230,16 @@ fun AddBudgetScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
 
             Spacer(Modifier.height(16.dp))
 
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                RadioButton(selected = !higherIsBetter, onClick = { higherIsBetter = false })
+                Text("Lower the better", modifier = Modifier.clickable { higherIsBetter = false })
+                Spacer(Modifier.width(16.dp))
+                RadioButton(selected = higherIsBetter, onClick = { higherIsBetter = true })
+                Text("Higher the better", modifier = Modifier.clickable { higherIsBetter = true })
+            }
+
+            Spacer(Modifier.height(16.dp))
+
             OutlinedTextField(
                 value = note,
                 onValueChange = { note = it },
@@ -233,19 +253,21 @@ fun AddBudgetScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
             Button(
                 onClick = {
                     val amt = amount.toDoubleOrNull() ?: 0.0
-                    if (selectedCategoryIds.isNotEmpty()) {
+                    if (selectedCategoryIds.isNotEmpty() || selectedAccountIds.isNotEmpty()) {
                         viewModel.saveBudgetRaw(
                             budgetName.takeIf { it.isNotBlank() },
                             selectedCategoryIds.joinToString(","),
                             amt, 
                             duration, 
-                            note
+                            note,
+                            higherIsBetter,
+                            selectedAccountIds.joinToString(",")
                         )
                         onBack()
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = selectedCategoryIds.isNotEmpty() && amount.isNotEmpty()
+                enabled = (selectedCategoryIds.isNotEmpty() || selectedAccountIds.isNotEmpty()) && amount.isNotEmpty()
             ) {
                 Text("Save Budget")
             }
@@ -255,10 +277,13 @@ fun AddBudgetScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
     if (showCategoryDialog) {
         AlertDialog(
             onDismissRequest = { showCategoryDialog = false },
-            title = { Text("Select Categories") },
+            title = { Text("Select Categories / Cards") },
             text = {
                 Box(Modifier.height(400.dp)) {
                     LazyColumn {
+                        item {
+                            Text("Categories", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(8.dp))
+                        }
                         items(categories) { category ->
                             Row(
                                 modifier = Modifier
@@ -283,11 +308,50 @@ fun AddBudgetScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                                         }
                                     }
                                 )
-                                Text(category.name)
-                                Spacer(Modifier.width(8.dp))
-                                Text("(${category.type})", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                                Column {
+                                    Text(category.name)
+                                    Text(category.type.title(), style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                                }
                             }
                             Divider()
+                        }
+                        
+                        if (ccAccounts.isNotEmpty()) {
+                            item {
+                                Spacer(Modifier.height(16.dp))
+                                Text("Credit Cards (Micro Heads)", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(8.dp))
+                            }
+                            items(ccAccounts) { acc ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            if (acc.id in selectedAccountIds) {
+                                                selectedAccountIds.remove(acc.id)
+                                            } else {
+                                                selectedAccountIds.add(acc.id)
+                                            }
+                                        }
+                                        .padding(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Checkbox(
+                                        checked = acc.id in selectedAccountIds,
+                                        onCheckedChange = {
+                                            if (acc.id in selectedAccountIds) {
+                                                selectedAccountIds.remove(acc.id)
+                                            } else {
+                                                selectedAccountIds.add(acc.id)
+                                            }
+                                        }
+                                    )
+                                    Column {
+                                        Text(acc.name)
+                                        Text("Credit Card Expense Tracking", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                                    }
+                                }
+                                Divider()
+                            }
                         }
                     }
                 }
@@ -302,92 +366,152 @@ fun AddBudgetScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
 fun BudgetComparisonScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, isTab: Boolean = false) {
     var asOfDate by remember { mutableStateOf(LocalDate.now().format(DateTimeFormatter.ISO_DATE)) }
     val budgetVsActual by viewModel.getBudgetVsActual(asOfDate).collectAsState(initial = emptyList())
+    val allTransactions by viewModel.allTransactions.collectAsState(initial = emptyList())
     val context = LocalContext.current
 
-    val content: @Composable (PaddingValues) -> Unit = { padding ->
-        Column(modifier = Modifier.padding(padding).fillMaxSize().padding(horizontal = 16.dp)) {
-            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("As of: $asOfDate", style = MaterialTheme.typography.labelMedium)
-                if (isTab) {
-                    Row {
-                        IconButton(onClick = {
-                            val date = try { LocalDate.parse(asOfDate) } catch(e: Exception) { LocalDate.now() }
-                            DatePickerDialog(context, { _, y, m, d ->
-                                asOfDate = LocalDate.of(y, m + 1, d).format(DateTimeFormatter.ISO_DATE)
-                            }, date.year, date.monthValue - 1, date.dayOfMonth).show()
-                        }) {
-                            Icon(Icons.Default.Event, "Change Date")
-                        }
-                        IconButton(onClick = { 
-                            exportBudgetVsActual(context, budgetVsActual, asOfDate)
-                        }) {
-                            Icon(Icons.Default.FileDownload, "Export")
+    var selectedPerformance by remember { mutableStateOf<BudgetVsActual?>(null) }
+
+    if (viewModel.selectedTransactionDetail != null) {
+        BackHandler { viewModel.selectedTransactionDetail = null }
+        AddTransactionScreen(viewModel = viewModel, onBack = { viewModel.selectedTransactionDetail = null }, readOnly = true)
+    } else if (selectedPerformance != null) {
+        BackHandler { selectedPerformance = null }
+        val allAccounts by viewModel.getAllAccounts().collectAsState(initial = emptyList())
+        val filteredTxns = remember(allTransactions, selectedPerformance, allAccounts) {
+            val perf = selectedPerformance!!
+            val ccAccountIds = allAccounts.filter { it.id in perf.accountIds }.map { it.id }
+            allTransactions.filter { 
+                (it.transaction.categoryId in perf.categoryIds) || (it.transaction.accountId in ccAccountIds && it.transaction.categoryId != null)
+            }.filter {
+                it.transaction.date >= perf.startDate &&
+                it.transaction.date <= perf.endDate
+            }
+        }
+        TransactionListOverlay(
+            title = selectedPerformance!!.categoryName,
+            transactions = filteredTxns,
+            viewModel = viewModel,
+            onBack = { selectedPerformance = null }
+        )
+    } else {
+        val content: @Composable (PaddingValues) -> Unit = { padding ->
+            Column(modifier = Modifier.padding(padding).fillMaxSize().padding(horizontal = 16.dp)) {
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("As of: $asOfDate", style = MaterialTheme.typography.labelMedium)
+                    if (isTab) {
+                        Row {
+                            IconButton(onClick = {
+                                val date = try { LocalDate.parse(asOfDate) } catch(e: Exception) { LocalDate.now() }
+                                DatePickerDialog(context, { _, y, m, d ->
+                                    asOfDate = LocalDate.of(y, m + 1, d).format(DateTimeFormatter.ISO_DATE)
+                                }, date.year, date.monthValue - 1, date.dayOfMonth).show()
+                            }) {
+                                Icon(Icons.Default.Event, "Change Date")
+                            }
+                            IconButton(onClick = { 
+                                exportBudgetVsActual(context, budgetVsActual, asOfDate)
+                            }) {
+                                Icon(Icons.Default.FileDownload, "Export")
+                            }
                         }
                     }
                 }
-            }
-            
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
-                items(budgetVsActual) { item ->
-                    BudgetComparisonRow(item, viewModel)
-                    Divider(Modifier.padding(vertical = 8.dp))
+                
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    items(budgetVsActual) { item ->
+                        BudgetComparisonRow(item, viewModel) {
+                            selectedPerformance = item
+                        }
+                        Divider(Modifier.padding(vertical = 8.dp))
+                    }
                 }
             }
         }
-    }
 
-    if (isTab) {
-        content(PaddingValues(0.dp))
-    } else {
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = { Text("Budget vs Actual") },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+        if (isTab) {
+            content(PaddingValues(0.dp))
+        } else {
+            Scaffold(
+                topBar = {
+                    TopAppBar(
+                        title = { Text("Budget vs Actual") },
+                        navigationIcon = {
+                            IconButton(onClick = onBack) {
+                                Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                            }
+                        },
+                        actions = {
+                            IconButton(onClick = {
+                                val date = try { LocalDate.parse(asOfDate) } catch(e: Exception) { LocalDate.now() }
+                                DatePickerDialog(context, { _, y, m, d ->
+                                    asOfDate = LocalDate.of(y, m + 1, d).format(DateTimeFormatter.ISO_DATE)
+                                }, date.year, date.monthValue - 1, date.dayOfMonth).show()
+                            }) {
+                                Icon(Icons.Default.Event, "Change Date")
+                            }
+                            IconButton(onClick = { 
+                                exportBudgetVsActual(context, budgetVsActual, asOfDate)
+                            }) {
+                                Icon(Icons.Default.FileDownload, "Export")
+                            }
                         }
-                    },
-                    actions = {
-                        IconButton(onClick = {
-                            val date = try { LocalDate.parse(asOfDate) } catch(e: Exception) { LocalDate.now() }
-                            DatePickerDialog(context, { _, y, m, d ->
-                                asOfDate = LocalDate.of(y, m + 1, d).format(DateTimeFormatter.ISO_DATE)
-                            }, date.year, date.monthValue - 1, date.dayOfMonth).show()
-                        }) {
-                            Icon(Icons.Default.Event, "Change Date")
-                        }
-                        IconButton(onClick = { 
-                            exportBudgetVsActual(context, budgetVsActual, asOfDate)
-                        }) {
-                            Icon(Icons.Default.FileDownload, "Export")
-                        }
-                    }
-                )
+                    )
+                }
+            ) { padding ->
+                content(padding)
             }
-        ) { padding ->
-            content(padding)
         }
     }
 }
 
 @Composable
-fun BudgetComparisonRow(item: com.openapps.fintrack.ui.BudgetVsActual, viewModel: ExpenseViewModel) {
-    val isRed = if (item.categoryType == "expense") {
-        item.actualAmount > item.budgetAmount
+fun BudgetComparisonRow(item: com.openapps.fintrack.ui.BudgetVsActual, viewModel: ExpenseViewModel, onClick: () -> Unit) {
+    val isGoalMet = if (item.higherIsBetter) {
+        item.actualAmount >= item.budgetAmount
     } else {
-        item.actualAmount < item.budgetAmount
+        item.actualAmount <= item.budgetAmount
     }
     
-    Column(modifier = Modifier.fillMaxWidth()) {
+    val statusColor = if (isGoalMet) Color(0xFF4CAF50) else Color.Red
+    
+    val averageText = remember(item) {
+        val today = LocalDate.now()
+        try {
+            when (item.duration) {
+                "Daily" -> "Avg Daily: " + viewModel.formatAmount(item.actualAmount)
+                "Weekly" -> {
+                    val dayOfWeek = today.dayOfWeek.value
+                    "Avg Daily: " + viewModel.formatAmount(item.actualAmount / dayOfWeek)
+                }
+                "Monthly" -> {
+                    val dayOfMonth = today.dayOfMonth
+                    "Avg Daily: " + viewModel.formatAmount(item.actualAmount / dayOfMonth)
+                }
+                "Half Yearly" -> {
+                    val monthOfHalfYear = if (today.monthValue <= 6) today.monthValue else today.monthValue - 6
+                    "Avg Monthly: " + viewModel.formatAmount(item.actualAmount / monthOfHalfYear)
+                }
+                "Yearly" -> {
+                    val monthOfYear = today.monthValue
+                    "Avg Monthly: " + viewModel.formatAmount(item.actualAmount / monthOfYear)
+                }
+                else -> ""
+            }
+        } catch (e: Exception) { "" }
+    }
+
+    Column(modifier = Modifier.fillMaxWidth().clickable { onClick() }) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(
                 item.categoryName, 
                 fontWeight = FontWeight.Bold, 
                 fontSize = 16.sp,
-                color = if (isRed) Color.Red else MaterialTheme.colorScheme.onSurface
+                color = statusColor
             )
             Text(item.duration, style = MaterialTheme.typography.labelSmall)
+        }
+        if (averageText.isNotEmpty()) {
+            Text(averageText, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
         }
         Spacer(Modifier.height(4.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -399,13 +523,13 @@ fun BudgetComparisonRow(item: com.openapps.fintrack.ui.BudgetVsActual, viewModel
                 Text("Actual", style = MaterialTheme.typography.labelSmall)
                 Text(
                     viewModel.formatAmount(item.actualAmount),
-                    color = if (isRed) Color.Red else Color(0xFF4CAF50)
+                    color = statusColor
                 )
             }
             Column(horizontalAlignment = Alignment.End) {
-                val diff = item.budgetAmount - item.actualAmount
+                val diff = item.actualAmount - item.budgetAmount
                 Text("Diff", style = MaterialTheme.typography.labelSmall)
-                Text(viewModel.formatAmount(diff), color = if (isRed) Color.Red else MaterialTheme.colorScheme.onSurface)
+                Text(viewModel.formatAmount(diff), color = statusColor)
             }
         }
         
@@ -414,8 +538,8 @@ fun BudgetComparisonRow(item: com.openapps.fintrack.ui.BudgetVsActual, viewModel
         LinearProgressIndicator(
             progress = progress,
             modifier = Modifier.fillMaxWidth().height(8.dp),
-            color = if (isRed) Color.Red else MaterialTheme.colorScheme.primary,
-            trackColor = MaterialTheme.colorScheme.surfaceVariant
+            color = statusColor,
+            trackColor = statusColor.copy(alpha = 0.2f)
         )
     }
 }

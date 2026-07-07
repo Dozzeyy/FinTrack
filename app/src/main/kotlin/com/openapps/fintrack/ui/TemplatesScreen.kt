@@ -44,8 +44,7 @@ fun TemplatesScreen(
             if (activeTab == 0) {
                 FloatingActionButton(onClick = { 
                     viewModel.editingTemplate = null
-                    val bundle = Bundle().apply { putBoolean("template_mode", true) }
-                    onNavigate("add_transaction", bundle)
+                    onNavigate("add_transaction_template", null)
                 }) {
                     Icon(Icons.Default.Add, "Add Template")
                 }
@@ -116,8 +115,7 @@ fun ManageTemplatesView(viewModel: ExpenseViewModel, onNavigate: (String, Bundle
                         Row {
                             IconButton(onClick = { 
                                 viewModel.editingTemplate = template
-                                val bundle = Bundle().apply { putBoolean("template_mode", true) }
-                                onNavigate("add_transaction_template", bundle) 
+                                onNavigate("add_transaction_template", null)
                             }) {
                                 Icon(Icons.Default.Edit, "Edit")
                             }

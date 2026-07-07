@@ -16,6 +16,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -32,6 +33,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.google.zxing.BarcodeFormat
 import com.journeyapps.barcodescanner.BarcodeEncoder
 import com.openapps.fintrack.data.AccountBalance
@@ -59,13 +61,6 @@ fun TransactionRow(detail: TransactionWithDetails, viewModel: ExpenseViewModel, 
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            if (showTxnNumber && !transaction.transactionNumber.isNullOrEmpty()) {
-                Text(
-                    text = "Txn: ${transaction.transactionNumber}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = color.copy(alpha = 0.8f)
-                )
-            }
             Text(
                 text = (detail.categoryName ?: "Transfer") + 
                        (if (detail.partyName != null) " (${detail.partyName})" else "") +
@@ -95,15 +90,24 @@ fun TransactionRow(detail: TransactionWithDetails, viewModel: ExpenseViewModel, 
 
 @Composable
 fun PieChart(data: List<Pair<String, Double>>, colors: List<Color>) {
-    val total = data.sumOf { it.second }
+    val total = data.sumOf { Math.abs(it.second) }
     if (total <= 0.0) return
+
+    val chartColors = if (colors.isEmpty() || colors.all { it == Color.Gray }) {
+        listOf(
+            Color(0xFFf44336), Color(0xFFE91E63), Color(0xFF9C27B0), Color(0xFF673AB7),
+            Color(0xFF3F51B5), Color(0xFF2196F3), Color(0xFF03A9F4), Color(0xFF00BCD4),
+            Color(0xFF009688), Color(0xFF4CAF50), Color(0xFF8BC34A), Color(0xFFCDDC39),
+            Color(0xFFFFEB3B), Color(0xFFFFC107), Color(0xFFFF9800), Color(0xFFFF5722)
+        )
+    } else colors
 
     Canvas(modifier = Modifier.size(150.dp)) {
         var startAngle = -90f
         data.forEachIndexed { index, pair ->
-            val sweepAngle = (pair.second / total * 360).toFloat()
+            val sweepAngle = (Math.abs(pair.second) / total * 360).toFloat()
             drawArc(
-                color = colors[index % colors.size],
+                color = chartColors[index % chartColors.size],
                 startAngle = startAngle,
                 sweepAngle = sweepAngle,
                 useCenter = true,
@@ -121,17 +125,24 @@ fun TransactionHistoryView(viewModel: ExpenseViewModel, onOpenDrawer: (() -> Uni
     var startDate by remember { mutableStateOf(month.withDayOfMonth(1).format(DateTimeFormatter.ISO_DATE)) }
     var endDate by remember { mutableStateOf(month.with(TemporalAdjusters.lastDayOfMonth()).format(DateTimeFormatter.ISO_DATE)) }
     var showFilterDialog by remember { mutableStateOf(false) }
-    val filterTypes = remember { mutableStateListOf("All") }
+    val filterTypes = remember { mutableStateListOf<String>() }
     
+    var viewMode by remember { mutableStateOf("List") } // "List" or "Calendar"
+
     val allTags by viewModel.getEnabledTags().collectAsState(initial = emptyList())
+    val allAccounts by viewModel.getEnabledAccounts().collectAsState(initial = emptyList())
+    
     val selectedTagIds = remember { mutableStateListOf<Int>() }
+    val selectedAccountIds = remember { mutableStateListOf<Int>() }
+    
     var showTagFilterDialog by remember { mutableStateOf(false) }
+    var showAccountFilterDialog by remember { mutableStateOf(false) }
 
     val transactions by viewModel.getFilteredTransactions(startDate, endDate).collectAsState(initial = emptyList())
     val context = LocalContext.current
 
-    val filteredTransactions = remember(transactions, filterTypes.toList(), selectedTagIds.toList()) {
-        val baseFiltered = if (filterTypes.contains("All")) transactions
+    val filteredTransactions = remember(transactions, filterTypes.toList(), selectedTagIds.toList(), selectedAccountIds.toList()) {
+        var list = if (filterTypes.isEmpty()) transactions
         else {
             transactions.filter {
                 (filterTypes.contains("Income") && it.categoryType == "income") ||
@@ -140,13 +151,20 @@ fun TransactionHistoryView(viewModel: ExpenseViewModel, onOpenDrawer: (() -> Uni
             }
         }
 
-        if (selectedTagIds.isEmpty()) baseFiltered
-        else {
-            baseFiltered.filter { detail ->
+        if (selectedTagIds.isNotEmpty()) {
+            list = list.filter { detail ->
                 val tTags = detail.transaction.tags?.split(",")?.mapNotNull { it.toIntOrNull() } ?: emptyList()
                 selectedTagIds.any { it in tTags }
             }
         }
+        
+        if (selectedAccountIds.isNotEmpty()) {
+            list = list.filter { detail ->
+                detail.transaction.accountId in selectedAccountIds || detail.transaction.toAccountId in selectedAccountIds
+            }
+        }
+        
+        list
     }
 
     val exportLauncher = rememberLauncherForActivityResult(
@@ -157,14 +175,14 @@ fun TransactionHistoryView(viewModel: ExpenseViewModel, onOpenDrawer: (() -> Uni
     )
 
     Column(modifier = Modifier.fillMaxSize()) {
-        Row(modifier = Modifier.fillMaxWidth().padding(8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (onOpenDrawer != null) {
+        if (onOpenDrawer != null) {
+            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onOpenDrawer) {
                         Icon(Icons.Default.Menu, "Menu")
                     }
+                    Text("Transactions", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                 }
-                Text("Transactions", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
             }
         }
 
@@ -188,8 +206,29 @@ fun TransactionHistoryView(viewModel: ExpenseViewModel, onOpenDrawer: (() -> Uni
                 endDate = month.with(TemporalAdjusters.lastDayOfMonth()).format(DateTimeFormatter.ISO_DATE)
             }) { Icon(Icons.Default.ChevronRight, "") }
 
+            IconButton(onClick = { viewMode = if (viewMode == "List") "Calendar" else "List" }) {
+                Icon(if (viewMode == "List") Icons.Default.CalendarMonth else Icons.Default.FormatListBulleted, contentDescription = "Toggle View")
+            }
+
             IconButton(onClick = { showFilterDialog = true }) {
                 Icon(Icons.Default.DateRange, contentDescription = "Filter")
+            }
+
+            IconButton(onClick = { showAccountFilterDialog = true }) {
+                Box {
+                    Icon(
+                        imageVector = Icons.Default.AccountBalance, 
+                        contentDescription = "Accounts Filter",
+                        tint = if (selectedAccountIds.isNotEmpty()) MaterialTheme.colorScheme.primary else LocalContentColor.current
+                    )
+                    if (selectedAccountIds.isNotEmpty()) {
+                        Surface(
+                            modifier = Modifier.size(6.dp).align(Alignment.TopEnd),
+                            shape = androidx.compose.foundation.shape.CircleShape,
+                            color = MaterialTheme.colorScheme.error
+                        ) {}
+                    }
+                }
             }
 
             IconButton(onClick = { 
@@ -199,47 +238,44 @@ fun TransactionHistoryView(viewModel: ExpenseViewModel, onOpenDrawer: (() -> Uni
             }
         }
 
-        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            listOf("All", "Income", "Expense", "Transfer").forEach { type ->
-                val isSelected = filterTypes.contains(type)
-                FilterChip(
-                    selected = isSelected,
-                    onClick = { 
-                        if (type == "All") {
-                            filterTypes.clear()
-                            filterTypes.add("All")
-                        } else {
+        if (viewMode == "List") {
+            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                listOf("Income", "Expense", "Transfer").forEach { type ->
+                    val isSelected = filterTypes.contains(type)
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = { 
                             if (isSelected) {
                                 filterTypes.remove(type)
                             } else {
-                                filterTypes.remove("All")
                                 filterTypes.add(type)
                             }
-                            if (filterTypes.isEmpty()) filterTypes.add("All")
-                        }
-                    },
-                    label = { Text(type, style = MaterialTheme.typography.labelSmall) }
+                        },
+                        label = { Text(type, style = MaterialTheme.typography.labelSmall) }
+                    )
+                }
+                
+                FilterChip(
+                    selected = selectedTagIds.isNotEmpty(),
+                    onClick = { showTagFilterDialog = true },
+                    label = { Text("Tags", style = MaterialTheme.typography.labelSmall) },
+                    leadingIcon = if (selectedTagIds.isNotEmpty()) {
+                        { Icon(Icons.Default.Check, null, modifier = Modifier.size(16.dp)) }
+                    } else null,
+                    trailingIcon = { Icon(Icons.Default.ArrowDropDown, null) }
                 )
             }
             
-            FilterChip(
-                selected = selectedTagIds.isNotEmpty(),
-                onClick = { showTagFilterDialog = true },
-                label = { Text("Tags", style = MaterialTheme.typography.labelSmall) },
-                leadingIcon = if (selectedTagIds.isNotEmpty()) {
-                    { Icon(Icons.Default.Check, null, modifier = Modifier.size(16.dp)) }
-                } else null,
-                trailingIcon = { Icon(Icons.Default.ArrowDropDown, null) }
-            )
-        }
-        
-        LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-            items(filteredTransactions) { detail ->
-                Box(modifier = Modifier.clickable { viewModel.selectedTransactionDetail = detail }) {
-                    TransactionRow(detail = detail, viewModel = viewModel, showTxnNumber = true)
+            LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp).padding(top = 0.dp)) {
+                items(filteredTransactions) { detail ->
+                    Box(modifier = Modifier.clickable { viewModel.selectedTransactionDetail = detail }) {
+                        TransactionRow(detail = detail, viewModel = viewModel, showTxnNumber = false)
+                    }
+                    Divider(modifier = Modifier.padding(vertical = 4.dp))
                 }
-                Divider(modifier = Modifier.padding(vertical = 4.dp))
             }
+        } else {
+            TransactionCalendarView(month, filteredTransactions, viewModel)
         }
     }
     
@@ -255,56 +291,88 @@ fun TransactionHistoryView(viewModel: ExpenseViewModel, onOpenDrawer: (() -> Uni
     }
 
     if (showTagFilterDialog) {
-        AlertDialog(
-            onDismissRequest = { showTagFilterDialog = false },
-            title = { Text("Filter by Tags") },
-            text = {
-                Column {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().clickable { selectedTagIds.clear() }.padding(vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(selected = selectedTagIds.isEmpty(), onClick = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("All (No Tag Filter)")
-                    }
-                    Divider()
-                    LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
-                        items(allTags) { tag ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth().clickable {
-                                    if (selectedTagIds.contains(tag.id)) selectedTagIds.remove(tag.id)
-                                    else selectedTagIds.add(tag.id)
-                                }.padding(vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Checkbox(checked = selectedTagIds.contains(tag.id), onCheckedChange = null)
-                                Spacer(Modifier.width(8.dp))
-                                Text(tag.name)
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showTagFilterDialog = false }) { Text("Apply") }
-            }
+        MultiSelectFilterDialog(
+            title = "Filter by Tags",
+            items = allTags.map { it.id to it.name },
+            selectedIds = selectedTagIds,
+            onDismiss = { showTagFilterDialog = false }
+        )
+    }
+
+    if (showAccountFilterDialog) {
+        MultiSelectFilterDialog(
+            title = "Filter by Accounts",
+            items = allAccounts.map { it.id to it.name },
+            selectedIds = selectedAccountIds,
+            onDismiss = { showAccountFilterDialog = false }
         )
     }
 }
 
 @Composable
+fun MultiSelectFilterDialog(
+    title: String,
+    items: List<Pair<Int, String>>,
+    selectedIds: MutableList<Int>,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth().clickable { selectedIds.clear() }.padding(vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    RadioButton(selected = selectedIds.isEmpty(), onClick = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("All")
+                }
+                Divider()
+                LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
+                    items(items) { item ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().clickable {
+                                if (selectedIds.contains(item.first)) selectedIds.remove(item.first)
+                                else selectedIds.add(item.first)
+                            }.padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(checked = selectedIds.contains(item.first), onCheckedChange = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text(item.second)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Apply") }
+        }
+    )
+}
+
+@Composable
 fun AssetsLiabilitiesView(viewModel: ExpenseViewModel) {
     var asOfDate by remember { mutableStateOf(LocalDate.now().format(DateTimeFormatter.ISO_DATE)) }
-    val balances by viewModel.getAccountBalances(asOfDate).collectAsState(initial = emptyList())
-    var selectedAccountForDetail by remember { mutableStateOf<AccountBalance?>(null) }
+    var viewMode by remember { mutableStateOf(0) } // 0: Major, 1: Major+Minor, 2: Major+Minor+Micro, 3: Minor, 4: Micro
+    
+    var drillMajorId by remember { mutableStateOf<Int?>(null) }
+    var drillMinorId by remember { mutableStateOf<Int?>(null) }
+    var drillMicroId by remember { mutableStateOf<Int?>(null) }
+
+    val majorBalances by viewModel.getMajorHeadBalances(asOfDate).collectAsState(initial = emptyList())
+    val minorBalances by viewModel.getMinorHeadBalances(asOfDate).collectAsState(initial = emptyList())
+    val microBalances by viewModel.getAccountBalances(asOfDate).collectAsState(initial = emptyList())
+
     val context = LocalContext.current
 
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("text/csv"),
         onResult = { uri ->
             uri?.let { 
-                exportToUri(context, balances.map { b ->
+                exportToUri(context, microBalances.map { b ->
                     TransactionWithDetails(
                         transaction = com.openapps.fintrack.data.Transaction(date = asOfDate, time = "00:00", accountId = b.id, amount = b.balance, note = "Balance Export", categoryId = null),
                         categoryName = null,
@@ -319,84 +387,310 @@ fun AssetsLiabilitiesView(viewModel: ExpenseViewModel) {
         }
     )
 
-    if (selectedAccountForDetail == null) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Row(modifier = Modifier.fillMaxWidth().padding(8.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "As of: $asOfDate", modifier = Modifier.clickable {
-                    val date = try { LocalDate.parse(asOfDate) } catch(e: Exception) { LocalDate.now() }
-                    DatePickerDialog(context, { _, year, month, day ->
-                        asOfDate = LocalDate.of(year, month + 1, day).format(DateTimeFormatter.ISO_DATE)
-                    }, date.year, date.monthValue - 1, date.dayOfMonth).show()
-                })
-                IconButton(onClick = { 
-                    exportLauncher.launch("balances_$asOfDate.csv")
-                }) {
-                    Icon(Icons.Default.FileDownload, contentDescription = "Export")
-                }
+    if (drillMicroId != null) {
+        val account = microBalances.find { it.id == drillMicroId }
+        if (account != null) {
+            AccountDetailView(viewModel, account, onBack = { drillMicroId = null }, initialAsOfDate = asOfDate)
+            return
+        }
+    }
+
+    if (drillMinorId != null) {
+        val minor = minorBalances.find { it.id == drillMinorId }
+        val micros = microBalances.filter { it.minorHeadId == drillMinorId }
+        DrillDownView(
+            title = minor?.name ?: "Minor Head",
+            items = micros.map { it.name to it.balance },
+            onItemClick = { name -> drillMicroId = microBalances.find { it.name == name }?.id },
+            onBack = { drillMinorId = null },
+            viewModel = viewModel,
+            asOfDate = asOfDate,
+            microBalances = microBalances
+        )
+        return
+    }
+
+    if (drillMajorId != null) {
+        val major = majorBalances.find { it.id == drillMajorId }
+        val minors = minorBalances.filter { it.majorHeadId == drillMajorId }
+        DrillDownView(
+            title = major?.name ?: "Major Head",
+            items = minors.map { it.name to it.balance },
+            onItemClick = { name -> drillMinorId = minorBalances.find { it.name == name && it.majorHeadId == drillMajorId }?.id },
+            onBack = { drillMajorId = null },
+            viewModel = viewModel,
+            asOfDate = asOfDate,
+            microBalances = microBalances
+        )
+        return
+    }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        Row(modifier = Modifier.fillMaxWidth().padding(8.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = { viewMode = (viewMode + 1) % 5 }) {
+                Icon(Icons.Default.Layers, "Toggle Mode")
             }
-            
-            val assets = balances.filter { it.balance > 0 && !it.name.equals("On Account", ignoreCase = true) }
-            val liabilities = balances.filter { it.balance < 0 && !it.name.equals("On Account", ignoreCase = true) }
-            
-            val partyBalances by viewModel.getPartyBalances(asOfDate).collectAsState(initial = emptyList())
-            val onAccountNet = partyBalances.sumOf { it.balance }
-            
-            val totalAssets = assets.sumOf { it.balance } + (if (onAccountNet > 0) onAccountNet else 0.0)
-            val totalLiabilities = liabilities.sumOf { it.balance } + (if (onAccountNet < 0) onAccountNet else 0.0)
+            Text(text = "As of: $asOfDate", modifier = Modifier.clickable {
+                val date = try { LocalDate.parse(asOfDate) } catch(e: Exception) { LocalDate.now() }
+                DatePickerDialog(context, { _, year, month, day ->
+                    asOfDate = LocalDate.of(year, month + 1, day).format(DateTimeFormatter.ISO_DATE)
+                }, date.year, date.monthValue - 1, date.dayOfMonth).show()
+            })
+            IconButton(onClick = { exportLauncher.launch("balances_$asOfDate.csv") }) {
+                Icon(Icons.Default.FileDownload, "Export")
+            }
+        }
 
-            LazyColumn(modifier = Modifier.weight(1f).padding(horizontal = 16.dp)) {
-                item { 
-                    Text("Assets", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp))
-                }
-                
-                items(assets) { balance ->
-                    AccountBalanceRow(balance, viewModel) { selectedAccountForDetail = balance }
-                }
-                
-                if (onAccountNet != 0.0) {
-                    item {
-                        val accBal = AccountBalance(0, "On Account", "asset", 0.0, onAccountNet)
-                        AccountBalanceRow(accBal, viewModel) { selectedAccountForDetail = accBal }
+        LazyColumn(modifier = Modifier.weight(1f).padding(horizontal = 16.dp)) {
+            when (viewMode) {
+                0 -> { // Major only
+                    val pos = majorBalances.filter { it.balance > 0 }
+                    val neg = majorBalances.filter { it.balance <= 0 }
+                    if (pos.isNotEmpty()) {
+                        item { Text("Assets", fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
+                        items(pos) { hb -> BalanceRow(hb.name, hb.balance, viewModel) { drillMajorId = hb.id } }
+                    }
+                    if (neg.isNotEmpty()) {
+                        item { Text("Liabilities", fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
+                        items(neg) { hb -> BalanceRow(hb.name, hb.balance, viewModel) { drillMajorId = hb.id } }
                     }
                 }
-
-                item {
-                    SubtotalRow("Sub-total Assets", totalAssets, viewModel, Color(0xFF4CAF50))
-                }
-
-                if (liabilities.isNotEmpty() || onAccountNet < 0) {
-                    item { 
-                        Text("Liabilities", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp))
+                1 -> { // Major + Minor
+                    val posMajor = majorBalances.filter { it.balance > 0 }
+                    val negMajor = majorBalances.filter { it.balance <= 0 }
+                    
+                    if (posMajor.isNotEmpty()) {
+                        item { Text("Assets", fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
+                        posMajor.forEach { mhb ->
+                            item { Text(mhb.name, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(vertical = 4.dp)) }
+                            items(minorBalances.filter { it.majorHeadId == mhb.id }) { mihb ->
+                                BalanceRow(mihb.name, mihb.balance, viewModel, indent = true) { drillMinorId = mihb.id }
+                            }
+                        }
                     }
-                    items(liabilities) { balance ->
-                        AccountBalanceRow(balance, viewModel) { selectedAccountForDetail = balance }
-                    }
-                    item {
-                        SubtotalRow("Sub-total Liabilities", totalLiabilities, viewModel, Color.Red)
-                    }
-                }
-                
-                item {
-                    val netPosition = totalAssets + totalLiabilities
-                    Surface(
-                        color = MaterialTheme.colorScheme.primaryContainer, 
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
-                        shape = MaterialTheme.shapes.medium
-                    ) {
-                        Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("Net Position", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            Text(viewModel.formatAmount(netPosition), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    if (negMajor.isNotEmpty()) {
+                        item { Text("Liabilities", fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
+                        negMajor.forEach { mhb ->
+                            item { Text(mhb.name, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(vertical = 4.dp)) }
+                            items(minorBalances.filter { it.majorHeadId == mhb.id }) { mihb ->
+                                BalanceRow(mihb.name, mihb.balance, viewModel, indent = true) { drillMinorId = mihb.id }
+                            }
                         }
                     }
                 }
+                2 -> { // Major + Minor + Micro
+                    val posMajor = majorBalances.filter { it.balance > 0 }
+                    val negMajor = majorBalances.filter { it.balance <= 0 }
+
+                    if (posMajor.isNotEmpty()) {
+                        item { Text("Assets", fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
+                        posMajor.forEach { mhb ->
+                            item { Text(mhb.name, style = MaterialTheme.typography.titleSmall) }
+                            minorBalances.filter { it.majorHeadId == mhb.id }.forEach { mihb ->
+                                val mms = microBalances.filter { it.minorHeadId == mihb.id || (mihb.name == "Default" && mihb.majorHeadId == 10 && it.minorHeadId == null) }
+                                if (mms.isNotEmpty()) {
+                                    item { Text(mihb.name, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = 16.dp)) }
+                                    items(mms) { mb ->
+                                        BalanceRow(mb.name, mb.balance, viewModel, indent = true, doubleIndent = true) { drillMicroId = mb.id }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if (negMajor.isNotEmpty()) {
+                        item { Text("Liabilities", fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
+                        negMajor.forEach { mhb ->
+                            item { Text(mhb.name, style = MaterialTheme.typography.titleSmall) }
+                            minorBalances.filter { it.majorHeadId == mhb.id }.forEach { mihb ->
+                                val mms = microBalances.filter { it.minorHeadId == mihb.id || (mihb.name == "Default" && mihb.majorHeadId == 10 && it.minorHeadId == null) }
+                                if (mms.isNotEmpty()) {
+                                    item { Text(mihb.name, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = 16.dp)) }
+                                    items(mms) { mb ->
+                                        BalanceRow(mb.name, mb.balance, viewModel, indent = true, doubleIndent = true) { drillMicroId = mb.id }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                3 -> { // Minor only
+                    val pos = minorBalances.filter { it.balance > 0 }
+                    val neg = minorBalances.filter { it.balance <= 0 }
+                    if (pos.isNotEmpty()) {
+                        item { Text("Assets", fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
+                        items(pos) { hb -> BalanceRow(hb.name, hb.balance, viewModel) { drillMinorId = hb.id } }
+                    }
+                    if (neg.isNotEmpty()) {
+                        item { Text("Liabilities", fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
+                        items(neg) { hb -> BalanceRow(hb.name, hb.balance, viewModel) { drillMinorId = hb.id } }
+                    }
+                }
+                4 -> { // Micro only
+                    val pos = microBalances.filter { it.balance > 0 }
+                    val neg = microBalances.filter { it.balance <= 0 }
+                    if (pos.isNotEmpty()) {
+                        item { Text("Assets", fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
+                        items(pos) { hb -> BalanceRow(hb.name, hb.balance, viewModel) { drillMicroId = hb.id } }
+                    }
+                    if (neg.isNotEmpty()) {
+                        item { Text("Liabilities", fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
+                        items(neg) { hb -> BalanceRow(hb.name, hb.balance, viewModel) { drillMicroId = hb.id } }
+                    }
+                }
+            }
+            
+            item {
+                val netPosition = microBalances.sumOf { it.balance }
+                Surface(
+                    color = MaterialTheme.colorScheme.primaryContainer, 
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                    shape = MaterialTheme.shapes.medium
+                ) {
+                    Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Net Position", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text(viewModel.formatAmount(netPosition), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    }
+                }
             }
         }
-    } else {
-        if (selectedAccountForDetail?.name?.equals("On Account", ignoreCase = true) == true) {
-            OnAccountPartyBalancesView(viewModel, asOfDate, onBack = { selectedAccountForDetail = null })
-        } else {
-            AccountDetailView(viewModel, selectedAccountForDetail!!, onBack = { selectedAccountForDetail = null })
+    }
+}
+
+@Composable
+fun BalanceRow(name: String, balance: Double, viewModel: ExpenseViewModel, indent: Boolean = false, doubleIndent: Boolean = false, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(vertical = 12.dp)
+            .padding(start = if (doubleIndent) 32.dp else if (indent) 16.dp else 0.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(name, modifier = Modifier.weight(1f))
+        Text(viewModel.formatAmount(balance), color = if (balance >= 0) Color(0xFF4CAF50) else Color.Red)
+    }
+    Divider(modifier = Modifier.padding(start = if (doubleIndent) 32.dp else if (indent) 16.dp else 0.dp))
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DrillDownView(
+    title: String, 
+    items: List<Pair<String, Double>>, 
+    onItemClick: (String) -> Unit, 
+    onBack: () -> Unit, 
+    viewModel: ExpenseViewModel,
+    asOfDate: String,
+    microBalances: List<AccountBalance>
+) {
+    val allTags by viewModel.getEnabledTags().collectAsState(initial = emptyList())
+    val allAccounts by viewModel.getEnabledAccounts().collectAsState(initial = emptyList())
+    val allTransactions by viewModel.allTransactions.collectAsState(initial = emptyList())
+    
+    val selectedTagIds = remember { mutableStateListOf<Int>() }
+    val selectedAccountIds = remember { mutableStateListOf<Int>() }
+    
+    var showTagFilter by remember { mutableStateOf(false) }
+    var showAccountFilter by remember { mutableStateOf(false) }
+    var showExportDialog by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
+
+    val filteredItems = remember(items, selectedTagIds.toList(), selectedAccountIds.toList(), allTransactions, asOfDate) {
+        if (selectedTagIds.isEmpty() && selectedAccountIds.isEmpty()) items
+        else {
+            items.map { (name, balance) ->
+                val accountId = microBalances.find { it.name == name }?.id
+                val txns = allTransactions.filter { t ->
+                    (t.accountName == name || t.toAccountName == name) && 
+                    t.transaction.date <= asOfDate &&
+                    (selectedTagIds.isEmpty() || t.transaction.tags?.split(",")?.mapNotNull { it.toIntOrNull() }?.any { it in selectedTagIds } == true) &&
+                    (selectedAccountIds.isEmpty() || t.transaction.accountId in selectedAccountIds || t.transaction.toAccountId in selectedAccountIds || accountId in selectedAccountIds)
+                }
+                name to txns.sumOf { 
+                    if (it.transaction.toAccountId == accountId || (it.transaction.accountId == accountId && it.categoryType == "income")) 
+                        it.transaction.amount 
+                    else if (it.transaction.accountId == accountId)
+                        -it.transaction.amount
+                    else 0.0
+                }
+            }.filter { it.second != 0.0 }
         }
+    }
+
+    val balancesLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
+        uri?.let {
+            val csv = StringBuilder("Item,Balance\n")
+            filteredItems.forEach { csv.append("${it.first},${it.second}\n") }
+            context.contentResolver.openOutputStream(it)?.use { out -> out.write(csv.toString().toByteArray()) }
+            Toast.makeText(context, "Exported", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val txnsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
+        uri?.let {
+            val csv = StringBuilder("Date,Time,Account,Category,Amount,Note\n")
+            val itemNames = filteredItems.map { it.first }
+            val txns = allTransactions.filter { t ->
+                (t.accountName in itemNames || t.toAccountName in itemNames) &&
+                t.transaction.date <= asOfDate &&
+                (selectedTagIds.isEmpty() || t.transaction.tags?.split(",")?.mapNotNull { it.toIntOrNull() }?.any { it in selectedTagIds } == true) &&
+                (selectedAccountIds.isEmpty() || t.transaction.accountId in selectedAccountIds || t.transaction.toAccountId in selectedAccountIds)
+            }
+            txns.forEach { t ->
+                csv.append("${t.transaction.date},${t.transaction.time},${t.accountName},${t.categoryName ?: "Transfer"},${t.transaction.amount},\"${t.transaction.note ?: ""}\"\n")
+            }
+            context.contentResolver.openOutputStream(it)?.use { out -> out.write(csv.toString().toByteArray()) }
+            Toast.makeText(context, "Exported", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(title) }, 
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "") } },
+                actions = {
+                    IconButton(onClick = { showTagFilter = true }) {
+                        Icon(Icons.Default.Label, "Tags", tint = if (selectedTagIds.isNotEmpty()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+                    }
+                    IconButton(onClick = { showAccountFilter = true }) {
+                        Icon(Icons.Default.AccountBalance, "Accounts", tint = if (selectedAccountIds.isNotEmpty()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+                    }
+                    IconButton(onClick = { showExportDialog = true }) {
+                        Icon(Icons.Default.FileDownload, "Export")
+                    }
+                }
+            )
+        },
+        contentWindowInsets = WindowInsets(0, 0, 0, 0)
+    ) { padding ->
+        LazyColumn(modifier = Modifier.padding(padding).padding(horizontal = 16.dp)) {
+            items(filteredItems) { item ->
+                BalanceRow(item.first, item.second, viewModel) { onItemClick(item.first) }
+            }
+        }
+    }
+
+    if (showExportDialog) {
+        AlertDialog(
+            onDismissRequest = { showExportDialog = false },
+            title = { Text("Export Data") },
+            text = { Text("What would you like to export?") },
+            confirmButton = {
+                TextButton(onClick = { showExportDialog = false; balancesLauncher.launch("balances_${title}_$asOfDate.csv") }) { Text("Balances") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showExportDialog = false; txnsLauncher.launch("transactions_${title}_$asOfDate.csv") }) { Text("Transactions") }
+            }
+        )
+    }
+
+    if (showTagFilter) {
+        MultiSelectFilterDialog(title = "Filter by Tags", items = allTags.map { it.id to it.name }, selectedIds = selectedTagIds, onDismiss = { showTagFilter = false })
+    }
+    if (showAccountFilter) {
+        MultiSelectFilterDialog(title = "Filter by Accounts", items = allAccounts.map { it.id to it.name }, selectedIds = selectedAccountIds, onDismiss = { showAccountFilter = false })
     }
 }
 
@@ -625,27 +919,60 @@ fun SubtotalRow(label: String, total: Double, viewModel: ExpenseViewModel, color
 }
 
 @Composable
-fun AccountDetailView(viewModel: ExpenseViewModel, account: AccountBalance, onBack: () -> Unit) {
-    var month by remember { mutableStateOf(LocalDate.now()) }
+fun AccountDetailView(viewModel: ExpenseViewModel, account: AccountBalance, onBack: () -> Unit, initialAsOfDate: String? = null) {
+    var month by remember { mutableStateOf(if (initialAsOfDate != null) LocalDate.parse(initialAsOfDate) else LocalDate.now()) }
     var startDate by remember { mutableStateOf(month.withDayOfMonth(1).format(DateTimeFormatter.ISO_DATE)) }
     var endDate by remember { mutableStateOf(month.with(TemporalAdjusters.lastDayOfMonth()).format(DateTimeFormatter.ISO_DATE)) }
+    
+    val allTags by viewModel.getEnabledTags().collectAsState(initial = emptyList())
+    val allAccounts by viewModel.getEnabledAccounts().collectAsState(initial = emptyList())
+    
+    val filterTagIds = remember { mutableStateListOf<Int>() }
+    val filterAccountIds = remember { mutableStateListOf<Int>() }
+    
+    var showTagFilter by remember { mutableStateOf(false) }
+    var showAccountFilter by remember { mutableStateOf(false) }
     var showFilterDialog by remember { mutableStateOf(false) }
+    
     val context = LocalContext.current
-    val transactions by viewModel.getAccountTransactions(account.id, startDate, endDate).collectAsState(initial = emptyList())
+    val rawTransactions by viewModel.getAccountTransactions(account.id, startDate, endDate).collectAsState(initial = emptyList())
+    
+    val transactions = remember(rawTransactions, filterTagIds.toList(), filterAccountIds.toList()) {
+        rawTransactions.filter { t ->
+            (filterTagIds.isEmpty() || t.transaction.tags?.split(",")?.mapNotNull { it.toIntOrNull() }?.any { it in filterTagIds } == true) &&
+            (filterAccountIds.isEmpty() || t.transaction.accountId in filterAccountIds || t.transaction.toAccountId in filterAccountIds)
+        }
+    }
+
     val exportLauncher = rememberLauncherForActivityResult(contract = ActivityResultContracts.CreateDocument("text/csv"), onResult = { uri -> uri?.let { exportToUri(context, transactions, "CSV", it) } })
     Column(modifier = Modifier.fillMaxSize()) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "") }
             Text(account.name, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+            
+            IconButton(onClick = { showTagFilter = true }) {
+                Icon(Icons.Default.Label, "", tint = if (filterTagIds.isNotEmpty()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+            }
+            IconButton(onClick = { showAccountFilter = true }) {
+                Icon(Icons.Default.AccountBalance, "", tint = if (filterAccountIds.isNotEmpty()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+            }
         }
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-            IconButton(onClick = { month = month.minusMonths(1); startDate = month.withDayOfMonth(1).format(DateTimeFormatter.ISO_DATE); endDate = month.with(TemporalAdjusters.lastDayOfMonth()).format(DateTimeFormatter.ISO_DATE) }) { Icon(Icons.Default.ChevronLeft, "") }
+            IconButton(onClick = { 
+                month = month.minusMonths(1)
+                startDate = month.withDayOfMonth(1).format(DateTimeFormatter.ISO_DATE)
+                endDate = month.with(TemporalAdjusters.lastDayOfMonth()).format(DateTimeFormatter.ISO_DATE) 
+            }) { Icon(Icons.Default.ChevronLeft, "") }
             Text(month.format(DateTimeFormatter.ofPattern("MMMM yyyy")), modifier = Modifier.weight(1f).clickable { showFilterDialog = true }, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-            IconButton(onClick = { month = month.plusMonths(1); startDate = month.withDayOfMonth(1).format(DateTimeFormatter.ISO_DATE); endDate = month.with(TemporalAdjusters.lastDayOfMonth()).format(DateTimeFormatter.ISO_DATE) }) { Icon(Icons.Default.ChevronRight, "") }
+            IconButton(onClick = { 
+                month = month.plusMonths(1)
+                startDate = month.withDayOfMonth(1).format(DateTimeFormatter.ISO_DATE)
+                endDate = month.with(TemporalAdjusters.lastDayOfMonth()).format(DateTimeFormatter.ISO_DATE) 
+            }) { Icon(Icons.Default.ChevronRight, "") }
             IconButton(onClick = { showFilterDialog = true }) { Icon(Icons.Default.DateRange, contentDescription = "Filter") }
             IconButton(onClick = { exportLauncher.launch("${account.name.replace(" ", "_")}_${month.format(DateTimeFormatter.ofPattern("MMM_yyyy"))}.csv") }) { Icon(Icons.Default.FileDownload, contentDescription = "Export") }
         }
-        LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+        LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp).padding(top = 0.dp)) {
             items(transactions) { detail ->
                 Box(modifier = Modifier.clickable { viewModel.selectedTransactionDetail = detail }) { TransactionRow(detail = detail, viewModel = viewModel, showTxnNumber = true) }
                 Divider(modifier = Modifier.padding(vertical = 4.dp))
@@ -653,6 +980,8 @@ fun AccountDetailView(viewModel: ExpenseViewModel, account: AccountBalance, onBa
         }
     }
     if (showFilterDialog) { DateRangeFilterDialog(onDismiss = { showFilterDialog = false }, onApply = { s, e -> startDate = s; endDate = e; showFilterDialog = false }) }
+    if (showTagFilter) { MultiSelectFilterDialog("Filter by Tags", allTags.map { it.id to it.name }, filterTagIds, onDismiss = { showTagFilter = false }) }
+    if (showAccountFilter) { MultiSelectFilterDialog("Filter by Accounts", allAccounts.map { it.id to it.name }, filterAccountIds, onDismiss = { showAccountFilter = false }) }
 }
 
 @Composable
@@ -716,14 +1045,149 @@ fun DateRangeFilterDialog(onDismiss: () -> Unit, onApply: (String, String) -> Un
             Row(modifier = Modifier.fillMaxWidth().clickable { DatePickerDialog(context, { _, y, m, d -> start = LocalDate.of(y, m+1, d) }, start.year, start.monthValue - 1, start.dayOfMonth).show() }.padding(8.dp)) { Text("From: ${start.format(DateTimeFormatter.ISO_DATE)}") }
             Row(modifier = Modifier.fillMaxWidth().clickable { DatePickerDialog(context, { _, y, m, d -> end = LocalDate.of(y, m+1, d) }, end.year, end.monthValue - 1, end.dayOfMonth).show() }.padding(8.dp)) { Text("To: ${end.format(DateTimeFormatter.ISO_DATE)}") }
             Spacer(Modifier.height(8.dp)); Text("Shortcuts:", style = MaterialTheme.typography.labelSmall)
-            val shortcuts = listOf("Today" to { start = LocalDate.now(); end = LocalDate.now() }, "Yesterday" to { start = LocalDate.now().minusDays(1); end = LocalDate.now().minusDays(1) }, "Last 7 Days" to { start = LocalDate.now().minusDays(7); end = LocalDate.now() }, "Last 2 Weeks" to { start = LocalDate.now().minusWeeks(2); end = LocalDate.now() }, "This Month" to { start = LocalDate.now().withDayOfMonth(1); end = LocalDate.now().with(TemporalAdjusters.lastDayOfMonth()) }, "Last Month" to { start = LocalDate.now().minusMonths(1).withDayOfMonth(1); end = LocalDate.now().minusMonths(1).with(TemporalAdjusters.lastDayOfMonth()) }, "Last 2 Months" to { start = LocalDate.now().minusMonths(2); end = LocalDate.now() }, "Last 6 Months" to { start = LocalDate.now().minusMonths(6); end = LocalDate.now() }, "This Year" to { start = LocalDate.now().with(TemporalAdjusters.firstDayOfYear()); end = LocalDate.now() })
+            val shortcuts = listOf(
+                "Today" to { start = LocalDate.now(); end = LocalDate.now() }, 
+                "Yesterday" to { start = LocalDate.now().minusDays(1); end = LocalDate.now().minusDays(1) }, 
+                "Last 7 Days" to { start = LocalDate.now().minusDays(7); end = LocalDate.now() }, 
+                "Last 2 Weeks" to { start = LocalDate.now().minusWeeks(2); end = LocalDate.now() }, 
+                "This Month" to { start = LocalDate.now().withDayOfMonth(1); end = LocalDate.now().with(TemporalAdjusters.lastDayOfMonth()) }, 
+                "Last Month" to { start = LocalDate.now().minusMonths(1).withDayOfMonth(1); end = LocalDate.now().minusMonths(1).with(TemporalAdjusters.lastDayOfMonth()) }, 
+                "Last 2 Months" to { start = LocalDate.now().minusMonths(2); end = LocalDate.now() }, 
+                "Last 6 Months" to { start = LocalDate.now().minusMonths(6); end = LocalDate.now() }, 
+                "This Year" to { start = LocalDate.now().with(TemporalAdjusters.firstDayOfYear()); end = LocalDate.now() },
+                "Last Year" to { start = LocalDate.now().minusYears(1).with(TemporalAdjusters.firstDayOfYear()); end = LocalDate.now().minusYears(1).with(TemporalAdjusters.lastDayOfYear()) }
+            )
             androidx.compose.foundation.layout.FlowRow(modifier = Modifier.fillMaxWidth()) { shortcuts.forEach { (label, action) -> AssistChip(onClick = action, label = { Text(label) }, modifier = Modifier.padding(2.dp)) } }
         }
     }, confirmButton = { Button(onClick = { onApply(start.format(DateTimeFormatter.ISO_DATE), end.format(DateTimeFormatter.ISO_DATE)) }) { Text("Apply") } }, dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TransactionListOverlay(title: String, transactions: List<TransactionWithDetails>, viewModel: ExpenseViewModel, onBack: () -> Unit) {
+    Scaffold(
+        topBar = {
+            TopAppBar(title = { Text(title) }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "") } })
+        },
+        contentWindowInsets = WindowInsets(0, 0, 0, 0)
+    ) { padding ->
+        LazyColumn(modifier = Modifier.padding(padding).padding(16.dp)) {
+            items(transactions) { detail ->
+                Box(modifier = Modifier.clickable { viewModel.selectedTransactionDetail = detail }) {
+                    TransactionRow(detail = detail, viewModel = viewModel, showTxnNumber = true)
+                }
+                Divider()
+            }
+        }
+    }
 }
 
 fun Context.findActivity(): Activity? {
     var context = this
     while (context is ContextWrapper) { if (context is Activity) return context; context = context.baseContext }
     return null
+}
+
+@Composable
+fun TransactionCalendarView(month: LocalDate, transactions: List<TransactionWithDetails>, viewModel: ExpenseViewModel) {
+    val dailyTotals = remember(transactions) {
+        transactions.groupBy { it.transaction.date }.mapValues { entry ->
+            val inc = entry.value.filter { it.categoryType == "income" }.sumOf { it.transaction.amount }
+            val exp = entry.value.filter { it.categoryType == "expense" }.sumOf { it.transaction.amount }
+            Pair(inc, exp)
+        }
+    }
+
+    val firstDayOfMonth = month.withDayOfMonth(1)
+    val lastDayOfMonth = month.with(TemporalAdjusters.lastDayOfMonth())
+    
+    // Sun=0, Mon=1, ..., Sat=6
+    val startOffset = if (firstDayOfMonth.dayOfWeek.value == 7) 0 else firstDayOfMonth.dayOfWeek.value
+
+    val days = (1..lastDayOfMonth.dayOfMonth).toList()
+    
+    val weeks = mutableListOf<List<Int?>>()
+    var currentWeek = mutableListOf<Int?>()
+    
+    for (i in 0 until startOffset) {
+        currentWeek.add(null)
+    }
+    
+    for (day in days) {
+        currentWeek.add(day)
+        if (currentWeek.size == 7) {
+            weeks.add(currentWeek)
+            currentWeek = mutableListOf()
+        }
+    }
+    
+    if (currentWeek.isNotEmpty()) {
+        while (currentWeek.size < 7) {
+            currentWeek.add(null)
+        }
+        weeks.add(currentWeek)
+    }
+
+    Column(modifier = Modifier.fillMaxSize().padding(8.dp)) {
+        Row(modifier = Modifier.fillMaxWidth()) {
+            listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat").forEach { day ->
+                Text(
+                    text = day,
+                    modifier = Modifier.weight(1f),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp
+                )
+            }
+        }
+        
+        Spacer(Modifier.height(8.dp))
+        
+    weeks.forEach { week ->
+        Row(modifier = Modifier.fillMaxWidth().height(90.dp)) {
+            week.forEach { day ->
+                Surface(
+                    modifier = Modifier.weight(1f).fillMaxHeight().border(0.5.dp, Color.Gray.copy(alpha = 0.2f)),
+                    color = MaterialTheme.colorScheme.surface
+                ) {
+                    if (day != null) {
+                        val dateStr = month.withDayOfMonth(day).format(DateTimeFormatter.ISO_DATE)
+                        val totals = dailyTotals[dateStr]
+                        
+                        Column(modifier = Modifier.padding(4.dp)) {
+                            Text(
+                                text = day.toString(), 
+                                fontSize = 12.sp, 
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                fontWeight = FontWeight.Bold
+                            )
+                            if (totals != null) {
+                                Column(verticalArrangement = Arrangement.spacedBy((-2).dp)) {
+                                    if (totals.second > 0) {
+                                        Text(
+                                            text = viewModel.formatAmount(totals.second).replace(".00", ""),
+                                            color = Color(0xFFF44336),
+                                            fontSize = 10.sp,
+                                            maxLines = 1,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
+                                    if (totals.first > 0) {
+                                        Text(
+                                            text = viewModel.formatAmount(totals.first).replace(".00", ""),
+                                            color = Color(0xFF4CAF50),
+                                            fontSize = 10.sp,
+                                            maxLines = 1,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    }
 }

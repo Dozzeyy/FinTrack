@@ -19,7 +19,7 @@ import javax.crypto.spec.SecretKeySpec
 import javax.crypto.AEADBadTagException
 
 object EncryptionService {
-    private const val HEADER = "FTD" // FinTrack Data
+    private const val HEADER = "XPT" // FinTrack Data
     private const val VERSION = "01"
     private const val ITERATIONS = 600000
     private const val KEY_LENGTH = 256
@@ -28,6 +28,9 @@ object EncryptionService {
     private const val TAG_LENGTH = 128
 
     fun encryptFile(inputFile: File, outputFile: File, password: String, onProgress: (Float) -> Unit = {}): Result<Unit> {
+        val tempFile = File(outputFile.path + ".tmp")
+        if (tempFile.exists()) tempFile.delete()
+
         return try {
             val salt = ByteArray(SALT_LENGTH)
             SecureRandom().nextBytes(salt)
@@ -41,7 +44,7 @@ object EncryptionService {
             val totalSize = inputFile.length()
             var processed = 0L
 
-            FileOutputStream(outputFile).use { fos ->
+            FileOutputStream(tempFile).use { fos ->
                 val saltBase64 = Base64.encodeToString(salt, Base64.NO_WRAP)
                 val ivBase64 = Base64.encodeToString(iv, Base64.NO_WRAP)
                 val headerString = "$HEADER$VERSION$saltBase64$ivBase64:"
@@ -61,14 +64,23 @@ object EncryptionService {
                 if (finalOutput != null) fos.write(finalOutput)
                 onProgress(1.0f)
             }
-            Result.success(Unit)
+            
+            if (tempFile.renameTo(outputFile)) {
+                Result.success(Unit)
+            } else {
+                Result.failure(Exception("Failed to finalize encrypted file"))
+            }
         } catch (e: Exception) {
             Log.e("EncryptionService", "Encryption failed", e)
+            if (tempFile.exists()) tempFile.delete()
             Result.failure(e)
         }
     }
 
     fun decryptFile(inputFile: File, outputFile: File, password: String, onProgress: (Float) -> Unit = {}): Result<Unit> {
+        val tempFile = File(outputFile.path + ".tmp")
+        if (tempFile.exists()) tempFile.delete()
+
         return try {
             val totalSize = inputFile.length()
             var processed = 0L
@@ -96,7 +108,7 @@ object EncryptionService {
                 val actualHeaderByteCount = headerPart.toByteArray().size + 1
                 processed += actualHeaderByteCount
                 
-                FileOutputStream(outputFile).use { fos ->
+                FileOutputStream(tempFile).use { fos ->
                     FileInputStream(inputFile).use { dataFis ->
                         dataFis.skip(actualHeaderByteCount.toLong())
                         val buffer = ByteArray(8192)
@@ -113,8 +125,14 @@ object EncryptionService {
                     }
                 }
             }
-            Result.success(Unit)
+
+            if (tempFile.renameTo(outputFile)) {
+                Result.success(Unit)
+            } else {
+                Result.failure(Exception("Failed to finalize decrypted file"))
+            }
         } catch (e: Exception) {
+            if (tempFile.exists()) tempFile.delete()
             if (e is AEADBadTagException) {
                 Log.e("EncryptionService", "Integrity check failed: File corrupted or tampered.", e)
                 return Result.failure(Exception("File integrity check failed. The backup may be corrupted."))
@@ -152,9 +170,14 @@ object EncryptionService {
     }
 
     private fun deriveKey(password: String, salt: ByteArray): SecretKeySpec {
-        val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
-        val spec = PBEKeySpec(password.toCharArray(), salt, ITERATIONS, KEY_LENGTH)
-        val tmp = factory.generateSecret(spec)
-        return SecretKeySpec(tmp.encoded, "AES")
+        return try {
+            val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
+            val spec = PBEKeySpec(password.toCharArray(), salt, ITERATIONS, KEY_LENGTH)
+            val tmp = factory.generateSecret(spec)
+            SecretKeySpec(tmp.encoded, "AES")
+        } catch (e: Exception) {
+            Log.e("EncryptionService", "Failed to derive secret key", e)
+            throw Exception("Encryption failed: Could not generate a secret key. Please ensure your password is correct and try again.")
+        }
     }
 }

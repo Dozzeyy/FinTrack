@@ -10,18 +10,23 @@ import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -54,25 +59,80 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onRequireAut
             
             val themes = listOf("Light", "Dark", "OLED Dark")
             var themeExpanded by remember { mutableStateOf(false) }
+            var showColorPicker by remember { mutableStateOf(false) }
             
-            Box(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-                OutlinedButton(
-                    onClick = { themeExpanded = true },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Theme: ${viewModel.currentTheme}")
-                }
-                DropdownMenu(expanded = themeExpanded, onDismissRequest = { themeExpanded = false }) {
-                    themes.forEach { theme ->
-                        DropdownMenuItem(
-                            text = { Text(theme) },
-                            onClick = {
-                                viewModel.updateTheme(theme)
-                                themeExpanded = false
-                            }
-                        )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(modifier = Modifier.weight(1f)) {
+                    OutlinedButton(
+                        onClick = { themeExpanded = true },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Theme: ${viewModel.currentTheme}")
+                    }
+                    DropdownMenu(expanded = themeExpanded, onDismissRequest = { themeExpanded = false }) {
+                        themes.forEach { theme ->
+                            DropdownMenuItem(
+                                text = { Text(theme) },
+                                onClick = {
+                                    viewModel.updateTheme(theme)
+                                    themeExpanded = false
+                                }
+                            )
+                        }
                     }
                 }
+
+                OutlinedButton(
+                    onClick = { showColorPicker = true },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(Icons.Default.Palette, null, tint = Color(viewModel.currentPrimaryColor))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Color")
+                }
+            }
+
+            if (showColorPicker) {
+                var red by remember { mutableFloatStateOf(Color(viewModel.currentPrimaryColor).red * 255f) }
+                var green by remember { mutableFloatStateOf(Color(viewModel.currentPrimaryColor).green * 255f) }
+                var blue by remember { mutableFloatStateOf(Color(viewModel.currentPrimaryColor).blue * 255f) }
+                val currentColor = Color(red.toInt(), green.toInt(), blue.toInt())
+
+                AlertDialog(
+                    onDismissRequest = { showColorPicker = false },
+                    title = { Text("Pick Primary Color") },
+                    text = {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Box(modifier = Modifier.size(100.dp, 40.dp).background(currentColor, MaterialTheme.shapes.small).border(1.dp, Color.Gray, MaterialTheme.shapes.small))
+                            
+                            Column {
+                                Text("Red: ${red.toInt()}", style = MaterialTheme.typography.labelSmall)
+                                Slider(value = red, onValueChange = { red = it }, valueRange = 0f..255f)
+                            }
+                            Column {
+                                Text("Green: ${green.toInt()}", style = MaterialTheme.typography.labelSmall)
+                                Slider(value = green, onValueChange = { green = it }, valueRange = 0f..255f)
+                            }
+                            Column {
+                                Text("Blue: ${blue.toInt()}", style = MaterialTheme.typography.labelSmall)
+                                Slider(value = blue, onValueChange = { blue = it }, valueRange = 0f..255f)
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        Button(onClick = {
+                            viewModel.updatePrimaryColor(currentColor.toArgb())
+                            showColorPicker = false
+                        }) { Text("Apply") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showColorPicker = false }) { Text("Cancel") }
+                    }
+                )
             }
 
             Spacer(Modifier.height(16.dp))
@@ -200,6 +260,14 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onRequireAut
                 )
             }
 
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text("Disable Screenshot")
+                Switch(
+                    checked = viewModel.disableScreenshots, 
+                    onCheckedChange = { viewModel.updateDisableScreenshots(it) }
+                )
+            }
+
             if (viewModel.appLockEnabled) {
                 Spacer(Modifier.height(8.dp))
                 Text("Auto-lock Inactivity Timeout:", style = MaterialTheme.typography.labelSmall)
@@ -236,6 +304,24 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onRequireAut
             val clipboardManager = LocalClipboardManager.current
 
             var showErrorDialog by remember { mutableStateOf(false) }
+            var showWebWarning by remember { mutableStateOf(false) }
+
+            if (showWebWarning) {
+                AlertDialog(
+                    onDismissRequest = { showWebWarning = false },
+                    title = { Text("Security Warning") },
+                    text = { Text("This feature is useful if you are trying to use app on another device. This will require your phone and another device to be on same Wi-Fi network and data will be transmitted in plain text (http). Enable this only when needed and do not turn this on when you are connected to public wifi. USE THIS ONLY IF YOU KNOW WHAT YOU ARE DOING") },
+                    confirmButton = {
+                        TextButton(onClick = { 
+                            viewModel.toggleServer(true)
+                            showWebWarning = false 
+                        }) { Text("Enable") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showWebWarning = false }) { Text("Cancel") }
+                    }
+                )
+            }
 
             LaunchedEffect(serverError) {
                 if (serverError != null) {
@@ -276,7 +362,11 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onRequireAut
                     checked = isServerRunning,
                     enabled = !isServerStopping,
                     onCheckedChange = { running ->
-                        viewModel.toggleServer(running)
+                        if (running) {
+                            showWebWarning = true
+                        } else {
+                            viewModel.toggleServer(false)
+                        }
                     }
                 )
             }
@@ -450,11 +540,28 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onRequireAut
             }
 
             Spacer(Modifier.height(16.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Alert on credit card due date")
+                    Text("Notify 2 days before payment is due.", style = MaterialTheme.typography.labelSmall)
+                }
+                Switch(
+                    checked = viewModel.ccAlertEnabled,
+                    onCheckedChange = { viewModel.updateCcAlertEnabled(it) }
+                )
+            }
+
+            Spacer(Modifier.height(16.dp))
             Text("Regional Settings", style = MaterialTheme.typography.titleMedium)
             
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text("Use Millions/Billions System")
                 Switch(checked = viewModel.useMillionsSystem, onCheckedChange = { viewModel.updateNumberSystem(it) })
+            }
+
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text("Tap to show net position")
+                Switch(checked = viewModel.tapToShowNetPosition, onCheckedChange = { viewModel.updateTapToShowNetPosition(it) })
             }
 
             Spacer(Modifier.height(16.dp))
@@ -464,6 +571,9 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onRequireAut
                 Text("Multi-Tag Selection")
                 Switch(checked = viewModel.multiTagEnabled, onCheckedChange = { viewModel.updateMultiTagEnabled(it) })
             }
+
+            Spacer(Modifier.height(16.dp))
+            MultiCurrencySettings(viewModel)
 
             Spacer(Modifier.height(8.dp))
             
@@ -483,6 +593,122 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onRequireAut
                 color = Color.Gray
             )
         }
+    }
+}
+
+@Composable
+fun MultiCurrencySettings(viewModel: ExpenseViewModel) {
+    var showBaseCurrencyDialog by remember { mutableStateOf(false) }
+    
+    val currencies = remember { 
+        java.util.Currency.getAvailableCurrencies()
+            .map { it.currencyCode }
+            .sorted()
+    }
+
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text("Enable Multi-Currency")
+            Text("Input amounts in any currency and convert to base.", style = MaterialTheme.typography.labelSmall)
+        }
+        Switch(
+            checked = viewModel.enableMultiCurrency,
+            onCheckedChange = { 
+                if (it) showBaseCurrencyDialog = true
+                else viewModel.updateMultiCurrencyEnabled(false)
+            }
+        )
+    }
+
+    if (viewModel.enableMultiCurrency) {
+        Spacer(Modifier.height(8.dp))
+        Text("Base Currency: ${viewModel.baseCurrency}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+        
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            OutlinedButton(
+                onClick = { showBaseCurrencyDialog = true },
+                modifier = Modifier.weight(1f),
+                enabled = !viewModel.isRefreshingRates
+            ) {
+                Text("Change Base Currency")
+            }
+            Button(
+                onClick = { viewModel.refreshExchangeRates() },
+                modifier = Modifier.weight(1f),
+                enabled = !viewModel.isRefreshingRates
+            ) {
+                if (viewModel.isRefreshingRates) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Refreshing...")
+                } else {
+                    Icon(Icons.Default.Refresh, null)
+                    Spacer(Modifier.width(4.dp))
+                    Text("Refresh Rates")
+                }
+            }
+        }
+
+        if (viewModel.isRefreshingRates || viewModel.rateRefreshStatus != null) {
+            Text(
+                text = "Status: ${viewModel.rateRefreshStatus ?: "Waiting..."}",
+                style = MaterialTheme.typography.labelSmall,
+                color = if (viewModel.rateRefreshStatus == "Failed") MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondary,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+        }
+        
+        viewModel.lastRateRefreshResult.value?.let { result ->
+            Text(result, style = MaterialTheme.typography.labelSmall, color = if (result.contains("Successful")) Color(0xFF4CAF50) else Color.Red)
+        }
+        Text("Last refresh: ${viewModel.lastRateRefreshTime}", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+    }
+
+    if (showBaseCurrencyDialog) {
+        var searchQuery by remember { mutableStateOf("") }
+        val filtered = remember(searchQuery) {
+            if (searchQuery.isBlank()) currencies
+            else currencies.filter { it.contains(searchQuery, ignoreCase = true) }
+        }
+
+        AlertDialog(
+            onDismissRequest = { if (viewModel.enableMultiCurrency) showBaseCurrencyDialog = false },
+            title = { Text("Select Base Currency") },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        label = { Text("Search Currency") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Box(modifier = Modifier.height(300.dp)) {
+                        LazyColumn {
+                            items(filtered) { code ->
+                                val currency = java.util.Currency.getInstance(code)
+                                ListItem(
+                                    headlineContent = { Text("$code - ${currency.getDisplayName(java.util.Locale.getDefault())}") },
+                                    modifier = Modifier.clickable {
+                                        viewModel.updateBaseCurrency(code)
+                                        viewModel.updateMultiCurrencyEnabled(true)
+                                        showBaseCurrencyDialog = false
+                                    }
+                                )
+                                Divider()
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                if (viewModel.enableMultiCurrency) {
+                    TextButton(onClick = { showBaseCurrencyDialog = false }) { Text("Cancel") }
+                }
+            }
+        )
     }
 }
 
