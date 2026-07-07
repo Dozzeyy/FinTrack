@@ -1,4 +1,4 @@
-# FinTrack - Count every penny
+# FinTrack - Count every penny (AKA Xpent)
 
 FinTrack is a robust, privacy-focused Android expense tracker designed to help you manage your finances with ease. It features automated transaction detection, biometric security, and a flexible budget management system.
 
@@ -19,7 +19,7 @@ FinTrack is a robust, privacy-focused Android expense tracker designed to help y
     - Export transactions to CSV/Excel.
     - Seamlessly import existing database files.
 
-[Download latest version of APK 1.1.81](https://t.me/openapps_FOSS)
+[Visit us for more info](https://vahak.org)
 
 To verify the downloaded APK use this SHA256 fingerprint of the signing certificate - `68:EB:C8:89:43:C4:A7:35:29:E7:D0:1E:C8:02:F9:FF:3A:96:5B:05:3C:8A:40:70:23:7B:6D:A7:A4:ED:F5:90`
 
