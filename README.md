@@ -5,15 +5,23 @@ FinTrack is a robust, privacy-focused Android expense tracker designed to help y
 ## 🚀 Key Features
 
 - **Automated SMS Detection:** Automatically parse transaction messages to save you time.
+- **Custom SMS processing rules:** Automate transaction recording by setting up custom SMS parsing rules.
 - **Multi Category:** In same Add transaction screen, pick more than one expense/ income categories to save your time by avoiding creation of multiple entries for the same shopping transaction.
-- **Web App (Basic) :** Creates a local server to record transaction on any devices connected in your local network.
+- **Web App (Basic) :** Creates a local server to record transaction on any devices connected in your local network. Export your data directly on your other devices.
 - **WebDAV Support:** Auto sync your database to any WebDAV supported cloud provider with optional E2EE support.
+- **Encryption at rest:** Once turn on Ultra Secure Mode, your App data remains encrypted on your device as soon as you close the app (not just when you backup database).
 - **Biometric Security:** Secure your financial data with Fingerprint, Face ID, or System PIN.
 - **Budgeting System:** Set targets for any category (Daily, Weekly, Monthly, Yearly) and track your progress in real-time.
 - **Advanced Tags:** Organize transactions with multi-select tags for deep analytical insights.
 - **Integrated Calculator:** Perform quick calculations directly within the amount field.
 - **Global Search:** Search through all transaction notes, accounts, categories, and tags instantly.
 - **Dual Number Systems:** Toggle between **Lakhs/Crores** (Indian) and **Millions/Billions** (International) formatting.
+- **Financial insights:** App detects anamolies and notifies user for any unusual spending habits.
+- **Loan management:** Manage loans taken or given with auto recording of entries and alerts during repayment every month.
+- **Credit cards:** Handy if you are having more than 1 credit card. Just set up billing cycle and payment due dates, app will construct full credit card dashboard for your review.
+- **Notes:** Comes with built in notes app for easy note taking within app with drawing, checklist and text notes.
+- **Subscription management:** Manage recurring expenses easily.
+
 - **Database Management:** 
     - Full manual and scheduled backups.
     - Export transactions to CSV/Excel.
@@ -26,15 +34,15 @@ To verify the downloaded APK use this SHA256 fingerprint of the signing certific
 
 Check App screenshots here
 <div style="display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;">
-  <img src="https://raw.githubusercontent.com/Dozzeyy/FinTrackd/main/fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" alt="Screen 1" width="200">
-  <img src="https://raw.githubusercontent.com/Dozzeyy/FinTrackd/main/fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" alt="Screen 2" width="200">
-  <img src="https://raw.githubusercontent.com/Dozzeyy/FinTrackd/main/fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" alt="Screen 3" width="200">
-  <img src="https://raw.githubusercontent.com/Dozzeyy/FinTrackd/main/fastlane/metadata/android/en-US/images/phoneScreenshots/4.png" alt="Screen 4" width="200">
+  <img src="https://raw.githubusercontent.com/Dozzeyy/FinTrack/main/fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" alt="Screen 1" width="200">
+  <img src="https://raw.githubusercontent.com/Dozzeyy/FinTrack/main/fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" alt="Screen 2" width="200">
+  <img src="https://raw.githubusercontent.com/Dozzeyy/FinTrack/main/fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" alt="Screen 3" width="200">
+  <img src="https://raw.githubusercontent.com/Dozzeyy/FinTrack/main/fastlane/metadata/android/en-US/images/phoneScreenshots/4.png" alt="Screen 4" width="200">
 </div>
 
 <div style="display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;">
-  <img src="https://raw.githubusercontent.com/Dozzeyy/FinTrackd/main/fastlane/metadata/android/en-US/images/phoneScreenshots/5.png" alt="Screen 1" width="200">
-  <img src="https://raw.githubusercontent.com/Dozzeyy/FinTrackd/main/fastlane/metadata/android/en-US/images/phoneScreenshots/6.png" alt="Screen 2" width="200">
+  <img src="https://raw.githubusercontent.com/Dozzeyy/FinTrack/main/fastlane/metadata/android/en-US/images/phoneScreenshots/5.png" alt="Screen 1" width="200">
+  <img src="https://raw.githubusercontent.com/Dozzeyy/FinTrack/main/fastlane/metadata/android/en-US/images/phoneScreenshots/6.png" alt="Screen 2" width="200">
 </div>
 
 ## 🛠 Tech Stack
