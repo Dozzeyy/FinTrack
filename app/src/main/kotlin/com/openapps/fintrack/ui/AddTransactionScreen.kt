@@ -210,6 +210,7 @@ fun CurrencyPickerField(state: AddTransactionState, viewModel: ExpenseViewModel,
             readOnly = true,
             enabled = false,
             modifier = Modifier.fillMaxWidth(),
+            shape = CircleShape,
             colors = OutlinedTextFieldDefaults.colors(
                 disabledTextColor = MaterialTheme.colorScheme.onSurface,
                 disabledBorderColor = MaterialTheme.colorScheme.outline
@@ -513,7 +514,8 @@ fun AddTransactionScreen(
                     value = templateName,
                     onValueChange = { templateName = it },
                     label = { Text("Template Name") },
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                    shape = CircleShape
                 )
             }
 
@@ -525,6 +527,7 @@ fun AddTransactionScreen(
                     readOnly = true,
                     enabled = false,
                     modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    shape = CircleShape,
                     colors = OutlinedTextFieldDefaults.colors(
                         disabledTextColor = MaterialTheme.colorScheme.primary,
                         disabledBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
@@ -648,6 +651,7 @@ fun AddTransactionScreen(
                     readOnly = isActuallyReadOnly,
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                     minLines = 3,
+                    shape = RoundedCornerShape(24.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         unfocusedContainerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f),
                         focusedContainerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
@@ -777,6 +781,7 @@ fun DateTimeSection(state: AddTransactionState, readOnly: Boolean, context: andr
                 readOnly = true,
                 enabled = false,
                 modifier = Modifier.fillMaxWidth(),
+                shape = CircleShape,
                 colors = OutlinedTextFieldDefaults.colors(
                     disabledTextColor = MaterialTheme.colorScheme.onSurface,
                     disabledBorderColor = MaterialTheme.colorScheme.outline,
@@ -798,6 +803,7 @@ fun DateTimeSection(state: AddTransactionState, readOnly: Boolean, context: andr
                 readOnly = true,
                 enabled = false,
                 modifier = Modifier.fillMaxWidth(),
+                shape = CircleShape,
                 colors = OutlinedTextFieldDefaults.colors(
                     disabledTextColor = MaterialTheme.colorScheme.onSurface,
                     disabledBorderColor = MaterialTheme.colorScheme.outline,
@@ -1024,6 +1030,7 @@ fun MultiEntryRowItem(
                 label = { Text("Amount") },
                 modifier = Modifier.weight(0.35f),
                 readOnly = readOnly,
+                shape = CircleShape,
                 isError = state.categoryError != null && row.amount.isBlank(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
             )
@@ -1090,11 +1097,13 @@ fun AmountAndCurrencySection(state: AddTransactionState, viewModel: ExpenseViewM
             label = { Text("Total Amount") },
             readOnly = readOnly,
             isError = state.amountError != null,
-            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f), RoundedCornerShape(16.dp)),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             colors = OutlinedTextFieldDefaults.colors(
-                unfocusedContainerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
-                focusedContainerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                unfocusedContainerColor = Color.Transparent,
+                focusedContainerColor = Color.Transparent,
+                unfocusedBorderColor = Color.Transparent,
+                focusedBorderColor = Color.Transparent
             ),
             trailingIcon = {
                 if (!readOnly) {
@@ -1148,6 +1157,7 @@ fun SubscriptionSection(state: AddTransactionState, viewModel: ExpenseViewModel,
                 readOnly = false,
                 modifier = Modifier.fillMaxWidth(),
                 enabled = true,
+                shape = CircleShape,
                 colors = OutlinedTextFieldDefaults.colors(
                     unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
                 ),
@@ -1237,7 +1247,8 @@ fun SubscriptionSection(state: AddTransactionState, viewModel: ExpenseViewModel,
                 label = { Text("Frequency (months)") }, 
                 modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), 
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), 
-                readOnly = readOnly
+                readOnly = readOnly,
+                shape = CircleShape
             )
         }
     }
@@ -1516,6 +1527,7 @@ fun MultiCurrencyAmountSection(
                         readOnly = true,
                         enabled = false,
                         modifier = Modifier.fillMaxWidth(),
+                        shape = CircleShape,
                         colors = OutlinedTextFieldDefaults.colors(
                             disabledTextColor = MaterialTheme.colorScheme.onSurface,
                             disabledBorderColor = MaterialTheme.colorScheme.outline
@@ -1530,8 +1542,14 @@ fun MultiCurrencyAmountSection(
                 onValueChange = { if (!readOnly) onAmountForeignChange(it) },
                 label = { Text(if (hideCurrencyPicker) "Total Amount ($foreignCurrency)" else "Amount (Foreign)") },
                 readOnly = readOnly,
-                modifier = Modifier.weight(if (hideCurrencyPicker) 1f else 0.7f),
+                modifier = Modifier.weight(if (hideCurrencyPicker) 1f else 0.7f).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f), RoundedCornerShape(16.dp)),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                colors = OutlinedTextFieldDefaults.colors(
+                    unfocusedContainerColor = Color.Transparent,
+                    focusedContainerColor = Color.Transparent,
+                    unfocusedBorderColor = Color.Transparent,
+                    focusedBorderColor = Color.Transparent
+                ),
                 trailingIcon = {
                     if (!readOnly) {
                         IconButton(onClick = onToggleCalculator) {
@@ -1551,6 +1569,7 @@ fun MultiCurrencyAmountSection(
             label = { Text("Conversion Rate (1 $foreignCurrency = ? ${viewModel.baseCurrency})") },
             readOnly = readOnly,
             modifier = Modifier.fillMaxWidth(),
+            shape = CircleShape,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             leadingIcon = { Icon(Icons.Default.Sync, null, modifier = Modifier.size(16.dp), tint = Color.Gray) },
             supportingText = {
@@ -1571,6 +1590,7 @@ fun MultiCurrencyAmountSection(
             label = { Text("Amount (Local / ${viewModel.baseCurrency})") },
             readOnly = readOnly,
             modifier = Modifier.fillMaxWidth(),
+            shape = CircleShape,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             leadingIcon = { Icon(Icons.Default.LockOpen, null, modifier = Modifier.size(16.dp), tint = Color.Gray) },
             colors = OutlinedTextFieldDefaults.colors(
@@ -1609,7 +1629,8 @@ fun CurrencySelectionDialog(onDismiss: () -> Unit, onSelected: (String) -> Unit)
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
                     label = { Text("Search") },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = CircleShape
                 )
                 Spacer(Modifier.height(8.dp))
                 Box(modifier = Modifier.height(300.dp)) {
@@ -1651,7 +1672,7 @@ fun AccountSelectionDialog(
     var showDialog by remember { mutableStateOf(false) }
     val selectedName = if (isOnAccountSelected) "On Account (Loan)" else accounts.find { it.id == selectedId }?.name ?: "Select Account"
 
-    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable(enabled = enabled) { showDialog = true }) {
+    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f), RoundedCornerShape(16.dp)).clickable(enabled = enabled) { showDialog = true }) {
         OutlinedTextField(
             value = selectedName,
             onValueChange = {},
@@ -1660,9 +1681,10 @@ fun AccountSelectionDialog(
             modifier = Modifier.fillMaxWidth(),
             enabled = false,
             isError = isError,
+            shape = CircleShape,
             colors = OutlinedTextFieldDefaults.colors(
                 disabledTextColor = MaterialTheme.colorScheme.onSurface,
-                disabledBorderColor = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline,
+                disabledBorderColor = Color.Transparent,
                 disabledLabelColor = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
             ),
             trailingIcon = { if (enabled) Icon(Icons.Default.ArrowDropDown, "") }
@@ -1761,6 +1783,7 @@ fun PartySelectionDialog(label: String, parties: List<Party>, selectedId: Int?, 
             readOnly = true,
             modifier = Modifier.fillMaxWidth(),
             enabled = false,
+            shape = CircleShape,
             colors = OutlinedTextFieldDefaults.colors(
                 disabledTextColor = MaterialTheme.colorScheme.onSurface,
                 disabledBorderColor = MaterialTheme.colorScheme.outline,
@@ -1812,7 +1835,7 @@ fun CategorySelectionDialog(label: String, categories: List<com.openapps.fintrac
     var showDialog by remember { mutableStateOf(false) }
     val selectedName = categories.find { it.id == selectedId }?.name ?: "Select"
 
-    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable(enabled = enabled) { showDialog = true }) {
+    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f), RoundedCornerShape(16.dp)).clickable(enabled = enabled) { showDialog = true }) {
         OutlinedTextField(
             value = selectedName,
             onValueChange = {},
@@ -1821,9 +1844,10 @@ fun CategorySelectionDialog(label: String, categories: List<com.openapps.fintrac
             modifier = Modifier.fillMaxWidth(),
             enabled = false,
             isError = isError,
+            shape = CircleShape,
             colors = OutlinedTextFieldDefaults.colors(
                 disabledTextColor = MaterialTheme.colorScheme.onSurface,
-                disabledBorderColor = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline,
+                disabledBorderColor = Color.Transparent,
                 disabledLabelColor = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
             ),
             trailingIcon = { if (enabled) Icon(Icons.Default.ArrowDropDown, "") }
@@ -1911,6 +1935,7 @@ fun TagSelectionPopup(
             readOnly = true,
             modifier = Modifier.fillMaxWidth(),
             enabled = false,
+            shape = CircleShape,
             colors = OutlinedTextFieldDefaults.colors(
                 disabledTextColor = MaterialTheme.colorScheme.onSurface,
                 disabledBorderColor = MaterialTheme.colorScheme.outline,
