@@ -345,7 +345,7 @@ fun AddTransactionScreen(
     }
 
     LaunchedEffect(state.amount, state.currentRate, state.foreignCurrency, viewModel.enableMultiCurrency) {
-        if (!state.isManualLocalAmount) {
+        if (!state.isManualLocalAmount || !viewModel.enableMultiCurrency || state.foreignCurrency == viewModel.baseCurrency) {
             if (viewModel.enableMultiCurrency && state.foreignCurrency != viewModel.baseCurrency) {
                 // If multi-currency is ON and foreign is selected,
                 // state.amount acts as the original (foreign) amount.
@@ -1362,7 +1362,7 @@ fun validateAndSave(
             state.showMismatchDialog = true
             return false
         }
-        viewModel.addMultiEntryTransactionExtended(state.date, state.time, state.selectedAccountId!!, state.multiEntryRows.map { com.openapps.fintrack.ui.MultiEntryRowData(it.categoryId!!, evaluateExpression(it.amount), it.note ?: state.note, state.foreignCurrency) }, tagsString, state.type, state.selectedPartyId, state.subName, state.subFrequency.toIntOrNull(), null)
+        viewModel.addMultiEntryTransactionExtended(state.date, state.time, state.selectedAccountId!!, state.multiEntryRows.map { com.openapps.fintrack.ui.MultiEntryRowData(it.categoryId!!, evaluateExpression(it.amount), it.note ?: state.note, state.foreignCurrency) }, tagsString, state.type, state.selectedPartyId, state.subName, state.subFrequency.toIntOrNull(), updateId)
         viewModel.draftTransaction = null
         onSuccess()
     } else {
