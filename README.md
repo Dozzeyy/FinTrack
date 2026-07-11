@@ -1,4 +1,5 @@
 # FinTrack - Count every penny (AKA Xpent)
+[![F-Droid](https://img.shields.io/f-droid/v/com.openapps.fintrack?logo=fdroid&logoColor=white)](https://f-droid.org/packages/com.openapps.fintrack/)
 
 FinTrack is a robust, privacy-focused Android expense tracker designed to help you manage your finances with ease. It features automated transaction detection, biometric security, and a flexible budget management system.
 
@@ -27,7 +28,10 @@ FinTrack is a robust, privacy-focused Android expense tracker designed to help y
     - Export transactions to CSV/Excel.
     - Seamlessly import existing database files.
 
-[![F-Droid](https://img.shields.io/f-droid/v/com.openapps.fintrack?logo=fdroid&logoColor=white)](https://f-droid.org/packages/com.openapps.fintrack/)
+
+[<img src="https://f-droid.org/badge/get-it-on.png"
+    alt="Get it on F-Droid"
+    height="80">](https://f-droid.org/packages/com.openapps.fintrack)
 
 [Visit us for more info](https://vahak.org)
 
