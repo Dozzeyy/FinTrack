@@ -36,8 +36,8 @@ android {
         applicationId = "com.openapps.fintrack"
         minSdk = 26
         targetSdk = 37
-        versionCode = 2
-        versionName = "1.0.01"
+        versionCode = 3
+        versionName = "1.0.02"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -147,9 +147,6 @@ dependencies {
     implementation("androidx.room:room-runtime:2.8.4")
     implementation("androidx.room:room-ktx:2.8.4")
     ksp("androidx.room:room-compiler:2.8.4")
-
-    // MediaPipe for LLM inference
-    implementation("com.google.mediapipe:tasks-genai:0.10.29")
     
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")

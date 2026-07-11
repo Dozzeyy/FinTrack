@@ -6,8 +6,11 @@
 
 package com.openapps.fintrack.ui
 
+import android.app.AlarmManager
 import android.app.Application
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
 import android.net.Uri
 import android.util.Log
@@ -152,7 +155,6 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
     var isPickingFile by mutableStateOf(false)
     
     private val encryptionMutex = Mutex()
-    val aiManager by lazy { AiManager(application) }
     private val serverManager by lazy { 
         ServerManager.getInstance(application, dao).apply {
             onDatabaseChange = { 
@@ -172,10 +174,11 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
     var rateRefreshStatus by mutableStateOf("")
     val lastRateRefreshResult = mutableStateOf<String?>(null)
 
-    // AI Chat State
-    val aiMessages = mutableStateListOf<ChatMessage>()
-    var aiIsLoading by mutableStateOf(false)
-    var aiCurrentResponse by mutableStateOf("")
+    // Insights State
+    val financialInsights = mutableStateListOf<FinancialInsight>()
+    var isGeneratingInsights by mutableStateOf(false)
+    var showInsightsOverlay by mutableStateOf(false)
+    private val insightEngine = FinancialInsightEngine()
 
     init {
         if (EncryptedPrefsHelper.getString("base_currency", null) == null) EncryptedPrefsHelper.putString("base_currency", baseCurrency)
@@ -248,40 +251,46 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun scheduleReminders() {
-        val workManager = WorkManager.getInstance(getApplication())
+        val context = getApplication<Application>()
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        
+        val intent = Intent(context, ReminderReceiver::class.java)
+        val pendingIntent = PendingIntent.getBroadcast(
+            context, 2001, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
         if (!remindersEnabled) {
-            workManager.cancelUniqueWork("expense_reminder")
+            alarmManager.cancel(pendingIntent)
             return
         }
-
-        val intervalDays = when (reminderUnit) {
-            "day/s" -> reminderFrequency.toLong()
-            "week/s" -> reminderFrequency.toLong() * 7
-            "month/s" -> reminderFrequency.toLong() * 30
-            "year/s" -> reminderFrequency.toLong() * 365
-            else -> reminderFrequency.toLong()
-        }.coerceAtLeast(1)
 
         val parts = reminderTime.split(":")
         val hour = parts.getOrNull(0)?.toIntOrNull() ?: 20
         val min = parts.getOrNull(1)?.toIntOrNull() ?: 0
 
-        val now = LocalDateTime.now()
-        var nextRun = now.withHour(hour).withMinute(min).withSecond(0).withNano(0)
-        if (nextRun.isBefore(now)) {
-            nextRun = nextRun.plusDays(1)
+        val calendar = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, hour)
+            set(Calendar.MINUTE, min)
+            set(Calendar.SECOND, 0)
+            if (before(Calendar.getInstance())) {
+                add(Calendar.DAY_OF_YEAR, 1)
+            }
         }
 
-        val initialDelay = ChronoUnit.MILLIS.between(now, nextRun)
+        val intervalMillis = when (reminderUnit) {
+            "day/s" -> reminderFrequency.toLong() * 24 * 60 * 60 * 1000
+            "week/s" -> reminderFrequency.toLong() * 7 * 24 * 60 * 60 * 1000
+            "month/s" -> reminderFrequency.toLong() * 30 * 24 * 60 * 60 * 1000
+            "year/s" -> reminderFrequency.toLong() * 365 * 24 * 60 * 60 * 1000
+            else -> 24 * 60 * 60 * 1000
+        }
 
-        val reminderRequest = androidx.work.PeriodicWorkRequestBuilder<com.openapps.fintrack.data.ReminderWorker>(intervalDays, TimeUnit.DAYS)
-            .setInitialDelay(initialDelay, TimeUnit.MILLISECONDS)
-            .build()
-
-        workManager.enqueueUniquePeriodicWork(
-            "expense_reminder",
-            androidx.work.ExistingPeriodicWorkPolicy.UPDATE,
-            reminderRequest
+        alarmManager.setInexactRepeating(
+            AlarmManager.RTC_WAKEUP,
+            calendar.timeInMillis,
+            intervalMillis,
+            pendingIntent
         )
     }
 
@@ -706,6 +715,7 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
     fun getAllSubscriptionStatuses() = _refreshTrigger.flatMapLatest { dao.getAllSubscriptionStatuses() }
     fun getAllSubscriptionsMaster() = _refreshTrigger.flatMapLatest { dao.getAllSubscriptionsMaster() }
     fun getExchangeRates(): Flow<List<ExchangeRate>> = dao.getAllExchangeRates()
+    fun getAllRules() = _refreshTrigger.flatMapLatest { dao.getAllRules() }
     suspend fun getLastTransactionForSubscription(name: String) = dao.getAllTransactionsWithDetails().first().find { it.transaction.subName == name }
 
     // Actions
@@ -768,6 +778,7 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
     fun saveNotebook(name: String) { viewModelScope.launch { dao.upsertNotebook(Notebook(name = name)); triggerRefresh() } }
     fun deleteNotebook(n: Notebook) { viewModelScope.launch { dao.deleteNotesByNotebook(n.id); dao.deleteNotebook(n); if(selectedNotebookId == n.id) selectedNotebookId = null; triggerRefresh() } }
     fun saveSubscriptionMaster(name: String, frequency: Int, note: String?, isTransfer: Boolean) { viewModelScope.launch { dao.upsertSubscriptionMaster(Subscription(name=name, frequency=frequency, note=note, isTransfer=isTransfer)); triggerRefresh() } }
+    fun saveRule(rule: Rule) { viewModelScope.launch { dao.upsertRule(rule); triggerRefresh() } }
     fun deleteAccount(a: Account) { viewModelScope.launch { dao.deleteAccount(a); triggerRefresh() } }
     fun deleteCategory(c: Category) { viewModelScope.launch { dao.deleteCategory(c); triggerRefresh() } }
     fun deleteTag(t: Tag) { viewModelScope.launch { dao.deleteTag(t); triggerRefresh() } }
@@ -778,6 +789,7 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
     fun deleteTemplate(t: Template) { viewModelScope.launch { dao.deleteTemplate(t); triggerRefresh() } }
     fun deleteNote(n: Note) { viewModelScope.launch { dao.deleteNote(n); triggerRefresh() } }
     fun deleteLoan(l: Loan) { viewModelScope.launch { dao.deleteLoan(l); triggerRefresh() } }
+    fun deleteRule(r: Rule) { viewModelScope.launch { dao.deleteRule(r); triggerRefresh() } }
     fun toggleCategoryEnabled(c: Category) { viewModelScope.launch { dao.updateCategory(c.copy(isEnabled = !c.isEnabled)); triggerRefresh() } }
     fun toggleAccountEnabled(a: Account) { viewModelScope.launch { dao.updateAccount(a.copy(isEnabled = !a.isEnabled)); triggerRefresh() } }
     fun toggleTagEnabled(t: Tag) { viewModelScope.launch { dao.updateTag(t.copy(isEnabled = !t.isEnabled)); triggerRefresh() } }
@@ -1401,108 +1413,42 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun sendMessageToAi(text: String) {
-        if (text.isBlank() || aiIsLoading) return
+    fun generateFinancialInsights() {
+        if (isGeneratingInsights) return
         
-        aiMessages.add(ChatMessage(text, isUser = true))
-        aiIsLoading = true
-        aiCurrentResponse = ""
-
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                if (!aiManager.initLlm().isSuccess) {
-                    withContext(Dispatchers.Main) {
-                        aiMessages.add(ChatMessage("Failed to initialize AI model. Please ensure it's downloaded.", isUser = false))
-                        aiIsLoading = false
-                    }
-                    return@launch
+                withContext(Dispatchers.Main) {
+                    isGeneratingInsights = true
+                    financialInsights.clear()
+                    showInsightsOverlay = true
                 }
 
-                val history = aiMessages.takeLast(10).filter { it.message.length < 500 }
-                val context = getChatContext()
-                val prompt = buildAiPrompt(context, history, text)
+                val today = LocalDate.now().format(DateTimeFormatter.ISO_DATE)
+                val txns = dao.getAllTransactionsWithDetails().first()
+                val balances = dao.getAccountBalances(today).first()
+                val loans = dao.getAllActiveLoans().first()
+                val budgets = getBudgetVsActual(today).first()
+                val majorHeads = dao.getAllMajorHeads().first()
+                val minorHeads = dao.getAllMinorHeads().first()
 
-                aiManager.generateResponseStream(prompt).collect { partial ->
-                    withContext(Dispatchers.Main) {
-                        aiCurrentResponse += partial
-                    }
-                }
+                val insights = insightEngine.generateInsights(txns, balances, budgets, loans, majorHeads, minorHeads)
 
                 withContext(Dispatchers.Main) {
-                    if (aiCurrentResponse.isNotEmpty()) {
-                        aiMessages.add(ChatMessage(aiCurrentResponse, isUser = false))
-                    }
-                    aiCurrentResponse = ""
-                    aiIsLoading = false
+                    financialInsights.addAll(insights)
+                    isGeneratingInsights = false
                 }
             } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    aiMessages.add(ChatMessage("Error: ${e.localizedMessage}", isUser = false))
-                    aiIsLoading = false
-                }
+                Log.e("Insights", "Error generating statistical insights", e)
+                withContext(Dispatchers.Main) { isGeneratingInsights = false }
             }
         }
     }
 
-    private suspend fun getChatContext(): String {
-        val today = LocalDate.now().format(DateTimeFormatter.ISO_DATE)
-        val startOfMonth = LocalDate.now().withDayOfMonth(1).format(DateTimeFormatter.ISO_DATE)
-        
-        val transactions = dao.getAllTransactionsWithDetails().first()
-        val accounts = dao.getAccountBalances(today).first()
-        
-        val recentTxns = transactions.take(20).joinToString("\n") { 
-            "${it.transaction.date}: ${it.categoryName ?: "Transfer"} - ${formatAmount(it.transaction.amount)} (${it.accountName}${it.toAccountName?.let { " to $it" } ?: ""})"
-        }
-
-        val accountSummary = accounts.joinToString("\n") { 
-            "${it.name}: ${formatAmount(it.balance)}"
-        }
-
-        val monthSpending = transactions.filter { it.transaction.date >= startOfMonth && it.categoryType == "expense" }
-            .sumOf { it.transaction.amount }
-
-        val monthIncome = transactions.filter { it.transaction.date >= startOfMonth && it.categoryType == "income" }
-            .sumOf { it.transaction.amount }
-
-        return """
-            Current Date: $today
-            Base Currency: $baseCurrency
-            
-            Account Balances:
-            $accountSummary
-            
-            This Month Summary (from $startOfMonth):
-            Total Expense: ${formatAmount(monthSpending)}
-            Total Income: ${formatAmount(monthIncome)}
-            
-            Recent 20 Transactions:
-            $recentTxns
-        """.trimIndent()
-    }
-
-    private fun buildAiPrompt(context: String, history: List<ChatMessage>, currentQuery: String): String {
-        val historyStr = history.joinToString("\n") { 
-            if (it.isUser) "User: ${it.message}" else "Assistant: ${it.message}"
-        }
-        
-        return """
-            You are FinTrack AI, a professional financial assistant. 
-            Use the following financial data to answer the user query accurately.
-            
-            Financial Context:
-            $context
-            
-            Chat History:
-            $historyStr
-            
-            User: $currentQuery
-            Assistant:
-        """.trimIndent()
+    fun dismissInsight(insight: FinancialInsight) {
+        financialInsights.remove(insight)
     }
 }
-
-data class ChatMessage(val message: String, val isUser: Boolean)
 
 data class BudgetVsActual(val categoryName: String, val categoryType: String, val budgetAmount: Double, val actualAmount: Double, val duration: String, val higherIsBetter: Boolean = false, val categoryIds: List<Int> = emptyList(), val accountIds: List<Int> = emptyList(), val startDate: String = "", val endDate: String = "")
 data class DraftTransaction(val type: String, val amount: String, val note: String, val date: String, val time: String, val accountId: Int?, val toAccountId: Int?, val categoryId: Int?, val selectedTagIds: List<Int>, val isMultiEntry: Boolean = false, val multiEntryRows: List<DraftMultiEntryRow> = emptyList())

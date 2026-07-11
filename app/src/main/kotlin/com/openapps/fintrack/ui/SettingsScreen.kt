@@ -38,7 +38,7 @@ import com.journeyapps.barcodescanner.ScanOptions
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onRequireAuth: (() -> Unit) -> Unit) {
+fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: (String) -> Unit, onRequireAuth: (() -> Unit) -> Unit) {
     val accounts by viewModel.getEnabledAccounts().collectAsState(initial = emptyList())
 
     Scaffold(
@@ -213,7 +213,7 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onRequireAut
             Spacer(Modifier.height(16.dp))
             Text("Bottom Tab Order", style = MaterialTheme.typography.titleMedium)
             
-            val tabLabels = mapOf("home" to "Home", "analysis" to "Analysis", "transactions" to "Transactns", "budgets" to "Budgets")
+            val tabLabels = mapOf("home" to "Home", "analysis" to "Analysis", "transactions" to "Entries", "budgets" to "Budgets")
             viewModel.bottomTabOrder.forEachIndexed { index, tabKey ->
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
@@ -583,7 +583,7 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onRequireAut
             }
             
             if (viewModel.autoReadEnabled) {
-                AutoReadCriteria(viewModel)
+                AutoReadCriteria(viewModel, onNavigate)
             }
             
             Spacer(Modifier.height(8.dp))
@@ -714,8 +714,16 @@ fun MultiCurrencySettings(viewModel: ExpenseViewModel) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AutoReadCriteria(viewModel: ExpenseViewModel) {
+fun AutoReadCriteria(viewModel: ExpenseViewModel, onNavigate: (String) -> Unit) {
     Column(modifier = Modifier.padding(top = 16.dp)) {
+        Button(onClick = { onNavigate("rules") }, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Default.Rule, null)
+            Spacer(Modifier.width(8.dp))
+            Text("Manage Automation Rules")
+        }
+        
+        Spacer(Modifier.height(16.dp))
+
         OutlinedTextField(
             value = viewModel.smsCurrencies,
             onValueChange = { viewModel.updateSmsCurrencies(it) },

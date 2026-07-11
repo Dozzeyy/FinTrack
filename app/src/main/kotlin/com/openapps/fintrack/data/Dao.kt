@@ -139,7 +139,7 @@ interface ExpenseDao {
                 FROM transactions t 
                 WHERE t.toAccountId = a.id AND t.date <= :asOfDate), 0.0)
         ) as balance,
-        a.minorHeadId
+        a.minorHeadId, a.billingCycleStart, a.billingCycleEnd, a.paymentDueDate
         FROM accounts a
         WHERE a.isEnabled = 1 AND a.name != 'Suspense'
     """)
@@ -356,6 +356,19 @@ interface ExpenseDao {
 
     @Delete
     suspend fun deleteSubscriptionMaster(subscription: Subscription)
+
+    // Rules
+    @Query("SELECT * FROM rules ORDER BY name")
+    fun getAllRules(): Flow<List<Rule>>
+
+    @Query("SELECT * FROM rules WHERE isEnabled = 1")
+    suspend fun getEnabledRulesInternal(): List<Rule>
+
+    @Upsert
+    suspend fun upsertRule(rule: Rule)
+
+    @Delete
+    suspend fun deleteRule(rule: Rule)
 }
 
 data class TransactionWithDetails(
@@ -374,7 +387,10 @@ data class AccountBalance(
     val type: String,
     val openingBalance: Double,
     val balance: Double,
-    val minorHeadId: Int? = null
+    val minorHeadId: Int? = null,
+    val billingCycleStart: String? = null,
+    val billingCycleEnd: String? = null,
+    val paymentDueDate: String? = null
 )
 
 data class BudgetWithDetails(

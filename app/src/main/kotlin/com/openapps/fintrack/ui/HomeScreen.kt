@@ -29,6 +29,8 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -37,9 +39,11 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import java.time.LocalDate
+import java.time.Month
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.time.temporal.TemporalAdjusters
+import java.util.Locale
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -78,138 +82,102 @@ fun HomeScreen(
         drawerState = drawerState,
         drawerContent = {
             ModalDrawerSheet {
-                Spacer(Modifier.height(12.dp))
-                Text("FinTrack Menu", modifier = Modifier.padding(16.dp), style = MaterialTheme.typography.titleLarge)
-                Divider()
-                NavigationDrawerItem(
-                    label = { Text("Home") },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close() }; selectedTab = "home" },
-                    icon = { Icon(Icons.Default.Home, null) }
-                )
-                NavigationDrawerItem(
-                    label = { Text("View Summary") },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close() }; onNavigate("summary") },
-                    icon = { Icon(Icons.Default.Assessment, null) }
-                )
-                NavigationDrawerItem(
-                    label = { Text("Credit Cards") },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close() }; onNavigate("credit_cards") },
-                    icon = { Icon(Icons.Default.CreditCard, null) }
-                )
-                NavigationDrawerItem(
-                    label = { Text("Loan & Subscriptions") },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close() }; onNavigate("subscriptions") },
-                    icon = { Icon(Icons.Default.CardMembership, null) }
-                )
-                NavigationDrawerItem(
-                    label = { Text("Categories & Accounts") },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close() }; onNavigate("manage_categories") },
-                    icon = { Icon(Icons.Default.Category, null) }
-                )
-                NavigationDrawerItem(
-                    label = { Text("Templates") },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close() }; onNavigate("templates") },
-                    icon = { Icon(Icons.Default.Dashboard, null) }
-                )
-                NavigationDrawerItem(
-                    label = { Text("Tags") },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close() }; onNavigate("manage_tags") },
-                    icon = { Icon(Icons.Default.Label, null) }
-                )
-                NavigationDrawerItem(
-                    label = { Text("Budgets") },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close() }; onNavigate("manage_budgets") },
-                    icon = { Icon(Icons.Default.AccountBalanceWallet, null) }
-                )
-                NavigationDrawerItem(
-                    label = { Text("Notes") },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close() }; onNavigate("notes") },
-                    icon = { Icon(Icons.Default.Notes, null) }
-                )
-                NavigationDrawerItem(
-                    label = { Text("AI Chat") },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close() }; onNavigate("ai_chat") },
-                    icon = { Icon(Icons.Default.Chat, null) }
-                )
-                NavigationDrawerItem(
-                    label = { Text("Permissions") },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close() }; onNavigate("permissions") },
-                    icon = { Icon(Icons.Default.Security, null) }
-                )
-                NavigationDrawerItem(
-                    label = { Text("Settings") },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close() }; onNavigate("settings") },
-                    icon = { Icon(Icons.Default.Settings, null) }
-                )
-                NavigationDrawerItem(
-                    label = { Text("Database") },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close() }; onNavigate("database") },
-                    icon = { Icon(Icons.Default.Storage, null) }
-                )
-                NavigationDrawerItem(
-                    label = { Text("Contact Us") },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close() }; onNavigate("contact") },
-                    icon = { Icon(Icons.Default.Email, null) }
-                )
-                
-                Spacer(Modifier.weight(1f))
-                Text(
-                    "v1.0.6",
-                    modifier = Modifier.padding(16.dp),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color.Gray
-                )
+                Column(modifier = Modifier.fillMaxHeight()) {
+                    Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+                        Spacer(Modifier.height(12.dp))
+                        Text("FinTrack Menu", modifier = Modifier.padding(16.dp), style = MaterialTheme.typography.titleLarge)
+                        Divider()
+                        NavigationDrawerItem(
+                            label = { Text("Home") },
+                            selected = false,
+                            onClick = { scope.launch { drawerState.close() }; selectedTab = "home" },
+                            icon = { Icon(Icons.Default.Home, null) }
+                        )
+                        NavigationDrawerItem(
+                            label = { Text("View Summary") },
+                            selected = false,
+                            onClick = { scope.launch { drawerState.close() }; onNavigate("summary") },
+                            icon = { Icon(Icons.Default.Assessment, null) }
+                        )
+                        NavigationDrawerItem(
+                            label = { Text("Credit Cards") },
+                            selected = false,
+                            onClick = { scope.launch { drawerState.close() }; onNavigate("credit_cards") },
+                            icon = { Icon(Icons.Default.CreditCard, null) }
+                        )
+                        NavigationDrawerItem(
+                            label = { Text("Loan & Subscriptions") },
+                            selected = false,
+                            onClick = { scope.launch { drawerState.close() }; onNavigate("subscriptions") },
+                            icon = { Icon(Icons.Default.CardMembership, null) }
+                        )
+                        NavigationDrawerItem(
+                            label = { Text("Categories & Accounts") },
+                            selected = false,
+                            onClick = { scope.launch { drawerState.close() }; onNavigate("manage_categories") },
+                            icon = { Icon(Icons.Default.Category, null) }
+                        )
+                        NavigationDrawerItem(
+                            label = { Text("Templates") },
+                            selected = false,
+                            onClick = { scope.launch { drawerState.close() }; onNavigate("templates") },
+                            icon = { Icon(Icons.Default.Dashboard, null) }
+                        )
+                        NavigationDrawerItem(
+                            label = { Text("Tags") },
+                            selected = false,
+                            onClick = { scope.launch { drawerState.close() }; onNavigate("manage_tags") },
+                            icon = { Icon(Icons.Default.Label, null) }
+                        )
+                        NavigationDrawerItem(
+                            label = { Text("Budgets") },
+                            selected = false,
+                            onClick = { scope.launch { drawerState.close() }; onNavigate("manage_budgets") },
+                            icon = { Icon(Icons.Default.AccountBalanceWallet, null) }
+                        )
+                        NavigationDrawerItem(
+                            label = { Text("Notes") },
+                            selected = false,
+                            onClick = { scope.launch { drawerState.close() }; onNavigate("notes") },
+                            icon = { Icon(Icons.Default.Notes, null) }
+                        )
+                        NavigationDrawerItem(
+                            label = { Text("Permissions") },
+                            selected = false,
+                            onClick = { scope.launch { drawerState.close() }; onNavigate("permissions") },
+                            icon = { Icon(Icons.Default.Security, null) }
+                        )
+                        NavigationDrawerItem(
+                            label = { Text("Settings") },
+                            selected = false,
+                            onClick = { scope.launch { drawerState.close() }; onNavigate("settings") },
+                            icon = { Icon(Icons.Default.Settings, null) }
+                        )
+                        NavigationDrawerItem(
+                            label = { Text("Database") },
+                            selected = false,
+                            onClick = { scope.launch { drawerState.close() }; onNavigate("database") },
+                            icon = { Icon(Icons.Default.Storage, null) }
+                        )
+                        NavigationDrawerItem(
+                            label = { Text("Contact Us") },
+                            selected = false,
+                            onClick = { scope.launch { drawerState.close() }; onNavigate("contact") },
+                            icon = { Icon(Icons.Default.Email, null) }
+                        )
+                    }
+                    
+                    Text(
+                        "v1.0.6",
+                        modifier = Modifier.padding(16.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.Gray
+                    )
+                }
             }
         }
     ) {
-        Scaffold(
-            bottomBar = {
-                NavigationBar {
-                    viewModel.bottomTabOrder.forEach { tabKey ->
-                        when (tabKey) {
-                            "home" -> NavigationBarItem(
-                                icon = { Icon(Icons.Default.Home, "Home") },
-                                label = { Text("Home") },
-                                selected = selectedTab == "home",
-                                onClick = { selectedTab = "home" }
-                            )
-                            "analysis" -> NavigationBarItem(
-                                icon = { Icon(Icons.Default.PieChart, "Analysis") },
-                                label = { Text("Analysis") },
-                                selected = selectedTab == "analysis",
-                                onClick = { selectedTab = "analysis" }
-                            )
-                            "transactions" -> NavigationBarItem(
-                                icon = { Icon(Icons.Default.List, "Transactns") },
-                                label = { Text("Transactns") },
-                                selected = selectedTab == "transactions",
-                                onClick = { selectedTab = "transactions" }
-                            )
-                            "budgets" -> NavigationBarItem(
-                                icon = { Icon(Icons.Default.AccountBalanceWallet, "Budgets") },
-                                label = { Text("Budgets") },
-                                selected = selectedTab == "budgets",
-                                onClick = { selectedTab = "budgets" }
-                            )
-                        }
-                    }
-                }
-            }
-        ) { padding ->
+        Scaffold { padding ->
             Box(modifier = Modifier.padding(padding).fillMaxSize()) {
                 AnimatedContent(
                     targetState = isSearchActive,
@@ -304,6 +272,20 @@ fun HomeScreen(
                 }
 
                 if (!isSearchActive) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(bottom = 16.dp)
+                            .navigationBarsPadding(),
+                        contentAlignment = Alignment.BottomCenter
+                    ) {
+                        FloatingBottomNav(
+                            selectedTab = selectedTab,
+                            onTabChange = { selectedTab = it },
+                            tabOrder = viewModel.bottomTabOrder
+                        )
+                    }
+
                     Column(
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
@@ -344,6 +326,68 @@ fun HomeScreen(
                         }
                         
                         SnackbarHost(hostState = snackbarHostState)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun FloatingBottomNav(
+    selectedTab: String,
+    onTabChange: (String) -> Unit,
+    tabOrder: List<String>
+) {
+    Surface(
+        modifier = Modifier
+            .wrapContentWidth()
+            .height(56.dp),
+        shape = androidx.compose.foundation.shape.CircleShape,
+        color = MaterialTheme.colorScheme.surfaceColorAtElevation(4.dp),
+        shadowElevation = 8.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            tabOrder.forEach { tabKey ->
+                val isSelected = selectedTab == tabKey
+                val (label, icon) = when (tabKey) {
+                    "home" -> "Home" to Icons.Default.Home
+                    "analysis" -> "Analysis" to Icons.Default.PieChart
+                    "transactions" -> "Transactns" to Icons.Default.List
+                    "budgets" -> "Budgets" to Icons.Default.AccountBalanceWallet
+                    else -> "" to Icons.Default.Home
+                }
+
+                Box(
+                    modifier = Modifier
+                        .padding(horizontal = 4.dp)
+                        .height(40.dp)
+                        .clip(CircleShape)
+                        .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
+                        .clickable { onTabChange(tabKey) }
+                        .padding(horizontal = 12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = label,
+                            modifier = Modifier.size(22.dp),
+                            tint = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        if (isSelected) {
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
                     }
                 }
             }
@@ -499,12 +543,73 @@ fun HomeView(
                     }
                     Text("FinTrack", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                 }
-                IconButton(onClick = { showFilter = true }) {
-                    Icon(Icons.Default.DateRange, "Filter")
+                Row {
+                    IconButton(onClick = { viewModel.generateFinancialInsights() }) {
+                        if (viewModel.isGeneratingInsights) {
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                        } else {
+                            Icon(Icons.Default.AutoAwesome, "Insights")
+                        }
+                    }
+                    IconButton(onClick = { showFilter = true }) {
+                        Icon(Icons.Default.DateRange, "Filter")
+                    }
                 }
             }
             
             Text("$startDate to $endDate", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+
+            if (viewModel.showInsightsOverlay && viewModel.financialInsights.isNotEmpty()) {
+                Spacer(Modifier.height(16.dp))
+                Text("Smart Insights", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.height(8.dp))
+                viewModel.financialInsights.forEach { insight ->
+                    var offsetX by remember { mutableStateOf(0f) }
+                    val backgroundColor = when(insight.type) {
+                        com.openapps.fintrack.data.InsightType.WARNING -> MaterialTheme.colorScheme.errorContainer
+                        com.openapps.fintrack.data.InsightType.ANOMALY -> MaterialTheme.colorScheme.tertiaryContainer
+                        com.openapps.fintrack.data.InsightType.TREND -> MaterialTheme.colorScheme.secondaryContainer
+                        com.openapps.fintrack.data.InsightType.OPPORTUNITY -> MaterialTheme.colorScheme.primaryContainer
+                    }
+                    val icon = when(insight.type) {
+                        com.openapps.fintrack.data.InsightType.WARNING -> Icons.Default.Warning
+                        com.openapps.fintrack.data.InsightType.ANOMALY -> Icons.Default.ErrorOutline
+                        com.openapps.fintrack.data.InsightType.TREND -> Icons.Default.TrendingUp
+                        com.openapps.fintrack.data.InsightType.OPPORTUNITY -> Icons.Default.Lightbulb
+                    }
+
+                    Surface(
+                        color = backgroundColor,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp)
+                            .offset { IntOffset(offsetX.roundToInt(), 0) }
+                            .draggable(
+                                orientation = Orientation.Horizontal,
+                                state = rememberDraggableState { delta -> offsetX += delta },
+                                onDragStopped = {
+                                    if (kotlin.math.abs(offsetX) > 300) {
+                                        viewModel.dismissInsight(insight)
+                                    }
+                                    offsetX = 0f
+                                }
+                            ),
+                        shape = MaterialTheme.shapes.medium
+                    ) {
+                        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(icon, null)
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text(insight.title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                                Text(insight.description, style = MaterialTheme.typography.bodyMedium)
+                            }
+                        }
+                    }
+                }
+                if (viewModel.financialInsights.isEmpty()) {
+                    viewModel.showInsightsOverlay = false
+                }
+            }
             
             Spacer(Modifier.height(16.dp))
             
@@ -610,25 +715,15 @@ fun HomeView(
 
             if (viewModel.dashboardAccountIds.isNotEmpty()) {
                 val selectedBalances = balances.filter { it.id in viewModel.dashboardAccountIds }
-                LazyRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(selectedBalances) { b ->
-                        Card(
-                            modifier = Modifier
-                                .width(180.dp)
-                                .clickable {
-                                    viewModel.summaryInitialTab = "Assets"
-                                    viewModel.summaryInitialAccountId = b.id
-                                    onNavigate("summary")
-                                }
-                        ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                Text(b.name, style = MaterialTheme.typography.labelMedium, maxLines = 1)
-                                Text(viewModel.formatAmount(b.balance), style = MaterialTheme.typography.titleMedium, color = if (b.balance >= 0) Color(0xFF4CAF50) else Color.Red)
-                            }
-                        }
+                if (selectedBalances.isNotEmpty()) {
+                    Text("Dashboard Accounts", style = MaterialTheme.typography.titleMedium)
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                    ) {
+                        HorizontalBalanceChart(accounts = selectedBalances, viewModel = viewModel)
                     }
                 }
             }
@@ -742,6 +837,7 @@ fun AnalysisView(
     var accountsSubTab by remember { mutableStateOf("Balance") }
     var analysisSelectedAccountId by remember { mutableStateOf<Int?>(null) }
     
+    val allTransactionsList by viewModel.allTransactions.collectAsState(initial = emptyList())
     val transactions by viewModel.getFilteredTransactions(startDate, endDate).collectAsState(initial = emptyList())
     val balances by viewModel.getAccountBalances(endDate).collectAsState(initial = emptyList())
     val tags by viewModel.getAllTags().collectAsState(initial = emptyList())
@@ -855,18 +951,99 @@ fun AnalysisView(
                 IconButton(onClick = { showFilter = true }) { Icon(Icons.Default.FilterList, "") }
             }
                 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { 
-                    month = month.minusMonths(1)
-                    startDate = month.withDayOfMonth(1).format(DateTimeFormatter.ISO_DATE)
-                    endDate = month.with(TemporalAdjusters.lastDayOfMonth()).format(DateTimeFormatter.ISO_DATE)
-                }) { Icon(Icons.Default.ChevronLeft, "") }
-                Text(month.format(DateTimeFormatter.ofPattern("MMMM yyyy")), modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-                IconButton(onClick = { 
-                    month = month.plusMonths(1)
-                    startDate = month.withDayOfMonth(1).format(DateTimeFormatter.ISO_DATE)
-                    endDate = month.with(TemporalAdjusters.lastDayOfMonth()).format(DateTimeFormatter.ISO_DATE)
-                }) { Icon(Icons.Default.ChevronRight, "") }
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 16.dp)) {
+                var monthMenuExpanded by remember { mutableStateOf(false) }
+                var yearMenuExpanded by remember { mutableStateOf(false) }
+                
+                Box(modifier = Modifier.weight(1f)) {
+                    TextButton(onClick = { monthMenuExpanded = true }, modifier = Modifier.fillMaxWidth()) {
+                        val locale = Locale.getDefault()
+                        Text(month.format(DateTimeFormatter.ofPattern("MMMM", locale)))
+                        Icon(Icons.Default.ArrowDropDown, "")
+                    }
+                    DropdownMenu(expanded = monthMenuExpanded, onDismissRequest = { monthMenuExpanded = false }) {
+                        val locale = Locale.getDefault()
+                        (1..12).forEach { m ->
+                            val mObj = Month.of(m)
+                            DropdownMenuItem(
+                                text = { Text(mObj.getDisplayName(java.time.format.TextStyle.FULL, locale)) },
+                                onClick = {
+                                    month = month.withMonth(m)
+                                    startDate = month.withDayOfMonth(1).format(DateTimeFormatter.ISO_DATE)
+                                    endDate = month.with(TemporalAdjusters.lastDayOfMonth()).format(DateTimeFormatter.ISO_DATE)
+                                    monthMenuExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+                
+                Box(modifier = Modifier.weight(1f)) {
+                    TextButton(onClick = { yearMenuExpanded = true }, modifier = Modifier.fillMaxWidth()) {
+                        Text(month.year.toString())
+                        Icon(Icons.Default.ArrowDropDown, "")
+                    }
+                    DropdownMenu(expanded = yearMenuExpanded, onDismissRequest = { yearMenuExpanded = false }) {
+                        val currentYear = LocalDate.now().year
+                        (currentYear - 5..currentYear + 5).forEach { y ->
+                            DropdownMenuItem(
+                                text = { Text(y.toString()) },
+                                onClick = {
+                                    month = month.withYear(y)
+                                    startDate = month.withDayOfMonth(1).format(DateTimeFormatter.ISO_DATE)
+                                    endDate = month.with(TemporalAdjusters.lastDayOfMonth()).format(DateTimeFormatter.ISO_DATE)
+                                    yearMenuExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+
+            val bTrendData = remember(allTransactionsList, analysisSelectedAccountId, startDate, endDate, accountsSubTab, type) {
+                if (type == "Accounts" && accountsSubTab == "BTrend" && analysisSelectedAccountId != null) {
+                    val start = LocalDate.parse(startDate)
+                    val end = LocalDate.parse(endDate)
+                    val accountId = analysisSelectedAccountId!!
+                    
+                    val accountObj = allAccountsList.find { it.id == accountId }
+                    val openingBalance = accountObj?.openingBalance ?: 0.0
+                    
+                    val txnsBefore = allTransactionsList.filter { 
+                        it.transaction.date < startDate && 
+                        (it.transaction.accountId == accountId || it.transaction.toAccountId == accountId)
+                    }
+                    
+                    var currentBal = openingBalance + txnsBefore.sumOf { t ->
+                        if (t.transaction.toAccountId == accountId) t.transaction.amount
+                        else if (t.transaction.accountId == accountId) {
+                            if (t.categoryType == "income") t.transaction.amount else -t.transaction.amount
+                        } else 0.0
+                    }
+                    
+                    val daysInMonth = java.time.temporal.ChronoUnit.DAYS.between(start, end).toInt() + 1
+                    val trend = mutableListOf<Pair<String, Double>>()
+                    
+                    val monthTxns = allTransactionsList.filter { 
+                        it.transaction.date >= startDate && it.transaction.date <= endDate &&
+                        (it.transaction.accountId == accountId || it.transaction.toAccountId == accountId)
+                    }
+                    
+                    for (day in 0 until daysInMonth) {
+                        val d = start.plusDays(day.toLong())
+                        val dStr = d.format(DateTimeFormatter.ISO_DATE)
+                        val dayTxns = monthTxns.filter { it.transaction.date == dStr }
+                        
+                        currentBal += dayTxns.sumOf { t ->
+                            if (t.transaction.toAccountId == accountId) t.transaction.amount
+                            else if (t.transaction.accountId == accountId) {
+                                if (t.categoryType == "income") t.transaction.amount else -t.transaction.amount
+                            } else 0.0
+                        }
+                        trend.add(d.dayOfMonth.toString() to currentBal)
+                    }
+                    trend
+                } else emptyList()
             }
 
             val data = when (type) {
@@ -897,6 +1074,8 @@ fun AnalysisView(
                             val minor = minorHeads.find { it.id == b.minorHeadId }
                             minor?.majorHeadId != onAccountLoanId && !b.name.equals("On Account", ignoreCase = true)
                         }.map { it.name to it.balance }.sortedByDescending { it.second }
+                    } else if (accountsSubTab == "BTrend") {
+                        bTrendData
                     } else if (accountsSubTab == "Spending" && analysisSelectedAccountId != null) {
                         transactions.filter { it.transaction.accountId == analysisSelectedAccountId && it.transaction.categoryId != null }
                             .groupBy { it.categoryName ?: "Uncategorized" }
@@ -933,17 +1112,21 @@ fun AnalysisView(
             }
 
             if (type == "Accounts") {
-                TabRow(
-                    selectedTabIndex = when(accountsSubTab) { "Spending" -> 0; "Source" -> 1; else -> 2 },
+                ScrollableTabRow(
+                    selectedTabIndex = when(accountsSubTab) { "Spending" -> 0; "Source" -> 1; "BTrend" -> 2; else -> 3 },
                     modifier = Modifier.fillMaxWidth(),
                     containerColor = Color.Transparent,
-                    divider = {}
+                    divider = {},
+                    edgePadding = 0.dp
                 ) {
                     Tab(selected = accountsSubTab == "Spending", onClick = { accountsSubTab = "Spending" }) {
                         Text("Spending", modifier = Modifier.padding(12.dp), style = MaterialTheme.typography.labelLarge)
                     }
                     Tab(selected = accountsSubTab == "Source", onClick = { accountsSubTab = "Source" }) {
                         Text("Source", modifier = Modifier.padding(12.dp), style = MaterialTheme.typography.labelLarge)
+                    }
+                    Tab(selected = accountsSubTab == "BTrend", onClick = { accountsSubTab = "BTrend" }) {
+                        Text("BTrend", modifier = Modifier.padding(12.dp), style = MaterialTheme.typography.labelLarge)
                     }
                     Tab(selected = accountsSubTab == "Balance", onClick = { accountsSubTab = "Balance" }) {
                         Text("Balance", modifier = Modifier.padding(12.dp), style = MaterialTheme.typography.labelLarge)
@@ -982,62 +1165,82 @@ fun AnalysisView(
                 } else data
 
                 Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        PieChart(data = chartData, colors = chartColors)
-                        Spacer(Modifier.width(16.dp))
-                        Column {
-                            chartData.take(5).forEachIndexed { i, pair ->
-                                val totalVal = chartData.sumOf { it.second }
-                                val pct = if (totalVal != 0.0) (pair.second / totalVal * 100).toInt() else 0
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(Modifier.size(8.dp).background(chartColors[i % chartColors.size]))
-                                    Text(" $pct%", style = MaterialTheme.typography.labelSmall)
+                    if (type == "Accounts" && accountsSubTab == "BTrend") {
+                        LineChart(data = data.map { it.second }, labels = data.map { it.first })
+                    } else {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            PieChart(data = chartData, colors = chartColors)
+                            Spacer(Modifier.width(16.dp))
+                            Column {
+                                chartData.take(5).forEachIndexed { i, pair ->
+                                    val totalVal = chartData.sumOf { it.second }
+                                    val pct = if (totalVal != 0.0) (pair.second / totalVal * 100).toInt() else 0
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(Modifier.size(8.dp).background(chartColors[i % chartColors.size]))
+                                        Text(" $pct%", style = MaterialTheme.typography.labelSmall)
+                                    }
                                 }
                             }
                         }
                     }
                 }
-            } else if (type != "Accounts" || accountsSubTab == "Balance") {
+            } else if (type != "Accounts" || accountsSubTab == "Balance" || accountsSubTab == "BTrend") {
                  Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     Text("No data for the selected period", color = Color.Gray)
                 }
             }
 
             LazyColumn(modifier = Modifier.weight(1f)) {
-                items(data) { (name, amount) ->
-                    val index = data.indexOfFirst { it.first == name }
-                    val itemColor = if (type == "Accounts") {
-                        if (amount >= 0) Color(0xFF4CAF50) else Color.Red
-                    } else if (type == "On Account (Loan)" || type == "Accounts") {
-                        if (amount >= 0) Color(0xFF4CAF50) else Color.Red
-                    } else MaterialTheme.colorScheme.onSurface
+                if (type == "Accounts" && accountsSubTab == "BTrend") {
+                    items(data.reversed()) { (day, amount) ->
+                        ListItem(
+                            headlineContent = { Text("Day $day") },
+                            trailingContent = { 
+                                Text(
+                                    viewModel.formatAmount(amount), 
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = if (amount >= 0) Color(0xFF4CAF50) else Color.Red
+                                ) 
+                            }
+                        )
+                        Divider()
+                    }
+                } else {
+                    items(data) { (name, amount) ->
+                        val index = data.indexOfFirst { it.first == name }
+                        val itemColor = if (type == "Accounts") {
+                            if (amount >= 0) Color(0xFF4CAF50) else Color.Red
+                        } else if (type == "On Account (Loan)" || type == "Accounts") {
+                            if (amount >= 0) Color(0xFF4CAF50) else Color.Red
+                        } else MaterialTheme.colorScheme.onSurface
 
-                    ListItem(
-                        headlineContent = { 
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(Modifier.size(12.dp).background(chartColors[index % chartColors.size]))
-                                Spacer(Modifier.width(8.dp))
-                                Text(name, style = MaterialTheme.typography.bodyLarge)
+                        ListItem(
+                            headlineContent = { 
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(Modifier.size(12.dp).background(chartColors[index % chartColors.size]))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(name, style = MaterialTheme.typography.bodyLarge)
+                                }
+                            },
+                            trailingContent = { 
+                                Text(
+                                    viewModel.formatAmount(amount), 
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = itemColor
+                                ) 
+                            },
+                            modifier = Modifier.clickable { 
+                                if (type == "Tags") {
+                                    showTagDetailList = tags.find { it.name == name }?.id
+                                } else if (type == "Accounts" && accountsSubTab != "Balance") {
+                                    showDetailList = name
+                                } else {
+                                    showDetailList = name 
+                                }
                             }
-                        },
-                        trailingContent = { 
-                            Text(
-                                viewModel.formatAmount(amount), 
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = itemColor
-                            ) 
-                        },
-                        modifier = Modifier.clickable { 
-                            if (type == "Tags") {
-                                showTagDetailList = tags.find { it.name == name }?.id
-                            } else if (type == "Accounts" && accountsSubTab != "Balance") {
-                                showDetailList = name
-                            } else {
-                                showDetailList = name 
-                            }
-                        }
-                    )
-                    Divider()
+                        )
+                        Divider()
+                    }
                 }
             }
             if (type == "Tags") {

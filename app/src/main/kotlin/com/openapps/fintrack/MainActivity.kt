@@ -457,7 +457,7 @@ fun FinTrackApp(
             SubscriptionDashboard(viewModel = viewModel, onBack = { navController.popBackStack() }, onNavigate = { navController.navigate(it) })
         }
         composable("settings") {
-            SettingsScreen(viewModel = viewModel, onBack = { navController.popBackStack() }, onRequireAuth = onRequireAuth)
+            SettingsScreen(viewModel = viewModel, onBack = { navController.popBackStack() }, onNavigate = { navController.navigate(it) }, onRequireAuth = onRequireAuth)
         }
         composable("permissions") {
             PermissionsScreen(onBack = { 
@@ -498,8 +498,8 @@ fun FinTrackApp(
         composable("notes") {
             NotesScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
         }
-        composable("ai_chat") {
-            AiChatScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+        composable("rules") {
+            RulesScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
         }
     }
 }

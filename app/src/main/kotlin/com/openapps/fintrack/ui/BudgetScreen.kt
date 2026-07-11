@@ -9,16 +9,20 @@ import android.app.DatePickerDialog
 import android.content.Context
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -418,6 +422,21 @@ fun BudgetComparisonScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, isTa
                 }
                 
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    val groupedBudgets = budgetVsActual.groupBy { it.duration }
+                    if (groupedBudgets.isNotEmpty()) {
+                        item {
+                            LazyRow(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(24.dp),
+                                contentPadding = PaddingValues(horizontal = 4.dp)
+                            ) {
+                                items(groupedBudgets.toList()) { (duration, budgets) ->
+                                    BudgetPeriodSummary(duration, budgets, viewModel)
+                                }
+                            }
+                        }
+                    }
+
                     items(budgetVsActual) { item ->
                         BudgetComparisonRow(item, viewModel) {
                             selectedPerformance = item
@@ -474,10 +493,15 @@ fun BudgetComparisonRow(item: com.openapps.fintrack.ui.BudgetVsActual, viewModel
     
     val statusColor = if (isGoalMet) Color(0xFF4CAF50) else Color.Red
     
-    val averageText = remember(item) {
+    val stats = remember(item) {
         val today = LocalDate.now()
         try {
-            when (item.duration) {
+            val start = LocalDate.parse(item.startDate)
+            val end = LocalDate.parse(item.endDate)
+            val totalDays = java.time.temporal.ChronoUnit.DAYS.between(start, end).coerceAtLeast(1) + 1
+            val daysElapsed = java.time.temporal.ChronoUnit.DAYS.between(start, today).coerceAtLeast(1)
+            
+            val avgText = when (item.duration) {
                 "Daily" -> "Avg Daily: " + viewModel.formatAmount(item.actualAmount)
                 "Weekly" -> {
                     val dayOfWeek = today.dayOfWeek.value
@@ -497,7 +521,12 @@ fun BudgetComparisonRow(item: com.openapps.fintrack.ui.BudgetVsActual, viewModel
                 }
                 else -> ""
             }
-        } catch (e: Exception) { "" }
+
+            val forecasted = (item.actualAmount / daysElapsed) * totalDays
+            val isForecastBad = if (item.higherIsBetter) forecasted < item.budgetAmount else forecasted > item.budgetAmount
+            
+            Triple(avgText, forecasted, isForecastBad)
+        } catch (e: Exception) { Triple("", 0.0, false) }
     }
 
     Column(modifier = Modifier.fillMaxWidth().clickable { onClick() }) {
@@ -510,9 +539,24 @@ fun BudgetComparisonRow(item: com.openapps.fintrack.ui.BudgetVsActual, viewModel
             )
             Text(item.duration, style = MaterialTheme.typography.labelSmall)
         }
-        if (averageText.isNotEmpty()) {
-            Text(averageText, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+        
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            if (stats.first.isNotEmpty()) {
+                Text(stats.first, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+            }
+            if (stats.second > 0) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Forecast: ", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                    Text(
+                        viewModel.formatAmount(stats.second), 
+                        style = MaterialTheme.typography.labelSmall, 
+                        fontWeight = FontWeight.Bold,
+                        color = if (stats.third) Color.Red else Color(0xFF4CAF50)
+                    )
+                }
+            }
         }
+        
         Spacer(Modifier.height(4.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Column {
@@ -563,3 +607,60 @@ fun exportBudgetVsActual(context: Context, data: List<com.openapps.fintrack.ui.B
 }
 
 fun String.title() = this.lowercase().replaceFirstChar { it.uppercase() }
+
+@Composable
+fun BudgetPeriodSummary(duration: String, budgets: List<com.openapps.fintrack.ui.BudgetVsActual>, viewModel: ExpenseViewModel) {
+    val totalBudget = budgets.sumOf { it.budgetAmount }
+    val totalActual = budgets.sumOf { it.actualAmount }
+    val available = totalBudget - totalActual
+    
+    val chartData = budgets.map { it.categoryName to it.budgetAmount }
+    val chartColors = listOf(
+        Color(0xFF3F51B5), Color(0xFF8BC34A), Color(0xFF009688), 
+        Color(0xFF2196F3), Color(0xFF4CAF50), Color(0xFF00BCD4),
+        Color(0xFF673AB7), Color(0xFF9C27B0), Color(0xFFCDDC39)
+    )
+
+    Column(
+        modifier = Modifier.width(300.dp).padding(8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(duration, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+        Spacer(Modifier.height(12.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Box(modifier = Modifier.size(120.dp), contentAlignment = Alignment.Center) {
+                DonutChart(
+                    data = chartData,
+                    colors = chartColors,
+                    centerText = viewModel.formatAmountWhole(available),
+                    centerSubText = "Avail",
+                    modifier = Modifier.size(120.dp)
+                )
+            }
+            Spacer(Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                budgets.take(5).forEachIndexed { i, b ->
+                    val avail = b.budgetAmount - b.actualAmount
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 1.dp)) {
+                        Box(Modifier.size(8.dp).clip(CircleShape).background(chartColors[i % chartColors.size]))
+                        Spacer(Modifier.width(4.dp))
+                        Text(b.categoryName, style = MaterialTheme.typography.labelSmall, maxLines = 1, modifier = Modifier.weight(1f))
+                        Text(
+                            viewModel.formatAmountWhole(avail), 
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (avail < 0) Color.Red else Color(0xFF4CAF50),
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+                if (budgets.size > 5) {
+                    Text("...", style = MaterialTheme.typography.labelSmall, modifier = Modifier.align(Alignment.CenterHorizontally))
+                }
+            }
+        }
+    }
+}

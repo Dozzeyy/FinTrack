@@ -118,6 +118,183 @@ fun PieChart(data: List<Pair<String, Double>>, colors: List<Color>) {
     }
 }
 
+@Composable
+fun DonutChart(
+    data: List<Pair<String, Double>>, 
+    colors: List<Color>, 
+    centerText: String, 
+    centerSubText: String = "",
+    modifier: Modifier = Modifier.size(200.dp)
+) {
+    val total = data.sumOf { Math.abs(it.second) }
+    if (total <= 0.0) {
+        Box(modifier = modifier, contentAlignment = Alignment.Center) {
+            Text("No Data", color = Color.Gray)
+        }
+        return
+    }
+
+    val chartColors = if (colors.isEmpty()) {
+        listOf(
+            Color(0xFFf44336), Color(0xFFE91E63), Color(0xFF9C27B0), Color(0xFF673AB7),
+            Color(0xFF3F51B5), Color(0xFF2196F3), Color(0xFF03A9F4), Color(0xFF00BCD4),
+            Color(0xFF009688), Color(0xFF4CAF50), Color(0xFF8BC34A), Color(0xFFCDDC39),
+            Color(0xFFFFEB3B), Color(0xFFFFC107), Color(0xFFFF9800), Color(0xFFFF5722)
+        )
+    } else colors
+
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            var startAngle = -90f
+            data.forEachIndexed { index, pair ->
+                val sweepAngle = (Math.abs(pair.second) / total * 360).toFloat()
+                drawArc(
+                    color = chartColors[index % chartColors.size],
+                    startAngle = startAngle,
+                    sweepAngle = sweepAngle,
+                    useCenter = false,
+                    size = Size(size.width, size.height),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 40f, cap = androidx.compose.ui.graphics.StrokeCap.Butt)
+                )
+                startAngle += sweepAngle
+            }
+        }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(centerText, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            if (centerSubText.isNotEmpty()) {
+                Text(centerSubText, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+            }
+        }
+    }
+}
+
+@Composable
+fun HorizontalBalanceChart(
+    accounts: List<AccountBalance>,
+    viewModel: ExpenseViewModel,
+    modifier: Modifier = Modifier.fillMaxWidth().heightIn(min = 100.dp, max = 300.dp)
+) {
+    if (accounts.isEmpty()) return
+
+    val balances = accounts.map { it.balance }
+    
+    // We want a range that covers all balances, with 0 potentially in the middle
+    val minVal = balances.minOrNull()?.coerceAtMost(0.0) ?: 0.0
+    val maxVal = balances.maxOrNull()?.coerceAtLeast(0.0) ?: 0.0
+    val totalRange = (maxVal - minVal).coerceAtLeast(1.0)
+
+    Column(modifier = modifier.padding(8.dp)) {
+        accounts.forEach { account ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = account.name,
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.width(80.dp),
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+                
+                Box(modifier = Modifier.weight(1f).height(24.dp)) {
+                    // Center line (0) fraction
+                    val zeroPos = if (minVal < 0) (kotlin.math.abs(minVal) / totalRange).toFloat() else 0f
+                    
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        val canvasWidth = size.width
+                        val canvasHeight = size.height
+                        
+                        // Draw 0 vertical line
+                        drawLine(
+                            color = Color.Gray.copy(alpha = 0.3f),
+                            start = androidx.compose.ui.geometry.Offset(canvasWidth * zeroPos, 0f),
+                            end = androidx.compose.ui.geometry.Offset(canvasWidth * zeroPos, canvasHeight),
+                            strokeWidth = 1.dp.toPx()
+                        )
+                        
+                        val barWidthFraction = (kotlin.math.abs(account.balance) / totalRange).toFloat()
+                        val barStartFraction = if (account.balance >= 0) zeroPos else zeroPos - barWidthFraction
+                        
+                        drawRoundRect(
+                            color = if (account.balance >= 0) Color(0xFF4CAF50) else Color.Red,
+                            topLeft = androidx.compose.ui.geometry.Offset(canvasWidth * barStartFraction, 4.dp.toPx()),
+                            size = Size(canvasWidth * barWidthFraction, canvasHeight - 8.dp.toPx()),
+                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx(), 4.dp.toPx())
+                        )
+                    }
+                }
+                
+                Text(
+                    text = viewModel.formatAmountWhole(account.balance),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.width(70.dp).padding(start = 4.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                    color = if (account.balance >= 0) Color(0xFF4CAF50) else Color.Red
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun LineChart(
+    data: List<Double>,
+    labels: List<String>,
+    modifier: Modifier = Modifier.fillMaxWidth().height(200.dp),
+    lineColor: Color = MaterialTheme.colorScheme.primary,
+    pointColor: Color = MaterialTheme.colorScheme.secondary
+) {
+    if (data.isEmpty()) return
+
+    val maxVal = (data.maxOrNull() ?: 0.0).coerceAtLeast(1.0)
+    val minVal = (data.minOrNull() ?: 0.0)
+    val range = (maxVal - minVal).coerceAtLeast(1.0)
+
+    Canvas(modifier = modifier.padding(16.dp)) {
+        val width = size.width
+        val height = size.height
+        val spacing = width / (data.size - 1).coerceAtLeast(1)
+
+        val points = data.mapIndexed { index, value ->
+            val x = index * spacing
+            val y = height - ((value - minVal) / range * height).toFloat()
+            androidx.compose.ui.geometry.Offset(x, y)
+        }
+
+        // Draw line
+        for (i in 0 until points.size - 1) {
+            drawLine(
+                color = lineColor,
+                start = points[i],
+                end = points[i + 1],
+                strokeWidth = 3.dp.toPx(),
+                cap = androidx.compose.ui.graphics.StrokeCap.Round
+            )
+        }
+
+        // Draw points
+        points.forEach { point ->
+            drawCircle(
+                color = pointColor,
+                radius = 4.dp.toPx(),
+                center = point
+            )
+        }
+        
+        // Optional: Draw baseline
+        drawLine(
+            color = Color.Gray.copy(alpha = 0.5f),
+            start = androidx.compose.ui.geometry.Offset(0f, height),
+            end = androidx.compose.ui.geometry.Offset(width, height),
+            strokeWidth = 1.dp.toPx()
+        )
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TransactionHistoryView(viewModel: ExpenseViewModel, onOpenDrawer: (() -> Unit)? = null) {

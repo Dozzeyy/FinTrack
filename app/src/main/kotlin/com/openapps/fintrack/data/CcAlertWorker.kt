@@ -53,7 +53,57 @@ class CcAlertWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         // 2. Loan Auto-Recording
         processLoanAutoRecords(dao, today)
 
+        // 3. Subscription & Recurring Transfer Auto-Recording
+        processSubscriptionAutoRecords(dao, today)
+
         return Result.success()
+    }
+
+    private suspend fun processSubscriptionAutoRecords(dao: ExpenseDao, today: LocalDate) {
+        val masterSubs = dao.getAllSubscriptionsMaster().first().filter { it.isEnabled }
+        val statuses = dao.getAllSubscriptionStatuses().first()
+        val allTxns = dao.getAllTransactionsWithDetails().first()
+        
+        for (sub in masterSubs) {
+            val isStopped = statuses.find { it.subName == sub.name }?.isStopped ?: false
+            if (isStopped) continue
+            
+            // Find last transaction for this subscription
+            val subTxns = allTxns.filter { it.transaction.subName == sub.name }
+            if (subTxns.isEmpty()) continue
+            
+            val lastTxn = subTxns.maxBy { it.transaction.date }
+            val lastDate = LocalDate.parse(lastTxn.transaction.date)
+            val freq = sub.frequency.toLong().coerceAtLeast(1)
+            
+            var nextDue = lastDate.plusMonths(freq)
+            
+            while (!nextDue.isAfter(today)) {
+                val dateStr = nextDue.format(DateTimeFormatter.ISO_DATE)
+                val timeStr = lastTxn.transaction.time
+                
+                val type = if (sub.isTransfer) "transfer" else (lastTxn.categoryType ?: "expense")
+                val prefix = when(type) { "income"->"INC"; "expense"->"EXP"; "transfer"->"TNF"; else->"TXN" }
+                
+                val lastNum = dao.getLastTransactionNumber(prefix)
+                val nextSerial = (lastNum?.split("/")?.last()?.toIntOrNull() ?: 99999) + 1
+                val year = nextDue.year
+                val txnNumber = "$prefix/$year/$nextSerial"
+                
+                val newTxn = lastTxn.transaction.copy(
+                    id = 0,
+                    date = dateStr,
+                    time = timeStr,
+                    transactionNumber = txnNumber,
+                    editedAt = null
+                )
+                
+                dao.insertTransaction(newTxn)
+                Log.d("CcAlertWorker", "Auto-recorded subscription: ${sub.name} for date $dateStr")
+                
+                nextDue = nextDue.plusMonths(freq)
+            }
+        }
     }
 
     private suspend fun processAlerts(dao: ExpenseDao, today: LocalDate) {

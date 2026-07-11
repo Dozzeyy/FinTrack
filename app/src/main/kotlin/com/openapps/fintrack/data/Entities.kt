@@ -203,3 +203,20 @@ data class Subscription(
     val isTransfer: Boolean = false,
     val isEnabled: Boolean = true
 )
+
+@Entity(tableName = "rules")
+data class Rule(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val name: String,
+    val msgFrom: String? = null,
+    val textContaining: String,
+    val type: String, // income, expense, transfer
+    val categoryId: Int? = null,
+    val accountId: Int? = null,
+    val toAccountId: Int? = null,
+    val partyId: Int? = null,
+    val toPartyId: Int? = null,
+    val note: String? = null,
+    val tags: String? = null,
+    val isEnabled: Boolean = true
+)

@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -41,6 +43,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.Instant
 import java.time.ZoneId
@@ -249,6 +252,7 @@ fun AddTransactionScreen(
     var templateName by remember { mutableStateOf(editingTemplate?.name ?: "") }
     var showNameDialog by remember { mutableStateOf(false) }
     var showTemplateSelection by remember { mutableStateOf(false) }
+    var showSavedDialog by remember { mutableStateOf(false) }
 
     val accountsRaw by viewModel.getEnabledAccounts().collectAsState(initial = emptyList())
     val allMinorHeads by viewModel.getAllMinorHeads().collectAsState(initial = emptyList())
@@ -257,6 +261,25 @@ fun AddTransactionScreen(
     val allTransactions by viewModel.allTransactions.collectAsState(initial = emptyList())
     val exchangeRates by viewModel.getExchangeRates().collectAsState(initial = emptyList())
     val masterSubscriptions by viewModel.getAllSubscriptionsMaster().collectAsState(initial = emptyList())
+
+    if (showSavedDialog) {
+        AlertDialog(
+            onDismissRequest = { 
+                showSavedDialog = false
+                onBack() 
+            },
+            title = { Text("Success") },
+            text = { Text("Transaction saved successfully!") },
+            confirmButton = {
+                Button(onClick = { 
+                    showSavedDialog = false
+                    onBack() 
+                }) {
+                    Text("OK")
+                }
+            }
+        )
+    }
 
     LaunchedEffect(state.subName, allTransactions) {
         if (state.subName.isNotEmpty() && state.isSubscription) {
@@ -540,6 +563,49 @@ fun AddTransactionScreen(
                 onToOnAccountChange = { isToOnAccountSelected = it }
             )
 
+            if (!isActuallyReadOnly && state.type == "expense" && state.selectedAccountId != null) {
+                val selectedAcc = accountsRaw.find { it.id == state.selectedAccountId }
+                val selectedMinor = allMinorHeads.find { it.id == selectedAcc?.minorHeadId }
+                if (selectedMinor?.majorHeadId == 8) { // Is CC
+                    val otherCCs = accountsRaw.filter { a -> 
+                        a.id != state.selectedAccountId && 
+                        allMinorHeads.find { it.id == a.minorHeadId }?.majorHeadId == 8 
+                    }
+                    if (otherCCs.isNotEmpty()) {
+                        val todayDay = LocalDate.now().dayOfMonth
+                        val selectedCycleStart = selectedAcc?.billingCycleStart?.toIntOrNull() ?: 1
+                        val selectedFloat: Int = if (todayDay >= selectedCycleStart) todayDay - selectedCycleStart else todayDay + (30 - selectedCycleStart)
+                        
+                        val betterCard = otherCCs.minByOrNull { a ->
+                            val cycleStart = a.billingCycleStart?.toIntOrNull() ?: 1
+                            val f: Int = if (todayDay >= cycleStart) todayDay - cycleStart else todayDay + (30 - cycleStart)
+                            f
+                        }
+                        
+                        val betterCycleStart = betterCard?.billingCycleStart?.toIntOrNull() ?: 1
+                        val betterFloat: Int = if (todayDay >= betterCycleStart) todayDay - betterCycleStart else todayDay + (30 - betterCycleStart)
+                        
+                        if (betterFloat < selectedFloat && betterCard != null) {
+                            Surface(
+                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                            ) {
+                                Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Lightbulb, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        "Tip: Use '${betterCard.name}' instead to delay your payment further.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             if (state.isMultiEntry && viewModel.enableMultiCurrency && state.type != "transfer") {
                 CurrencyPickerField(state, viewModel, isActuallyReadOnly)
             }
@@ -600,7 +666,8 @@ fun AddTransactionScreen(
                     onBack = onBack,
                     onShowNameDialog = { showNameDialog = true },
                     onShowTemplateSelection = { showTemplateSelection = true },
-                    updateId = if (isLocalEditMode && !isDuplicateMode) txnDetail?.transaction?.id else null
+                    updateId = if (isLocalEditMode && !isDuplicateMode) txnDetail?.transaction?.id else null,
+                    onTransactionSaved = { showSavedDialog = true }
                 )
             } else {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1187,7 +1254,8 @@ fun ActionButtons(
     onBack: () -> Unit,
     onShowNameDialog: () -> Unit,
     onShowTemplateSelection: () -> Unit,
-    updateId: Int? = null
+    updateId: Int? = null,
+    onTransactionSaved: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -1228,7 +1296,7 @@ fun ActionButtons(
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = onShowTemplateSelection, modifier = Modifier.weight(1f)) { Text("Use Template") }
                 Button(onClick = {
-                    if (validateAndSave(state, viewModel, selectedTagIds, allTransactions, onBack, context, updateId, isTemplateMode)) {
+                    if (validateAndSave(state, viewModel, selectedTagIds, allTransactions, onTransactionSaved, context, updateId, isTemplateMode)) {
                         // success
                     }
                 }, modifier = Modifier.weight(1f)) { Text("Save") }
@@ -1242,7 +1310,7 @@ fun validateAndSave(
     viewModel: ExpenseViewModel, 
     selectedTagIds: List<Int>, 
     allTransactions: List<TransactionWithDetails>, 
-    onBack: () -> Unit, 
+    onSuccess: () -> Unit, 
     context: android.content.Context,
     updateId: Int? = null,
     isTemplateMode: Boolean = false
@@ -1285,7 +1353,7 @@ fun validateAndSave(
         }
         viewModel.addMultiEntryTransactionExtended(state.date, state.time, state.selectedAccountId!!, state.multiEntryRows.map { com.openapps.fintrack.ui.MultiEntryRowData(it.categoryId!!, evaluateExpression(it.amount), it.note ?: state.note, state.foreignCurrency) }, tagsString, state.type, state.selectedPartyId, state.subName, state.subFrequency.toIntOrNull(), null)
         viewModel.draftTransaction = null
-        onBack()
+        onSuccess()
     } else {
         val amtOriginal = evaluateExpression(state.amountForeign)
         val amtBase = evaluateExpression(state.amountLocal)
@@ -1316,7 +1384,7 @@ fun validateAndSave(
             viewModel.addTransaction(state.date, state.time, state.selectedAccountId!!, state.selectedCategoryId, amtBase, state.note, null, tagsString, state.type, state.selectedPartyId, null, subNameVal, subFreqVal, amtOriginal, state.foreignCurrency, amtBase, updateId = updateId)
         }
         viewModel.draftTransaction = null
-        onBack()
+        onSuccess()
     }
     return true
 }

@@ -14,7 +14,12 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.provider.Telephony
+import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.openapps.fintrack.data.AppDatabase
+import com.openapps.fintrack.data.Transaction
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -32,7 +37,11 @@ class SmsReceiver : BroadcastReceiver() {
             val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent)
             for (msg in messages) {
                 val body = msg.messageBody
+                val sender = msg.displayOriginatingAddress ?: ""
                 
+                // 1. Check Automation Rules First
+                processRules(context, body, sender, currencies)
+
                 val matchesA = currencies.any { body.contains(it, ignoreCase = true) }
                 val matchesB = keywords.any { body.contains(it, ignoreCase = true) }
 
@@ -48,6 +57,62 @@ class SmsReceiver : BroadcastReceiver() {
                     val amount = parseAmount(body, currencies)
                     showTransactionNotification(context, body, amount)
                 }
+            }
+        }
+    }
+
+    private fun processRules(context: Context, body: String, sender: String, currencies: List<String>) {
+        GlobalScope.launch {
+            try {
+                val db = AppDatabase.getDatabase(context, this)
+                val dao = db.expenseDao()
+                val rules = dao.getEnabledRulesInternal()
+                
+                for (rule in rules) {
+                    val senderMatches = rule.msgFrom == null || sender.contains(rule.msgFrom, ignoreCase = true)
+                    val textMatches = body.contains(rule.textContaining, ignoreCase = true)
+                    
+                    if (senderMatches && textMatches) {
+                        val amount = parseAmount(body, currencies) ?: 0.0
+                        if (amount > 0) {
+                            val today = LocalDate.now().format(DateTimeFormatter.ISO_DATE)
+                            val now = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"))
+                            
+                            val prefix = when(rule.type) { "income"->"INC"; "expense"->"EXP"; "transfer"->"TNF"; else->"TXN" }
+                            val lastNum = dao.getLastTransactionNumber(prefix)
+                            val nextSerial = (lastNum?.split("/")?.last()?.toIntOrNull() ?: 99999) + 1
+                            val year = LocalDate.now().year
+                            val txnNumber = "$prefix/$year/$nextSerial"
+
+                            val transaction = Transaction(
+                                date = today,
+                                time = now,
+                                accountId = rule.accountId ?: 0,
+                                toAccountId = rule.toAccountId,
+                                categoryId = rule.categoryId,
+                                amount = amount,
+                                note = rule.note ?: "Auto-recorded via rule: ${rule.name}",
+                                tags = rule.tags,
+                                transactionNumber = txnNumber,
+                                partyId = rule.partyId,
+                                toPartyId = rule.toPartyId,
+                                amountOriginal = amount,
+                                currencyCode = currencies.firstOrNull() ?: "INR",
+                                amountBase = amount
+                            )
+                            
+                            val isTransferValid = rule.type == "transfer" && rule.accountId != null && rule.toAccountId != null
+                            val isOtherValid = rule.type != "transfer" && rule.accountId != null && rule.categoryId != null
+
+                            if (isTransferValid || isOtherValid) {
+                                dao.insertTransaction(transaction)
+                                Log.d("SmsReceiver", "Rule matched and transaction recorded: ${rule.name}")
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("SmsReceiver", "Error processing rules", e)
             }
         }
     }
