@@ -21,7 +21,8 @@ data class Account(
     val creditLimit: Double? = null,
     val billingCycleStart: String? = null,
     val billingCycleEnd: String? = null,
-    val paymentDueDate: String? = null
+    val paymentDueDate: String? = null,
+    val icon: String? = null
 )
 
 @Entity(tableName = "major_heads")
@@ -45,7 +46,8 @@ data class Category(
     val name: String,
     val type: String, // income, expense
     val description: String? = null,
-    val isEnabled: Boolean = true
+    val isEnabled: Boolean = true,
+    val icon: String? = null
 )
 
 @Entity(tableName = "tags", indices = [androidx.room.Index(value = ["name"], unique = true)])

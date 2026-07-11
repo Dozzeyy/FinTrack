@@ -16,17 +16,21 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -49,42 +53,118 @@ import java.time.temporal.TemporalAdjusters
 @Composable
 fun TransactionRow(detail: TransactionWithDetails, viewModel: ExpenseViewModel, showTxnNumber: Boolean = false) {
     val transaction = detail.transaction
-    val color = when (detail.categoryType) {
+    val typeColor = when (detail.categoryType) {
         "income" -> Color(0xFF4CAF50)
         "expense" -> Color.Red
         else -> Color(0xFF2196F3)
     }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
+    
+    val backgroundColor = typeColor.copy(alpha = 0.05f)
+    
+    Surface(
+        color = backgroundColor,
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = (detail.categoryName ?: "Transfer") + 
-                       (if (detail.partyName != null) " (${detail.partyName})" else "") +
-                       (if (detail.toPartyName != null) " -> ${detail.toPartyName}" else ""),
-                style = MaterialTheme.typography.bodyLarge
-            )
-            Text(
-                text = "${transaction.date} | ${detail.accountName}${if (detail.toAccountName != null) " -> " + detail.toAccountName else ""}",
-                style = MaterialTheme.typography.bodySmall,
-                color = Color.Gray
-            )
-            if (!transaction.note.isNullOrEmpty()) {
+        Row(
+            modifier = Modifier.padding(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(typeColor.copy(alpha = 0.1f)),
+                contentAlignment = Alignment.Center
+            ) {
                 Text(
-                    text = transaction.note,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.LightGray
+                    text = if (detail.categoryType == null) (detail.toAccountIcon ?: "🏦") else (detail.categoryIcon ?: detail.accountIcon ?: "📁"),
+                    fontSize = 20.sp
                 )
             }
+            
+            Spacer(Modifier.width(12.dp))
+            
+            Column(modifier = Modifier.weight(1f)) {
+                val headlineText = if (detail.categoryType == null && detail.toAccountName != null) {
+                    detail.toAccountName
+                } else {
+                    (detail.categoryName ?: "Transfer")
+                }
+
+                Text(
+                    text = headlineText + 
+                           (if (detail.partyName != null) " (${detail.partyName})" else "") +
+                           (if (detail.toPartyName != null) " -> ${detail.toPartyName}" else ""),
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+                
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = transaction.date,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray
+                    )
+                    Text(" | ", color = Color.LightGray)
+                    
+                    Surface(
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Text(
+                            text = detail.accountName,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    }
+                    
+                    if (detail.toAccountName != null && detail.categoryType != null) {
+                        Text(" → ", color = Color.Gray, fontSize = 10.sp)
+                        Surface(
+                            color = MaterialTheme.colorScheme.tertiaryContainer,
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
+                            Text(
+                                text = detail.toAccountName,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                        }
+                    }
+                }
+                
+                if (!transaction.note.isNullOrEmpty()) {
+                    Text(
+                        text = transaction.note,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray.copy(alpha = 0.8f),
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                }
+            }
+            
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = viewModel.formatAmount(transaction.amount),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = typeColor
+                )
+                if (showTxnNumber && transaction.transactionNumber != null) {
+                    Text(
+                        text = transaction.transactionNumber,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.LightGray
+                    )
+                }
+            }
         }
-        Text(
-            text = viewModel.formatAmount(transaction.amount),
-            style = MaterialTheme.typography.bodyLarge,
-            color = color
-        )
     }
 }
 
@@ -98,7 +178,11 @@ fun PieChart(data: List<Pair<String, Double>>, colors: List<Color>) {
             Color(0xFFf44336), Color(0xFFE91E63), Color(0xFF9C27B0), Color(0xFF673AB7),
             Color(0xFF3F51B5), Color(0xFF2196F3), Color(0xFF03A9F4), Color(0xFF00BCD4),
             Color(0xFF009688), Color(0xFF4CAF50), Color(0xFF8BC34A), Color(0xFFCDDC39),
-            Color(0xFFFFEB3B), Color(0xFFFFC107), Color(0xFFFF9800), Color(0xFFFF5722)
+            Color(0xFFFFEB3B), Color(0xFFFFC107), Color(0xFFFF9800), Color(0xFFFF5722),
+            Color(0xFF795548), Color(0xFF9E9E9E), Color(0xFF607D8B), Color(0xFF33691E),
+            Color(0xFF1B5E20), Color(0xFF004D40), Color(0xFF01579B), Color(0xFF0D47A1),
+            Color(0xFF1A237E), Color(0xFF311B92), Color(0xFF4A148C), Color(0xFF880E4F),
+            Color(0xFFB71C1C), Color(0xFFBF360C)
         )
     } else colors
 
@@ -139,7 +223,11 @@ fun DonutChart(
             Color(0xFFf44336), Color(0xFFE91E63), Color(0xFF9C27B0), Color(0xFF673AB7),
             Color(0xFF3F51B5), Color(0xFF2196F3), Color(0xFF03A9F4), Color(0xFF00BCD4),
             Color(0xFF009688), Color(0xFF4CAF50), Color(0xFF8BC34A), Color(0xFFCDDC39),
-            Color(0xFFFFEB3B), Color(0xFFFFC107), Color(0xFFFF9800), Color(0xFFFF5722)
+            Color(0xFFFFEB3B), Color(0xFFFFC107), Color(0xFFFF9800), Color(0xFFFF5722),
+            Color(0xFF795548), Color(0xFF9E9E9E), Color(0xFF607D8B), Color(0xFF33691E),
+            Color(0xFF1B5E20), Color(0xFF004D40), Color(0xFF01579B), Color(0xFF0D47A1),
+            Color(0xFF1A237E), Color(0xFF311B92), Color(0xFF4A148C), Color(0xFF880E4F),
+            Color(0xFFB71C1C), Color(0xFFBF360C)
         )
     } else colors
 
@@ -176,12 +264,7 @@ fun HorizontalBalanceChart(
 ) {
     if (accounts.isEmpty()) return
 
-    val balances = accounts.map { it.balance }
-    
-    // We want a range that covers all balances, with 0 potentially in the middle
-    val minVal = balances.minOrNull()?.coerceAtMost(0.0) ?: 0.0
-    val maxVal = balances.maxOrNull()?.coerceAtLeast(0.0) ?: 0.0
-    val totalRange = (maxVal - minVal).coerceAtLeast(1.0)
+    val maxAbsVal = accounts.maxOfOrNull { kotlin.math.abs(it.balance) }?.coerceAtLeast(1.0) ?: 1.0
 
     Column(modifier = modifier.padding(8.dp)) {
         accounts.forEach { account ->
@@ -192,7 +275,7 @@ fun HorizontalBalanceChart(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = account.name,
+                    text = (account.icon ?: "📁") + " " + account.name,
                     style = MaterialTheme.typography.labelSmall,
                     modifier = Modifier.width(80.dp),
                     maxLines = 1,
@@ -200,27 +283,23 @@ fun HorizontalBalanceChart(
                 )
                 
                 Box(modifier = Modifier.weight(1f).height(24.dp)) {
-                    // Center line (0) fraction
-                    val zeroPos = if (minVal < 0) (kotlin.math.abs(minVal) / totalRange).toFloat() else 0f
-                    
                     Canvas(modifier = Modifier.fillMaxSize()) {
                         val canvasWidth = size.width
                         val canvasHeight = size.height
                         
-                        // Draw 0 vertical line
+                        // Baseline
                         drawLine(
                             color = Color.Gray.copy(alpha = 0.3f),
-                            start = androidx.compose.ui.geometry.Offset(canvasWidth * zeroPos, 0f),
-                            end = androidx.compose.ui.geometry.Offset(canvasWidth * zeroPos, canvasHeight),
+                            start = androidx.compose.ui.geometry.Offset(0f, canvasHeight),
+                            end = androidx.compose.ui.geometry.Offset(canvasWidth, canvasHeight),
                             strokeWidth = 1.dp.toPx()
                         )
                         
-                        val barWidthFraction = (kotlin.math.abs(account.balance) / totalRange).toFloat()
-                        val barStartFraction = if (account.balance >= 0) zeroPos else zeroPos - barWidthFraction
+                        val barWidthFraction = (kotlin.math.abs(account.balance) / maxAbsVal).toFloat()
                         
                         drawRoundRect(
                             color = if (account.balance >= 0) Color(0xFF4CAF50) else Color.Red,
-                            topLeft = androidx.compose.ui.geometry.Offset(canvasWidth * barStartFraction, 4.dp.toPx()),
+                            topLeft = androidx.compose.ui.geometry.Offset(0f, 4.dp.toPx()),
                             size = Size(canvasWidth * barWidthFraction, canvasHeight - 8.dp.toPx()),
                             cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx(), 4.dp.toPx())
                         )
@@ -448,7 +527,6 @@ fun TransactionHistoryView(viewModel: ExpenseViewModel, onOpenDrawer: (() -> Uni
                     Box(modifier = Modifier.clickable { viewModel.selectedTransactionDetail = detail }) {
                         TransactionRow(detail = detail, viewModel = viewModel, showTxnNumber = false)
                     }
-                    Divider(modifier = Modifier.padding(vertical = 4.dp))
                 }
             }
         } else {
@@ -554,8 +632,11 @@ fun AssetsLiabilitiesView(viewModel: ExpenseViewModel) {
                         transaction = com.openapps.fintrack.data.Transaction(date = asOfDate, time = "00:00", accountId = b.id, amount = b.balance, note = "Balance Export", categoryId = null),
                         categoryName = null,
                         categoryType = if (b.balance >= 0) "asset" else "liability",
+                        categoryIcon = null,
                         accountName = b.name,
+                        accountIcon = b.icon,
                         toAccountName = null,
+                        toAccountIcon = null,
                         partyName = null,
                         toPartyName = null
                     )
@@ -625,11 +706,11 @@ fun AssetsLiabilitiesView(viewModel: ExpenseViewModel) {
                     val neg = majorBalances.filter { it.balance <= 0 }
                     if (pos.isNotEmpty()) {
                         item { Text("Assets", fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
-                        items(pos) { hb -> BalanceRow(hb.name, hb.balance, viewModel) { drillMajorId = hb.id } }
+                        items(pos) { hb -> BalanceRow(hb.name, hb.balance, null, viewModel) { drillMajorId = hb.id } }
                     }
                     if (neg.isNotEmpty()) {
                         item { Text("Liabilities", fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
-                        items(neg) { hb -> BalanceRow(hb.name, hb.balance, viewModel) { drillMajorId = hb.id } }
+                        items(neg) { hb -> BalanceRow(hb.name, hb.balance, null, viewModel) { drillMajorId = hb.id } }
                     }
                 }
                 1 -> { // Major + Minor
@@ -641,7 +722,7 @@ fun AssetsLiabilitiesView(viewModel: ExpenseViewModel) {
                         posMajor.forEach { mhb ->
                             item { Text(mhb.name, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(vertical = 4.dp)) }
                             items(minorBalances.filter { it.majorHeadId == mhb.id }) { mihb ->
-                                BalanceRow(mihb.name, mihb.balance, viewModel, indent = true) { drillMinorId = mihb.id }
+                                BalanceRow(mihb.name, mihb.balance, null, viewModel, indent = true) { drillMinorId = mihb.id }
                             }
                         }
                     }
@@ -650,7 +731,7 @@ fun AssetsLiabilitiesView(viewModel: ExpenseViewModel) {
                         negMajor.forEach { mhb ->
                             item { Text(mhb.name, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(vertical = 4.dp)) }
                             items(minorBalances.filter { it.majorHeadId == mhb.id }) { mihb ->
-                                BalanceRow(mihb.name, mihb.balance, viewModel, indent = true) { drillMinorId = mihb.id }
+                                BalanceRow(mihb.name, mihb.balance, null, viewModel, indent = true) { drillMinorId = mihb.id }
                             }
                         }
                     }
@@ -668,7 +749,7 @@ fun AssetsLiabilitiesView(viewModel: ExpenseViewModel) {
                                 if (mms.isNotEmpty()) {
                                     item { Text(mihb.name, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = 16.dp)) }
                                     items(mms) { mb ->
-                                        BalanceRow(mb.name, mb.balance, viewModel, indent = true, doubleIndent = true) { drillMicroId = mb.id }
+                                        BalanceRow(mb.name, mb.balance, mb.icon, viewModel, indent = true, doubleIndent = true) { drillMicroId = mb.id }
                                     }
                                 }
                             }
@@ -683,7 +764,7 @@ fun AssetsLiabilitiesView(viewModel: ExpenseViewModel) {
                                 if (mms.isNotEmpty()) {
                                     item { Text(mihb.name, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = 16.dp)) }
                                     items(mms) { mb ->
-                                        BalanceRow(mb.name, mb.balance, viewModel, indent = true, doubleIndent = true) { drillMicroId = mb.id }
+                                        BalanceRow(mb.name, mb.balance, mb.icon, viewModel, indent = true, doubleIndent = true) { drillMicroId = mb.id }
                                     }
                                 }
                             }
@@ -695,11 +776,11 @@ fun AssetsLiabilitiesView(viewModel: ExpenseViewModel) {
                     val neg = minorBalances.filter { it.balance <= 0 }
                     if (pos.isNotEmpty()) {
                         item { Text("Assets", fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
-                        items(pos) { hb -> BalanceRow(hb.name, hb.balance, viewModel) { drillMinorId = hb.id } }
+                        items(pos) { hb -> BalanceRow(hb.name, hb.balance, null, viewModel) { drillMinorId = hb.id } }
                     }
                     if (neg.isNotEmpty()) {
                         item { Text("Liabilities", fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
-                        items(neg) { hb -> BalanceRow(hb.name, hb.balance, viewModel) { drillMinorId = hb.id } }
+                        items(neg) { hb -> BalanceRow(hb.name, hb.balance, null, viewModel) { drillMinorId = hb.id } }
                     }
                 }
                 4 -> { // Micro only
@@ -707,11 +788,11 @@ fun AssetsLiabilitiesView(viewModel: ExpenseViewModel) {
                     val neg = microBalances.filter { it.balance <= 0 }
                     if (pos.isNotEmpty()) {
                         item { Text("Assets", fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
-                        items(pos) { hb -> BalanceRow(hb.name, hb.balance, viewModel) { drillMicroId = hb.id } }
+                        items(pos) { hb -> BalanceRow(hb.name, hb.balance, hb.icon, viewModel) { drillMicroId = hb.id } }
                     }
                     if (neg.isNotEmpty()) {
                         item { Text("Liabilities", fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
-                        items(neg) { hb -> BalanceRow(hb.name, hb.balance, viewModel) { drillMicroId = hb.id } }
+                        items(neg) { hb -> BalanceRow(hb.name, hb.balance, hb.icon, viewModel) { drillMicroId = hb.id } }
                     }
                 }
             }
@@ -734,16 +815,17 @@ fun AssetsLiabilitiesView(viewModel: ExpenseViewModel) {
 }
 
 @Composable
-fun BalanceRow(name: String, balance: Double, viewModel: ExpenseViewModel, indent: Boolean = false, doubleIndent: Boolean = false, onClick: () -> Unit) {
+fun BalanceRow(name: String, balance: Double, icon: String?, viewModel: ExpenseViewModel, indent: Boolean = false, doubleIndent: Boolean = false, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() }
             .padding(vertical = 12.dp)
             .padding(start = if (doubleIndent) 32.dp else if (indent) 16.dp else 0.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(name, modifier = Modifier.weight(1f))
+        Text(text = (icon ?: "🏦") + " " + name, modifier = Modifier.weight(1f))
         Text(viewModel.formatAmount(balance), color = if (balance >= 0) Color(0xFF4CAF50) else Color.Red)
     }
     Divider(modifier = Modifier.padding(start = if (doubleIndent) 32.dp else if (indent) 16.dp else 0.dp))
@@ -844,7 +926,8 @@ fun DrillDownView(
     ) { padding ->
         LazyColumn(modifier = Modifier.padding(padding).padding(horizontal = 16.dp)) {
             items(filteredItems) { item ->
-                BalanceRow(item.first, item.second, viewModel) { onItemClick(item.first) }
+                val icon = microBalances.find { it.name == item.first }?.icon ?: "🏦"
+                BalanceRow(item.first, item.second, icon, viewModel) { onItemClick(item.first) }
             }
         }
     }
@@ -1074,7 +1157,6 @@ fun PartyTransactionsOverlay(viewModel: ExpenseViewModel, partyId: Int, partyNam
         LazyColumn(modifier = Modifier.padding(padding).padding(horizontal = 16.dp)) {
             items(partyTransactions) { detail ->
                 Box(modifier = Modifier.clickable { viewModel.selectedTransactionDetail = detail }) { TransactionRow(detail = detail, viewModel = viewModel, showTxnNumber = true) }
-                Divider()
             }
         }
     }
@@ -1082,8 +1164,8 @@ fun PartyTransactionsOverlay(viewModel: ExpenseViewModel, partyId: Int, partyNam
 
 @Composable
 fun AccountBalanceRow(balance: AccountBalance, viewModel: ExpenseViewModel, onClick: () -> Unit) {
-    Row(modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(vertical = 12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(balance.name); Text(viewModel.formatAmount(balance.balance), color = if (balance.balance >= 0) Color(0xFF4CAF50) else Color.Red)
+    Row(modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(vertical = 12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        Text((balance.icon ?: "🏦") + " " + balance.name); Text(viewModel.formatAmount(balance.balance), color = if (balance.balance >= 0) Color(0xFF4CAF50) else Color.Red)
     }
     Divider()
 }
@@ -1152,7 +1234,6 @@ fun AccountDetailView(viewModel: ExpenseViewModel, account: AccountBalance, onBa
         LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp).padding(top = 0.dp)) {
             items(transactions) { detail ->
                 Box(modifier = Modifier.clickable { viewModel.selectedTransactionDetail = detail }) { TransactionRow(detail = detail, viewModel = viewModel, showTxnNumber = true) }
-                Divider(modifier = Modifier.padding(vertical = 4.dp))
             }
         }
     }
@@ -1253,7 +1334,6 @@ fun TransactionListOverlay(title: String, transactions: List<TransactionWithDeta
                 Box(modifier = Modifier.clickable { viewModel.selectedTransactionDetail = detail }) {
                     TransactionRow(detail = detail, viewModel = viewModel, showTxnNumber = true)
                 }
-                Divider()
             }
         }
     }

@@ -719,11 +719,11 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
     suspend fun getLastTransactionForSubscription(name: String) = dao.getAllTransactionsWithDetails().first().find { it.transaction.subName == name }
 
     // Actions
-    fun saveAccount(name: String, openingBalance: Double, description: String?, isEnabled: Boolean, minorHeadId: Int?, creditLimit: Double?, billingCycleStart: String?, billingCycleEnd: String?, paymentDueDate: String?) {
-        viewModelScope.launch { dao.upsertAccount(editingAccount?.copy(name=name, openingBalance=openingBalance, description=description, isEnabled=isEnabled, minorHeadId=minorHeadId, creditLimit=creditLimit, billingCycleStart=billingCycleStart, billingCycleEnd=billingCycleEnd, paymentDueDate=paymentDueDate) ?: Account(name=name, type="asset", openingBalance=openingBalance, description=description, isEnabled=isEnabled, minorHeadId=minorHeadId, creditLimit=creditLimit, billingCycleStart=billingCycleStart, billingCycleEnd=billingCycleEnd, paymentDueDate=paymentDueDate)); editingAccount=null; triggerRefresh() }
+    fun saveAccount(name: String, openingBalance: Double, description: String?, isEnabled: Boolean, minorHeadId: Int?, creditLimit: Double?, billingCycleStart: String?, billingCycleEnd: String?, paymentDueDate: String?, icon: String?) {
+        viewModelScope.launch { dao.upsertAccount(editingAccount?.copy(name=name, openingBalance=openingBalance, description=description, isEnabled=isEnabled, minorHeadId=minorHeadId, creditLimit=creditLimit, billingCycleStart=billingCycleStart, billingCycleEnd=billingCycleEnd, paymentDueDate=paymentDueDate, icon=icon) ?: Account(name=name, type="asset", openingBalance=openingBalance, description=description, isEnabled=isEnabled, minorHeadId=minorHeadId, creditLimit=creditLimit, billingCycleStart=billingCycleStart, billingCycleEnd=billingCycleEnd, paymentDueDate=paymentDueDate, icon=icon)); editingAccount=null; triggerRefresh() }
     }
-    fun saveCategory(name: String, type: String, description: String?, isEnabled: Boolean) {
-        viewModelScope.launch { dao.upsertCategory(editingCategory?.copy(name=name, type=type, description=description, isEnabled=isEnabled) ?: Category(name=name, type=type, description=description, isEnabled=isEnabled)); editingCategory=null; triggerRefresh() }
+    fun saveCategory(name: String, type: String, description: String?, isEnabled: Boolean, icon: String?) {
+        viewModelScope.launch { dao.upsertCategory(editingCategory?.copy(name=name, type=type, description=description, isEnabled=isEnabled, icon=icon) ?: Category(name=name, type=type, description=description, isEnabled=isEnabled, icon=icon)); editingCategory=null; triggerRefresh() }
     }
     fun saveTag(name: String, isEnabled: Boolean) {
         viewModelScope.launch { dao.upsertTag(editingTag?.copy(name=name, isEnabled=isEnabled) ?: Tag(name=name, isEnabled=isEnabled)); editingTag=null; triggerRefresh() }
@@ -1454,6 +1454,6 @@ data class BudgetVsActual(val categoryName: String, val categoryType: String, va
 data class DraftTransaction(val type: String, val amount: String, val note: String, val date: String, val time: String, val accountId: Int?, val toAccountId: Int?, val categoryId: Int?, val selectedTagIds: List<Int>, val isMultiEntry: Boolean = false, val multiEntryRows: List<DraftMultiEntryRow> = emptyList())
 data class DraftMultiEntryRow(val categoryId: Int?, val amount: String, val note: String? = null, val currencyCode: String? = null)
 data class MultiEntryRowData(val categoryId: Int, val amount: Double, val note: String?, val currencyCode: String)
-data class DraftAccount(val name: String, val type: String, val description: String, val openingBalance: String, val isEnabled: Boolean, val selectedMajorHeadId: Int?, val selectedMinorHeadId: Int?, val creditLimit: String, val billingCycleStart: String, val billingCycleEnd: String, val paymentDueDate: String)
+data class DraftAccount(val name: String, val type: String, val description: String, val openingBalance: String, val isEnabled: Boolean, val selectedMajorHeadId: Int?, val selectedMinorHeadId: Int?, val creditLimit: String, val billingCycleStart: String, val billingCycleEnd: String, val paymentDueDate: String, val icon: String? = null)
 data class CcAlert(val accountId: Int, val accountName: String, val amount: Double, val dueDate: LocalDate)
 data class SubscriptionAlert(val subName: String, val amount: Double, val dueDate: LocalDate, val isTransfer: Boolean = false)

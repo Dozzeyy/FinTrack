@@ -222,7 +222,6 @@ fun HomeScreen(
                                     }) {
                                         TransactionRow(detail = detail, viewModel = viewModel, showTxnNumber = true)
                                     }
-                                    Divider(modifier = Modifier.padding(vertical = 4.dp))
                                 }
                             }
                         }
@@ -720,7 +719,11 @@ fun HomeView(
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 4.dp),
+                            .padding(top = 4.dp)
+                            .clickable {
+                                viewModel.summaryInitialTab = "Assets"
+                                onNavigate("summary")
+                            },
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
                     ) {
                         HorizontalBalanceChart(accounts = selectedBalances, viewModel = viewModel)
@@ -1040,7 +1043,7 @@ fun AnalysisView(
                                 if (t.categoryType == "income") t.transaction.amount else -t.transaction.amount
                             } else 0.0
                         }
-                        trend.add(d.dayOfMonth.toString() to currentBal)
+                        trend.add(d.format(DateTimeFormatter.ofPattern("dd MMM")) to currentBal)
                     }
                     trend
                 } else emptyList()
@@ -1192,9 +1195,9 @@ fun AnalysisView(
 
             LazyColumn(modifier = Modifier.weight(1f)) {
                 if (type == "Accounts" && accountsSubTab == "BTrend") {
-                    items(data.reversed()) { (day, amount) ->
+                    items(data.reversed()) { (dateLabel, amount) ->
                         ListItem(
-                            headlineContent = { Text("Day $day") },
+                            headlineContent = { Text(dateLabel) },
                             trailingContent = { 
                                 Text(
                                     viewModel.formatAmount(amount), 
@@ -1203,7 +1206,6 @@ fun AnalysisView(
                                 ) 
                             }
                         )
-                        Divider()
                     }
                 } else {
                     items(data) { (name, amount) ->
@@ -1214,12 +1216,18 @@ fun AnalysisView(
                             if (amount >= 0) Color(0xFF4CAF50) else Color.Red
                         } else MaterialTheme.colorScheme.onSurface
 
+                        val itemIcon = when (type) {
+                            "Expense", "Income" -> allCategories.find { it.name == name }?.icon ?: "📁"
+                            "Accounts", "On Account (Loan)" -> balances.find { it.name == name }?.icon ?: "🏦"
+                            else -> "📁"
+                        }
+
                         ListItem(
                             headlineContent = { 
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Box(Modifier.size(12.dp).background(chartColors[index % chartColors.size]))
                                     Spacer(Modifier.width(8.dp))
-                                    Text(name, style = MaterialTheme.typography.bodyLarge)
+                                    Text(text = "$itemIcon $name", style = MaterialTheme.typography.bodyLarge)
                                 }
                             },
                             trailingContent = { 
@@ -1239,7 +1247,6 @@ fun AnalysisView(
                                 }
                             }
                         )
-                        Divider()
                     }
                 }
             }

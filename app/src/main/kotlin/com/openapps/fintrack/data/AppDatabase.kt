@@ -21,7 +21,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.File
 
-@Database(entities = [Account::class, Category::class, Tag::class, Budget::class, Transaction::class, Template::class, Party::class, MajorHead::class, MinorHead::class, SubscriptionStatus::class, Note::class, ExchangeRate::class, Loan::class, LoanRepayment::class, Subscription::class, Notebook::class, Rule::class], version = 32, exportSchema = false)
+@Database(entities = [Account::class, Category::class, Tag::class, Budget::class, Transaction::class, Template::class, Party::class, MajorHead::class, MinorHead::class, SubscriptionStatus::class, Note::class, ExchangeRate::class, Loan::class, LoanRepayment::class, Subscription::class, Notebook::class, Rule::class], version = 33, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun expenseDao(): ExpenseDao
 
@@ -321,6 +321,31 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_32_33 = object : Migration(32, 33) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `accounts` ADD COLUMN `icon` TEXT")
+                db.execSQL("ALTER TABLE `categories` ADD COLUMN `icon` TEXT")
+                
+                // Add default emojis for accounts
+                db.execSQL("UPDATE accounts SET icon = '🏦' WHERE name LIKE '%Bank%'")
+                db.execSQL("UPDATE accounts SET icon = '💵' WHERE name = 'Cash'")
+                db.execSQL("UPDATE accounts SET icon = '📈' WHERE name = 'Investments'")
+                db.execSQL("UPDATE accounts SET icon = '💳' WHERE name LIKE '%Card%'")
+                
+                // Add default emojis for categories
+                db.execSQL("UPDATE categories SET icon = '🍔' WHERE name = 'Food'")
+                db.execSQL("UPDATE categories SET icon = '🛒' WHERE name = 'Groceries'")
+                db.execSQL("UPDATE categories SET icon = '🚗' WHERE name = 'Travel'")
+                db.execSQL("UPDATE categories SET icon = '📱' WHERE name = 'Telephone'")
+                db.execSQL("UPDATE categories SET icon = '🎬' WHERE name = 'Entertainment'")
+                db.execSQL("UPDATE categories SET icon = '🎓' WHERE name = 'Education'")
+                db.execSQL("UPDATE categories SET icon = '👔' WHERE name = 'Clothing'")
+                db.execSQL("UPDATE categories SET icon = '🏠' WHERE name = 'Rent'")
+                db.execSQL("UPDATE categories SET icon = '💡' WHERE name = 'Utilities'")
+                db.execSQL("UPDATE categories SET icon = '💰' WHERE name = 'Salary'")
+            }
+        }
+
         fun getDatabase(context: Context, scope: CoroutineScope): AppDatabase {
             val dbFile = context.getDatabasePath(DB_NAME)
             val encryptedFile = File(dbFile.path + ".xpt")
@@ -340,7 +365,7 @@ abstract class AppDatabase : RoomDatabase() {
                         DB_NAME
                     )
                     .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING)
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33)
                     .fallbackToDestructiveMigrationOnDowngrade()
                     .addCallback(object : RoomDatabase.Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {
@@ -403,18 +428,37 @@ abstract class AppDatabase : RoomDatabase() {
                 minors.forEach { db.execSQL("INSERT OR IGNORE INTO minor_heads (name, majorHeadId, isEnabled) VALUES ('$it', $majorId, 1)") }
             }
 
-            db.execSQL("INSERT OR IGNORE INTO accounts (name, type, openingBalance, isEnabled, minorHeadId) VALUES ('Savings Acct 1', 'asset', 0.0, 1, (SELECT id FROM minor_heads WHERE name = 'Savings account' AND majorHeadId = (SELECT id FROM major_heads WHERE name = 'Bank Accounts' LIMIT 1)))")
-            db.execSQL("INSERT OR IGNORE INTO accounts (name, type, openingBalance, isEnabled, minorHeadId) VALUES ('Cash', 'asset', 0.0, 1, (SELECT id FROM minor_heads WHERE name = 'Cash' AND majorHeadId = (SELECT id FROM major_heads WHERE name = 'Cash' LIMIT 1)))")
-            db.execSQL("INSERT OR IGNORE INTO accounts (name, type, openingBalance, isEnabled, minorHeadId) VALUES ('Investment 1', 'asset', 0.0, 1, (SELECT id FROM minor_heads WHERE name = 'Fixed Deposit' AND majorHeadId = (SELECT id FROM major_heads WHERE name = 'Investments' LIMIT 1)))")
-            db.execSQL("INSERT OR IGNORE INTO accounts (name, type, openingBalance, isEnabled, minorHeadId) VALUES ('Card 1', 'liability', 0.0, 1, (SELECT id FROM minor_heads WHERE name = 'US Bank' AND majorHeadId = (SELECT id FROM major_heads WHERE name = 'credit cards' LIMIT 1)))")
-            db.execSQL("INSERT OR IGNORE INTO accounts (name, type, openingBalance, isEnabled, minorHeadId) VALUES ('Payer 1', 'asset', 0.0, 1, (SELECT id FROM minor_heads WHERE name = 'Friend' AND majorHeadId = (SELECT id FROM major_heads WHERE name = 'On Account (Loan)' LIMIT 1)))")
-            db.execSQL("INSERT OR IGNORE INTO accounts (name, type, openingBalance, isEnabled, minorHeadId) VALUES ('Others', 'asset', 0.0, 1, (SELECT id FROM minor_heads WHERE name = 'Default' AND majorHeadId = (SELECT id FROM major_heads WHERE name = 'Others' LIMIT 1)))")
+            db.execSQL("INSERT OR IGNORE INTO accounts (name, type, openingBalance, isEnabled, minorHeadId, icon) VALUES ('Savings Acct 1', 'asset', 0.0, 1, (SELECT id FROM minor_heads WHERE name = 'Savings account' AND majorHeadId = (SELECT id FROM major_heads WHERE name = 'Bank Accounts' LIMIT 1)), '🏦')")
+            db.execSQL("INSERT OR IGNORE INTO accounts (name, type, openingBalance, isEnabled, minorHeadId, icon) VALUES ('Cash', 'asset', 0.0, 1, (SELECT id FROM minor_heads WHERE name = 'Cash' AND majorHeadId = (SELECT id FROM major_heads WHERE name = 'Cash' LIMIT 1)), '💵')")
+            db.execSQL("INSERT OR IGNORE INTO accounts (name, type, openingBalance, isEnabled, minorHeadId, icon) VALUES ('Investment 1', 'asset', 0.0, 1, (SELECT id FROM minor_heads WHERE name = 'Fixed Deposit' AND majorHeadId = (SELECT id FROM major_heads WHERE name = 'Investments' LIMIT 1)), '📈')")
+            db.execSQL("INSERT OR IGNORE INTO accounts (name, type, openingBalance, isEnabled, minorHeadId, icon) VALUES ('Card 1', 'liability', 0.0, 1, (SELECT id FROM minor_heads WHERE name = 'US Bank' AND majorHeadId = (SELECT id FROM major_heads WHERE name = 'credit cards' LIMIT 1)), '💳')")
+            db.execSQL("INSERT OR IGNORE INTO accounts (name, type, openingBalance, isEnabled, minorHeadId, icon) VALUES ('Payer 1', 'asset', 0.0, 1, (SELECT id FROM minor_heads WHERE name = 'Friend' AND majorHeadId = (SELECT id FROM major_heads WHERE name = 'On Account (Loan)' LIMIT 1)), '👤')")
+            db.execSQL("INSERT OR IGNORE INTO accounts (name, type, openingBalance, isEnabled, minorHeadId, icon) VALUES ('Others', 'asset', 0.0, 1, (SELECT id FROM minor_heads WHERE name = 'Default' AND majorHeadId = (SELECT id FROM major_heads WHERE name = 'Others' LIMIT 1)), '📁')")
 
-            val expenseCategories = listOf("Apps", "Clothing", "Education", "Electronics", "Entertainment", "Food", "Groceries", "Social", "Telephone", "Travel", "Travel Distance", "Misc")
-            val incomeCategories = listOf("Interest Income", "Investment Income", "Prof Fees", "Lucky Reward", "Salary")
+            val expenseCategories = listOf(
+                "Apps" to "📱", 
+                "Clothing" to "👔", 
+                "Education" to "🎓", 
+                "Electronics" to "💻", 
+                "Entertainment" to "🎬", 
+                "Food" to "🍔", 
+                "Groceries" to "🛒", 
+                "Social" to "🥂", 
+                "Telephone" to "📞", 
+                "Travel" to "🚗", 
+                "Travel Distance" to "⛽", 
+                "Misc" to "📦"
+            )
+            val incomeCategories = listOf(
+                "Interest Income" to "📈", 
+                "Investment Income" to "💹", 
+                "Prof Fees" to "👨‍💼", 
+                "Lucky Reward" to "🍀", 
+                "Salary" to "💰"
+            )
             
-            expenseCategories.forEach { db.execSQL("INSERT OR IGNORE INTO categories (name, type, isEnabled) VALUES ('$it', 'expense', 1)") }
-            incomeCategories.forEach { db.execSQL("INSERT OR IGNORE INTO categories (name, type, isEnabled) VALUES ('$it', 'income', 1)") }
+            expenseCategories.forEach { (name, icon) -> db.execSQL("INSERT OR IGNORE INTO categories (name, type, isEnabled, icon) VALUES ('$name', 'expense', 1, '$icon')") }
+            incomeCategories.forEach { (name, icon) -> db.execSQL("INSERT OR IGNORE INTO categories (name, type, isEnabled, icon) VALUES ('$name', 'income', 1, '$icon')") }
             
             val defaultTags = listOf("Personal", "Work", "Urgent", "Subscription")
             defaultTags.forEach { db.execSQL("INSERT OR IGNORE INTO tags (name, isEnabled) VALUES ('$it', 1)") }

@@ -21,7 +21,9 @@ fun SummaryScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
     
     // Clear initial state once used
     LaunchedEffect(Unit) {
-        viewModel.summaryInitialTab = "Transactions"
+        // We keep it until explicitly changed by navigation logic if needed, 
+        // but for now, reset to default for next entry
+        // viewModel.summaryInitialTab = "Transactions"
     }
     
     if (viewModel.selectedTransactionDetail != null) {

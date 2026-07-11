@@ -1670,7 +1670,10 @@ fun AccountSelectionDialog(
     isError: Boolean = false
 ) {
     var showDialog by remember { mutableStateOf(false) }
-    val selectedName = if (isOnAccountSelected) "On Account (Loan)" else accounts.find { it.id == selectedId }?.name ?: "Select Account"
+    val selectedName = if (isOnAccountSelected) "👤 On Account (Loan)" else {
+        val acc = accounts.find { it.id == selectedId }
+        if (acc != null) (acc.icon ?: "🏦") + " " + acc.name else "Select Account"
+    }
 
     Box(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f), RoundedCornerShape(16.dp)).clickable(enabled = enabled) { showDialog = true }) {
         OutlinedTextField(
@@ -1742,7 +1745,7 @@ fun AccountSelectionDialog(
                             val major = majorHeads.find { it.id == minor?.majorHeadId }
                             
                             ListItem(
-                                headlineContent = { Text(account.name) },
+                                headlineContent = { Text((account.icon ?: "🏦") + " " + account.name) },
                                 supportingContent = { 
                                     Text("${major?.name ?: "Others"} | ${viewModel.formatAmount(bal)}", color = if (bal >= 0) Color(0xFF4CAF50) else Color.Red)
                                 },
@@ -1833,7 +1836,7 @@ fun PartySelectionDialog(label: String, parties: List<Party>, selectedId: Int?, 
 @Composable
 fun CategorySelectionDialog(label: String, categories: List<com.openapps.fintrack.data.Category>, selectedId: Int?, onSelected: (Int) -> Unit, enabled: Boolean = true, onAdd: () -> Unit, isError: Boolean = false) {
     var showDialog by remember { mutableStateOf(false) }
-    val selectedName = categories.find { it.id == selectedId }?.name ?: "Select"
+    val selectedName = categories.find { it.id == selectedId }?.let { (it.icon ?: "📁") + " " + it.name } ?: "Select"
 
     Box(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f), RoundedCornerShape(16.dp)).clickable(enabled = enabled) { showDialog = true }) {
         OutlinedTextField(
@@ -1889,7 +1892,7 @@ fun CategorySelectionDialog(label: String, categories: List<com.openapps.fintrac
                     LazyColumn {
                         items(filteredCategories) { category ->
                             ListItem(
-                                headlineContent = { Text(category.name) },
+                                headlineContent = { Text((category.icon ?: "📁") + " " + category.name) },
                                 supportingContent = { Text(category.type.title()) },
                                 modifier = Modifier.clickable {
                                     onSelected(category.id)

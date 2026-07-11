@@ -616,9 +616,14 @@ fun BudgetPeriodSummary(duration: String, budgets: List<com.openapps.fintrack.ui
     
     val chartData = budgets.map { it.categoryName to it.budgetAmount }
     val chartColors = listOf(
-        Color(0xFF3F51B5), Color(0xFF8BC34A), Color(0xFF009688), 
-        Color(0xFF2196F3), Color(0xFF4CAF50), Color(0xFF00BCD4),
-        Color(0xFF673AB7), Color(0xFF9C27B0), Color(0xFFCDDC39)
+        Color(0xFFf44336), Color(0xFFE91E63), Color(0xFF9C27B0), Color(0xFF673AB7),
+        Color(0xFF3F51B5), Color(0xFF2196F3), Color(0xFF03A9F4), Color(0xFF00BCD4),
+        Color(0xFF009688), Color(0xFF4CAF50), Color(0xFF8BC34A), Color(0xFFCDDC39),
+        Color(0xFFFFEB3B), Color(0xFFFFC107), Color(0xFFFF9800), Color(0xFFFF5722),
+        Color(0xFF795548), Color(0xFF9E9E9E), Color(0xFF607D8B), Color(0xFF33691E),
+        Color(0xFF1B5E20), Color(0xFF004D40), Color(0xFF01579B), Color(0xFF0D47A1),
+        Color(0xFF1A237E), Color(0xFF311B92), Color(0xFF4A148C), Color(0xFF880E4F),
+        Color(0xFFB71C1C), Color(0xFFBF360C)
     )
 
     Column(

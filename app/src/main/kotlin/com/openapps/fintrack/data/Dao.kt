@@ -79,7 +79,10 @@ interface ExpenseDao {
 
     // Transactions
     @Query("""
-        SELECT t.*, c.name as categoryName, c.type as categoryType, a.name as accountName, a2.name as toAccountName, p.name as partyName, p2.name as toPartyName
+        SELECT t.*, c.name as categoryName, c.type as categoryType, c.icon as categoryIcon, 
+               a.name as accountName, a.icon as accountIcon, 
+               a2.name as toAccountName, a2.icon as toAccountIcon, 
+               p.name as partyName, p2.name as toPartyName
         FROM transactions t 
         LEFT JOIN categories c ON t.categoryId = c.id 
         JOIN accounts a ON t.accountId = a.id
@@ -91,7 +94,10 @@ interface ExpenseDao {
     fun getAllTransactionsWithDetails(): Flow<List<TransactionWithDetails>>
 
     @Query("""
-        SELECT t.*, c.name as categoryName, c.type as categoryType, a.name as accountName, a2.name as toAccountName, p.name as partyName, p2.name as toPartyName
+        SELECT t.*, c.name as categoryName, c.type as categoryType, c.icon as categoryIcon, 
+               a.name as accountName, a.icon as accountIcon, 
+               a2.name as toAccountName, a2.icon as toAccountIcon, 
+               p.name as partyName, p2.name as toPartyName
         FROM transactions t 
         LEFT JOIN categories c ON t.categoryId = c.id 
         JOIN accounts a ON t.accountId = a.id
@@ -104,7 +110,10 @@ interface ExpenseDao {
     fun getTransactionsByDateRange(startDate: String, endDate: String): Flow<List<TransactionWithDetails>>
 
     @Query("""
-        SELECT t.*, c.name as categoryName, c.type as categoryType, a.name as accountName, a2.name as toAccountName, p.name as partyName, p2.name as toPartyName
+        SELECT t.*, c.name as categoryName, c.type as categoryType, c.icon as categoryIcon, 
+               a.name as accountName, a.icon as accountIcon, 
+               a2.name as toAccountName, a2.icon as toAccountIcon, 
+               p.name as partyName, p2.name as toPartyName
         FROM transactions t 
         LEFT JOIN categories c ON t.categoryId = c.id 
         JOIN accounts a ON t.accountId = a.id
@@ -139,7 +148,7 @@ interface ExpenseDao {
                 FROM transactions t 
                 WHERE t.toAccountId = a.id AND t.date <= :asOfDate), 0.0)
         ) as balance,
-        a.minorHeadId, a.billingCycleStart, a.billingCycleEnd, a.paymentDueDate
+        a.minorHeadId, a.billingCycleStart, a.billingCycleEnd, a.paymentDueDate, a.icon
         FROM accounts a
         WHERE a.isEnabled = 1 AND a.name != 'Suspense'
     """)
@@ -375,8 +384,11 @@ data class TransactionWithDetails(
     @Embedded val transaction: Transaction,
     val categoryName: String?,
     val categoryType: String?,
+    val categoryIcon: String?,
     val accountName: String,
+    val accountIcon: String?,
     val toAccountName: String?,
+    val toAccountIcon: String?,
     val partyName: String?,
     val toPartyName: String?
 )
@@ -390,7 +402,8 @@ data class AccountBalance(
     val minorHeadId: Int? = null,
     val billingCycleStart: String? = null,
     val billingCycleEnd: String? = null,
-    val paymentDueDate: String? = null
+    val paymentDueDate: String? = null,
+    val icon: String? = null
 )
 
 data class BudgetWithDetails(

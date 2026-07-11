@@ -8,9 +8,13 @@ package com.openapps.fintrack.ui
 import android.app.DatePickerDialog
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -20,9 +24,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import java.util.Calendar
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -47,6 +55,9 @@ fun AddCategoryScreen(viewModel: ExpenseViewModel, onNavigate: (String) -> Unit,
     }
     var isEnabled by remember(editingCategory, editingAccount, editingParty, draft) { 
         mutableStateOf(draft?.isEnabled ?: editingCategory?.isEnabled ?: editingAccount?.isEnabled ?: editingParty?.isEnabled ?: true) 
+    }
+    var icon by remember(editingCategory, editingAccount, editingParty, draft) {
+        mutableStateOf(draft?.icon ?: editingCategory?.icon ?: editingAccount?.icon ?: "📁")
     }
 
     // New fields
@@ -91,7 +102,8 @@ fun AddCategoryScreen(viewModel: ExpenseViewModel, onNavigate: (String) -> Unit,
                 creditLimit = creditLimit,
                 billingCycleStart = billingCycleStart,
                 billingCycleEnd = billingCycleEnd,
-                paymentDueDate = paymentDueDate
+                paymentDueDate = paymentDueDate,
+                icon = icon
             )
         }
     }
@@ -142,6 +154,32 @@ fun AddCategoryScreen(viewModel: ExpenseViewModel, onNavigate: (String) -> Unit,
                 label = { Text("Name") },
                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
             )
+
+            Text("Select Icon", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(vertical = 8.dp))
+            val emojiList = listOf(
+                "💰", "🏦", "💵", "💳", "📈", "📉", "🍔", "🛒", "🚗", "🏠", "📱", "💻", 
+                "🎬", "🎓", "👔", "🥂", "📞", "⛽", "📦", "👨‍💼", "💹", "🍀", "🔌", "💧", 
+                "💊", "🏥", "🎁", "✈️", "🏋️", "🧹", "🐾", "👤", "📁"
+            )
+            LazyRow(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(emojiList) { e ->
+                    Box(
+                        modifier = Modifier
+                            .size(45.dp)
+                            .clip(CircleShape)
+                            .background(if (icon == e) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
+                            .clickable { icon = e }
+                            .padding(4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(e, fontSize = 24.sp)
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
 
             if (editingCategory == null && editingAccount == null && editingParty == null) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
@@ -370,14 +408,15 @@ fun AddCategoryScreen(viewModel: ExpenseViewModel, onNavigate: (String) -> Unit,
                             creditLimit = creditLimit.toDoubleOrNull(),
                             billingCycleStart = billingCycleStart,
                             billingCycleEnd = billingCycleEnd,
-                            paymentDueDate = paymentDueDate
+                            paymentDueDate = paymentDueDate,
+                            icon = icon
                         )
                         viewModel.draftAccount = null
                     } else if (type == "party") {
                         viewModel.saveParty(name, openingBalance.toDoubleOrNull() ?: 0.0, isEnabled)
                         viewModel.draftAccount = null
                     } else {
-                        viewModel.saveCategory(name, type, description, isEnabled)
+                        viewModel.saveCategory(name, type, description, isEnabled, icon)
                         viewModel.draftAccount = null
                     }
                     onBack()
