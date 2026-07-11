@@ -7,18 +7,15 @@
 import java.util.Properties
 import java.io.FileInputStream
 
-// 1. Load local.properties manually
 val localProperties = Properties()
 val localPropertiesFile = rootProject.file("local.properties")
 if (localPropertiesFile.exists()) {
     localProperties.load(FileInputStream(localPropertiesFile))
 }
 
-// 2. Create helper function to get values safely
 fun getLocalProperty(key: String): String {
     return localProperties.getProperty(key) ?: ""
 }
-
 
 
 plugins {
@@ -57,7 +54,6 @@ android {
             enableV4Signing = false
             //enableV5Signing = false
             
-            // Ensure v2 and v3 are enabled (they are by default, but good to be explicit)
             enableV2Signing = true
             enableV3Signing = true
             
@@ -81,14 +77,12 @@ android {
         }
     }
     
-    // Output filename configuration is now handled via androidComponents
-    
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
         isCoreLibraryDesugaringEnabled = true
     }
-    // kotlinOptions replaced by compilerOptions in newer versions
+  
     buildFeatures {
         compose = true
         buildConfig = true
