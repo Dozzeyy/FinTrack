@@ -168,7 +168,7 @@ fun HomeScreen(
                     }
                     
                     Text(
-                        "v1.0.13",
+                        "v1.0.14",
                         modifier = Modifier.padding(16.dp),
                         style = MaterialTheme.typography.labelSmall,
                         color = Color.Gray
