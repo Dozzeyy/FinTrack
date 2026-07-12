@@ -30,7 +30,8 @@ class FinancialInsightEngine {
         budgets: List<BudgetVsActual>,
         loans: List<Loan>,
         majorHeads: List<MajorHead>,
-        minorHeads: List<MinorHead>
+        minorHeads: List<MinorHead>,
+        isMerchantTrackerEnabled: Boolean = false
     ): List<FinancialInsight> {
         val insights = mutableListOf<FinancialInsight>()
         val today = LocalDate.now()
@@ -47,7 +48,91 @@ class FinancialInsightEngine {
             .groupBy { it.transaction.date.substring(0, 7) }
             .mapValues { it.value.sumOf { t -> t.transaction.amount } }
 
-        // 1. Budget Run-rate Prediction (Forecasting ML)
+        // 1. Credit Score Impact Predictor
+        accounts.forEach { acc ->
+            val minor = minorHeads.find { it.id == acc.minorHeadId }
+            if (minor?.majorHeadId == 8) { // Credit Card
+                val limit = acc.creditLimit ?: 0.0
+                if (limit > 0) {
+                    val utilization = (abs(acc.balance) / limit) * 100
+                    if (utilization > 30) {
+                        insights.add(FinancialInsight(
+                            "credit_util_${acc.id}",
+                            "Credit Score Impact",
+                            "Your credit utilization is ${utilization.toInt()}% for account - ${acc.name} which may impact your score. Keep it below 30%.",
+                            InsightType.WARNING
+                        ))
+                    }
+                }
+            }
+        }
+
+        // 2. Seasonal Spending Prediction
+        if (monthlyExpenses.size >= 24) {
+            val targetMonth = today.plusMonths(1).monthValue
+            val targetMonthName = today.plusMonths(1).month.name.lowercase().replaceFirstChar { it.uppercase() }
+            
+            val historicalData = monthlyExpenses.filter { 
+                val d = LocalDate.parse(it.key + "-01")
+                d.monthValue == targetMonth && d.year < today.year
+            }.values
+            
+            if (historicalData.size >= 2) {
+                val historicalAvg = historicalData.average()
+                if (historicalAvg > avgMonthlyExp * 1.2) {
+                    insights.add(FinancialInsight(
+                        "seasonal_spend",
+                        "Seasonal Spending Prediction",
+                        "$targetMonthName typically sees ${((historicalAvg - avgMonthlyExp) / 1000).toInt()}k higher spending based on your history. Build buffer now.",
+                        InsightType.TREND
+                    ))
+                }
+            }
+        }
+
+        // 3. Windfall Allocation Recommendation
+        val latestIncome = monthlyIncomes[currentMonthStr] ?: 0.0
+        val last3MonthsIncomes = monthlyIncomes.values.toList().takeLast(3)
+        val avg3MonthInc = if (last3MonthsIncomes.size >= 2) last3MonthsIncomes.average() else 0.0
+        
+        if (avg3MonthInc > 0 && latestIncome > avg3MonthInc * 1.75) {
+            val windfall = latestIncome - avg3MonthInc
+            insights.add(FinancialInsight(
+                "windfall_alloc",
+                "Windfall Recommendation",
+                "You received a windfall this month. Suggested allocation: ${ (windfall * 0.5).toInt() } invest, ${ (windfall * 0.3).toInt() } debt prepayment, ${ (windfall * 0.2).toInt() } discretionary.",
+                InsightType.OPPORTUNITY
+            ))
+        }
+
+        // 4. Vendor Concentration Risk
+        val currentMonthTxns = transactions.filter { it.transaction.date.startsWith(currentMonthStr) && it.categoryType == "expense" }
+        val totalExp = currentMonthTxns.sumOf { it.transaction.amount }
+        
+        if (totalExp > 0) {
+            val vendorGroups = if (isMerchantTrackerEnabled) {
+                currentMonthTxns.groupBy { it.transaction.merchantName ?: it.partyName ?: "Others" }
+            } else {
+                currentMonthTxns.groupBy { it.partyName ?: "Others" }
+            }
+            
+            vendorGroups.forEach { (vendor, txns) ->
+                if (vendor != "Others") {
+                    val vendorTotal = txns.sumOf { it.transaction.amount }
+                    val concentration = (vendorTotal / totalExp) * 100
+                    if (concentration > 30) {
+                        insights.add(FinancialInsight(
+                            "vendor_risk_$vendor",
+                            "Vendor Concentration Risk",
+                            "${concentration.toInt()}% of your spending is with $vendor. Consider diversifying vendors to reduce dependency.",
+                            InsightType.WARNING
+                        ))
+                    }
+                }
+            }
+        }
+
+        // 5. Budget Run-rate Prediction (Forecasting ML)
         budgets.forEach { b ->
             if (b.categoryType == "expense" && b.budgetAmount > 0) {
                 val daysInPeriod = getDaysInDuration(b.duration)
@@ -67,7 +152,7 @@ class FinancialInsightEngine {
             }
         }
 
-        // 2. Spending Anomaly Detection (Statistical ML - Z-Score)
+        // 6. Spending Anomaly Detection (Statistical ML - Z-Score)
         val recentTxns = transactions.take(50).filter { it.categoryType == "expense" }
         if (recentTxns.size > 10) {
             val avg = recentTxns.map { it.transaction.amount }.average()
@@ -85,17 +170,26 @@ class FinancialInsightEngine {
             }
         }
 
-        // 3. Debt Service Ratio
+        // 7. Loan Health Analysis
         val totalIncomePrevMonth = monthlyIncomes[prevMonthStr] ?: 0.0
         val currentMonthIncome = monthlyIncomes[currentMonthStr] ?: 0.0
-        val incomeToUse = if (currentMonthIncome > 0) currentMonthIncome else totalIncomePrevMonth
-
-        val totalEMI = loans.filter { !it.isClosed }.sumOf { it.installmentAmount }
-        if (incomeToUse > 0 && (totalEMI / incomeToUse) > 0.20) {
-            insights.add(FinancialInsight("debt_warning", "Debt Warning", "Your loan payments are ${(totalEMI / incomeToUse * 100).toInt()}% of your income. Consider reducing debt.", InsightType.WARNING))
+        
+        val incomeToUse = if (totalIncomePrevMonth > 0.0) totalIncomePrevMonth else currentMonthIncome
+        
+        var totalLoanPaymentsMonth = 0.0
+        loans.filter { !it.isClosed }.forEach { l ->
+            val progress = (l.totalPrincipalRepaid / l.principalAmount) * 100
+            if (progress > 90) {
+                insights.add(FinancialInsight("loan_milestone_${l.id}", "Loan Milestone", "You have repaid ${progress.toInt()}% of '${l.name}'. Almost there!", InsightType.OPPORTUNITY))
+            }
+            totalLoanPaymentsMonth += l.installmentAmount 
         }
 
-        // 4. Liquidity Alert
+        if (incomeToUse > 0.0 && (totalLoanPaymentsMonth / incomeToUse) > 0.20) {
+            insights.add(FinancialInsight("debt_ratio", "Debt Warning", "Your debt repayments are ${(totalLoanPaymentsMonth / incomeToUse * 100).toInt()}% of your income. Consider reducing debt.", InsightType.WARNING))
+        }
+
+        // 8. Bank Balance vs Monthly Expenses
         val bankMajorId = majorHeads.find { it.name.contains("Bank", true) }?.id
         val bankBalance = accounts.filter { a -> 
             val minor = minorHeads.find { it.id == a.minorHeadId }
@@ -103,56 +197,53 @@ class FinancialInsightEngine {
         }.sumOf { it.balance }
 
         if (bankBalance < avgMonthlyExp && avgMonthlyExp > 0) {
-            insights.add(FinancialInsight("low_liquidity", "Liquidity Alert", "Your net bank balance is below your average monthly expenses. Maintain a safety buffer.", InsightType.WARNING))
+            insights.add(FinancialInsight("low_bank_bal", "Liquidity Alert", "Your net bank balance is below your average monthly expenses. Maintain a safety buffer.", InsightType.WARNING))
         }
 
-        // 5. Investment Tracking (50% of last month's income)
+        // 9. Investment Target (50% of previous month income)
         val investmentMajorId = majorHeads.find { it.name.contains("Investment", true) }?.id
-        val currentMonthInvestments = transactions.filter { t ->
+        val monthInvestments = transactions.filter { t ->
             t.transaction.date.startsWith(currentMonthStr) && t.transaction.categoryId == null && t.transaction.toAccountId != null &&
             minorHeads.find { it.id == accounts.find { acc -> acc.id == t.transaction.toAccountId }?.minorHeadId }?.majorHeadId == investmentMajorId
         }.sumOf { it.transaction.amount }
 
-        if (totalIncomePrevMonth > 0 && currentMonthInvestments < (totalIncomePrevMonth * 0.5)) {
+        if (totalIncomePrevMonth > 0 && monthInvestments < (totalIncomePrevMonth * 0.5)) {
             insights.add(FinancialInsight("invest_target", "Investment Slump", "Your investments this month are less than 50% of last month's income.", InsightType.OPPORTUNITY))
         }
 
-        // 6. Spending Pulse
+        // 10. Expense Progress Alert (25% of last month income)
         val currentMonthExp = monthlyExpenses[currentMonthStr] ?: 0.0
         if (totalIncomePrevMonth > 0 && currentMonthExp >= (totalIncomePrevMonth * 0.25)) {
             val pct = (currentMonthExp / totalIncomePrevMonth * 100).toInt()
             insights.add(FinancialInsight("exp_threshold", "Spending Pulse", "Total expenses have reached $pct% of last month's income.", InsightType.TREND))
         }
 
-        // 7. Overdraft Warning (Historical patterns)
-        val targetDay = today.plusDays(3).dayOfMonth.toString().padStart(2, '0')
+        // 11. Upcoming Large Expenses / Overdraft Warning
         val historicalLarge = transactions.filter { it.categoryType == "expense" && it.transaction.amount > (if (recentTxns.isNotEmpty()) recentTxns.map { it.transaction.amount }.average() else 0.0) * 1.5 }
-            .groupBy { it.transaction.date.split("-").last() }
+            .groupBy { it.transaction.date.substring(8) }
         
-        if (historicalLarge.containsKey(targetDay)) {
-            val expectedAmt = historicalLarge[targetDay]?.first()?.transaction?.amount ?: 0.0
-            val liquidMajorIds = majorHeads.filter { it.name.contains("Bank", true) || it.name.contains("Cash", true) || it.name.contains("Wallet", true) }.map { it.id }
-            val liquidBal = accounts.filter { a -> 
-                val minor = minorHeads.find { it.id == a.minorHeadId }
-                minor?.majorHeadId in liquidMajorIds 
-            }.sumOf { it.balance }
+        val targetDayLabel = today.plusDays(3).dayOfMonth.toString().padStart(2, '0')
+        if (historicalLarge.containsKey(targetDayLabel)) {
+            val expectedAmt = historicalLarge[targetDayLabel]?.first()?.transaction?.amount ?: 0.0
+            val savingsMajorId = majorHeads.find { it.name.contains("Savings", true) }?.id
+            val savingsBal = accounts.filter { a -> minorHeads.find { it.id == a.minorHeadId }?.majorHeadId == savingsMajorId }.sumOf { it.balance }
             
-            if (liquidBal < expectedAmt) {
-                insights.add(FinancialInsight("overdraft_risk", "Upcoming Large Expense", "A large expense is expected based on history in 3 days. Your liquid balance may be low.", InsightType.WARNING))
+            if (savingsBal < expectedAmt) {
+                insights.add(FinancialInsight("overdraft_risk", "Upcoming Large Expense", "Based on history, a large expense is expected in 3 days. Your savings balance may be low.", InsightType.WARNING))
             }
         }
 
-        // 8. Income Variability Warning
+        // 12. Income Variability
         if (monthlyIncomes.size >= 2) {
             val incomesSorted = monthlyIncomes.keys.sorted()
             val rollingAvg = monthlyIncomes.filter { it.key != incomesSorted.last() }.values.average()
             val latest = monthlyIncomes[incomesSorted.last()] ?: 0.0
             if (latest < rollingAvg * 0.8 && rollingAvg > 0) {
-                insights.add(FinancialInsight("income_drop", "Income Variability", "Your income has dropped by more than 20% vs average. Suggest tightening discretionary spending.", InsightType.WARNING))
+                insights.add(FinancialInsight("income_drop", "Income Variability", "Your income has dropped by more than 20% vs average. Tighten discretionary spending.", InsightType.WARNING))
             }
         }
 
-        // 9. Spending Velocity Alert (Updated: 3mo avg income, 60% spent within 10 days of highest payday)
+        // 13. Spending Velocity Alert (Updated: 3mo avg income, 60% spent within 10 days of highest payday)
         val last3MonthsIncomeList = monthlyIncomes.values.toList().takeLast(3)
         val avg3MonthIncome = if (last3MonthsIncomeList.isNotEmpty()) last3MonthsIncomeList.average() else 0.0
         
@@ -173,7 +264,7 @@ class FinancialInsightEngine {
             }
         }
 
-        // 10. Price Increase Detection (Recurring bills)
+        // 14. Price Increase Detection (Recurring bills)
         val recurringCats = transactions.filter { it.categoryType == "expense" }
             .groupBy { it.categoryName ?: "Uncategorized" }
             .filter { it.value.size >= 3 }
@@ -191,7 +282,7 @@ class FinancialInsightEngine {
             }
         }
 
-        // 11. Credit Card Working Capital Optimization
+        // 15. Credit Card Working Capital Optimization
         val ccAccounts = accounts.filter { acc -> 
             minorHeads.find { it.id == acc.minorHeadId }?.majorHeadId == 8 
         }
@@ -202,7 +293,7 @@ class FinancialInsightEngine {
             var lastBestCard = ""
 
             for (day in 1..daysInMonth) {
-                val bestCard = ccAccounts.minByOrNull { acc ->
+                val bestCard = ccAccounts.minByOrNull { acc: AccountBalance ->
                     val cycleStart = acc.billingCycleStart?.toIntOrNull() ?: 1
                     val diff = if (day >= cycleStart) day - cycleStart else day + (30 - cycleStart)
                     diff
@@ -220,7 +311,7 @@ class FinancialInsightEngine {
             insights.add(FinancialInsight("cc_optimize", "Optimal Card Usage", "For maximum interest-free period this month:\n" + suggestions.joinToString("\n"), InsightType.OPPORTUNITY))
         }
 
-        // 12. Category Correlation Insight
+        // 16. Category Correlation Insight
         val foodTxns = transactions.filter { (it.categoryName?.contains("Food", true) ?: false) || (it.categoryName?.contains("Groceries", true) ?: false) }
         val workTxns = transactions.filter { it.transaction.note?.contains("work", true) == true || (it.categoryName?.contains("Travel", true) ?: false) }
         
@@ -232,15 +323,37 @@ class FinancialInsightEngine {
             insights.add(FinancialInsight("correlation_work_food", "Spending Pattern", "You tend to spend more on outside food on days you work late or travel for work.", InsightType.TREND))
         }
 
-        // 13. Idle Cash Investment Alert (Bank bal > 25% of 3mo avg expense)
+        // 17. Idle Cash Investment Alert (Bank bal > 25% of 3mo avg expense)
         val last3MonthExpsList = monthlyExpenses.values.toList().takeLast(3)
         val avg3MonthExp = if (last3MonthExpsList.isNotEmpty()) last3MonthExpsList.average() else 0.0
         
-        if (avg3MonthExp > 0 && bankBalance > avg3MonthExp * 0.25) {
+        if (avg3MonthExp > 0 && bankBalance > avg3MonthExp * 0.9) {
              insights.add(FinancialInsight("idle_cash", "Investment Opportunity", "Your bank balance exceeds 25% of your 3-month average expenses. Consider investing the surplus to earn better returns.", InsightType.OPPORTUNITY))
         }
 
-        return insights.distinctBy { it.id }.take(7)
+        // 18. Emergency Fund Adequacy Score
+        val emergencyFunds = accounts.filter { it.isEmergencyFund }.sumOf { it.balance }
+        val avgMonthlyExpEF = if (last3MonthExpsList.size >= 2) last3MonthExpsList.average() else avgMonthlyExp
+        
+        if (emergencyFunds > 0 && avgMonthlyExpEF > 0) {
+            val monthsCovered = emergencyFunds / avgMonthlyExpEF
+            val scoreText = String.format(java.util.Locale.US, "%.1f", monthsCovered)
+            insights.add(FinancialInsight(
+                "ef_adequacy",
+                "Emergency Fund Adequacy",
+                "Your emergency fund covers $scoreText months of expenses. Recommended: 6 months.",
+                if (monthsCovered < 3) InsightType.WARNING else if (monthsCovered < 6) InsightType.TREND else InsightType.OPPORTUNITY
+            ))
+        } else if (emergencyFunds <= 0 && avgMonthlyExpEF > 0) {
+            insights.add(FinancialInsight(
+                "ef_missing",
+                "Emergency Fund Alert",
+                "You haven't designated any accounts as an Emergency Fund. It's recommended to have 6 months of expenses saved.",
+                InsightType.WARNING
+            ))
+        }
+
+        return insights.distinctBy { it.id }.take(15)
     }
 
     private fun calculateStdDev(numbers: List<Double>, avg: Double): Double {

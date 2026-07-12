@@ -133,11 +133,11 @@ fun ContactScreen(onBack: () -> Unit) {
 
             ContactRow(
                 icon = Icons.Default.Language,
-                label = "Instagram",
-                value = "@samvaahak",
+                label = "Youtube",
+                value = "@StoptheStalk",
                 isLink = true,
                 onClick = {
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.instagram.com/samvaahak"))
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/@stopthestalk"))
                     context.startActivity(intent)
                 }
             )

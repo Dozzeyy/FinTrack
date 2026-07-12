@@ -246,6 +246,33 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: 
             }
 
             Spacer(Modifier.height(16.dp))
+            Text("Advanced Trackers", style = MaterialTheme.typography.titleMedium)
+
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Negotiation Tracker")
+                    Text("Track how much you save through negotiation.", style = MaterialTheme.typography.labelSmall)
+                }
+                Switch(checked = viewModel.negotiationTrackerEnabled, onCheckedChange = { viewModel.updateNegotiationTrackerEnabled(it) })
+            }
+
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Merchant Tracker")
+                    Text("Track merchant names for cash transactions.", style = MaterialTheme.typography.labelSmall)
+                }
+                Switch(checked = viewModel.merchantTrackerEnabled, onCheckedChange = { viewModel.updateMerchantTrackerEnabled(it) })
+            }
+
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Discretionary Spending Tracker")
+                    Text("Identify and track non-essential spending.", style = MaterialTheme.typography.labelSmall)
+                }
+                Switch(checked = viewModel.discretionarySpendingTrackerEnabled, onCheckedChange = { viewModel.updateDiscretionarySpendingTrackerEnabled(it) })
+            }
+
+            Spacer(Modifier.height(16.dp))
             Text("Security", style = MaterialTheme.typography.titleMedium)
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {

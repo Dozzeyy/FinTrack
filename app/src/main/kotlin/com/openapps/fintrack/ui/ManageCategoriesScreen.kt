@@ -173,6 +173,7 @@ fun ManageCategoriesScreen(
                                     name = item.name,
                                     nature = if (item.type == "income") "Income" else "Expense",
                                     isEnabled = item.isEnabled,
+                                    icon = item.icon,
                                     onEdit = {
                                         viewModel.editingAccount = null
                                         viewModel.editingParty = null
@@ -188,6 +189,7 @@ fun ManageCategoriesScreen(
                                     name = item.name,
                                     nature = "Account",
                                     isEnabled = item.isEnabled,
+                                    icon = item.icon,
                                     onEdit = {
                                         viewModel.editingCategory = null
                                         viewModel.editingParty = null
@@ -214,6 +216,7 @@ fun CategoryItem(
     name: String,
     nature: String,
     isEnabled: Boolean,
+    icon: String?,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     onToggle: () -> Unit
@@ -226,11 +229,18 @@ fun CategoryItem(
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = name,
-                color = if (isEnabled) Color.Unspecified else Color.Gray,
-                style = MaterialTheme.typography.bodyLarge
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = icon ?: (if (nature == "Account") "🏦" else "📁"),
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(end = 8.dp)
+                )
+                Text(
+                    text = name,
+                    color = if (isEnabled) Color.Unspecified else Color.Gray,
+                    style = MaterialTheme.typography.bodyLarge
+                )
+            }
             Text(
                 text = nature,
                 style = MaterialTheme.typography.labelSmall,

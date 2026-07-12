@@ -148,7 +148,7 @@ interface ExpenseDao {
                 FROM transactions t 
                 WHERE t.toAccountId = a.id AND t.date <= :asOfDate), 0.0)
         ) as balance,
-        a.minorHeadId, a.billingCycleStart, a.billingCycleEnd, a.paymentDueDate, a.icon
+        a.minorHeadId, a.billingCycleStart, a.billingCycleEnd, a.paymentDueDate, a.icon, a.isEmergencyFund, a.creditLimit
         FROM accounts a
         WHERE a.isEnabled = 1 AND a.name != 'Suspense'
     """)
@@ -403,7 +403,9 @@ data class AccountBalance(
     val billingCycleStart: String? = null,
     val billingCycleEnd: String? = null,
     val paymentDueDate: String? = null,
-    val icon: String? = null
+    val icon: String? = null,
+    val isEmergencyFund: Boolean = false,
+    val creditLimit: Double? = null
 )
 
 data class BudgetWithDetails(

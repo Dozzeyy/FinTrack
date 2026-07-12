@@ -56,6 +56,9 @@ fun AddCategoryScreen(viewModel: ExpenseViewModel, onNavigate: (String) -> Unit,
     var isEnabled by remember(editingCategory, editingAccount, editingParty, draft) { 
         mutableStateOf(draft?.isEnabled ?: editingCategory?.isEnabled ?: editingAccount?.isEnabled ?: editingParty?.isEnabled ?: true) 
     }
+    var isEmergencyFund by remember(editingCategory, editingAccount, editingParty, draft) {
+        mutableStateOf(draft?.isEmergencyFund ?: editingAccount?.isEmergencyFund ?: false)
+    }
     var icon by remember(editingCategory, editingAccount, editingParty, draft) {
         mutableStateOf(draft?.icon ?: editingCategory?.icon ?: editingAccount?.icon ?: "📁")
     }
@@ -103,7 +106,8 @@ fun AddCategoryScreen(viewModel: ExpenseViewModel, onNavigate: (String) -> Unit,
                 billingCycleStart = billingCycleStart,
                 billingCycleEnd = billingCycleEnd,
                 paymentDueDate = paymentDueDate,
-                icon = icon
+                icon = icon,
+                isEmergencyFund = isEmergencyFund
             )
         }
     }
@@ -344,6 +348,13 @@ fun AddCategoryScreen(viewModel: ExpenseViewModel, onNavigate: (String) -> Unit,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                     )
                 }
+
+                if (currentMajorName?.equals("Investments", ignoreCase = true) == true) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
+                        Checkbox(checked = isEmergencyFund, onCheckedChange = { isEmergencyFund = it })
+                        Text("This is an emergency fund", modifier = Modifier.clickable { isEmergencyFund = !isEmergencyFund })
+                    }
+                }
             }
 
             OutlinedTextField(
@@ -409,7 +420,8 @@ fun AddCategoryScreen(viewModel: ExpenseViewModel, onNavigate: (String) -> Unit,
                             billingCycleStart = billingCycleStart,
                             billingCycleEnd = billingCycleEnd,
                             paymentDueDate = paymentDueDate,
-                            icon = icon
+                            icon = icon,
+                            isEmergencyFund = isEmergencyFund
                         )
                         viewModel.draftAccount = null
                     } else if (type == "party") {

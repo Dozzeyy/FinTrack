@@ -22,7 +22,8 @@ data class Account(
     val billingCycleStart: String? = null,
     val billingCycleEnd: String? = null,
     val paymentDueDate: String? = null,
-    val icon: String? = null
+    val icon: String? = null,
+    val isEmergencyFund: Boolean = false
 )
 
 @Entity(tableName = "major_heads")
@@ -118,7 +119,11 @@ data class Transaction(
     val amountOriginal: Double? = null,
     val currencyCode: String? = null,
     val amountBase: Double? = null,
-    val editedAt: Long? = null
+    val editedAt: Long? = null,
+    val isNegotiated: Boolean = false,
+    val negotiationAmountOriginal: Double? = null,
+    val merchantName: String? = null,
+    val isDiscretionary: Boolean = false
 )
 
 @Entity(tableName = "exchange_rates")

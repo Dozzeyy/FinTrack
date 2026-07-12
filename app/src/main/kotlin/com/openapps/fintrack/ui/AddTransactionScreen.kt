@@ -105,6 +105,11 @@ class AddTransactionState(
     var toAccountError by mutableStateOf<String?>(null)
     var categoryError by mutableStateOf<String?>(null)
     
+    var isNegotiated by mutableStateOf(false)
+    var negotiationAmountOriginal by mutableStateOf("")
+    var merchantName by mutableStateOf("")
+    var isDiscretionary by mutableStateOf(false)
+    
     var showCalculator by mutableStateOf(false)
     var showMismatchDialog by mutableStateOf(false)
     var mismatchTotals by mutableStateOf(Pair(0.0, 0.0))
@@ -160,6 +165,15 @@ fun rememberAddTransactionState(
             initialAmountLocal = txnDetail?.transaction?.amountBase?.toString()?.takeIf { it != "null" },
             initialIsManual = (txnDetail != null)
         )
+    }
+
+    LaunchedEffect(txnDetail) {
+        if (txnDetail != null) {
+            state.isNegotiated = txnDetail.transaction.isNegotiated
+            state.negotiationAmountOriginal = txnDetail.transaction.negotiationAmountOriginal?.toString() ?: ""
+            state.merchantName = txnDetail.transaction.merchantName ?: ""
+            state.isDiscretionary = txnDetail.transaction.isDiscretionary
+        }
     }
 
     LaunchedEffect(draft, editingTemplate, txnDetail) {
@@ -620,6 +634,74 @@ fun AddTransactionScreen(
             }
 
             AmountAndCurrencySection(state, viewModel, isActuallyReadOnly, hideCurrencyPicker = state.isMultiEntry)
+
+            if (viewModel.negotiationTrackerEnabled && !isActuallyReadOnly) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
+                    Checkbox(checked = state.isNegotiated, onCheckedChange = { state.isNegotiated = it })
+                    Text("I negotiated in this", modifier = Modifier.clickable { state.isNegotiated = !state.isNegotiated })
+                }
+                if (state.isNegotiated) {
+                    OutlinedTextField(
+                        value = state.negotiationAmountOriginal,
+                        onValueChange = { state.negotiationAmountOriginal = it },
+                        label = { Text("Amount Before Negotiation") },
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        shape = CircleShape,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                    )
+                }
+            }
+
+            if (viewModel.merchantTrackerEnabled || state.merchantName.isNotBlank()) {
+                var merchantExpanded by remember { mutableStateOf(false) }
+                val existingMerchants = remember(allTransactions) {
+                    allTransactions.mapNotNull { it.transaction.merchantName }.filter { it.isNotBlank() }.distinct().sorted()
+                }
+                val filteredMerchants = remember(state.merchantName) {
+                    existingMerchants.filter { it.contains(state.merchantName, ignoreCase = true) && it != state.merchantName }
+                }
+
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = state.merchantName,
+                        onValueChange = { 
+                            if (!isActuallyReadOnly) {
+                                state.merchantName = it
+                                merchantExpanded = true
+                            }
+                        },
+                        label = { Text("Merchant Name") },
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        readOnly = isActuallyReadOnly,
+                        shape = CircleShape
+                    )
+                    if (merchantExpanded && filteredMerchants.isNotEmpty() && !isActuallyReadOnly) {
+                        DropdownMenu(
+                            expanded = merchantExpanded,
+                            onDismissRequest = { merchantExpanded = false },
+                            modifier = Modifier.fillMaxWidth(0.9f),
+                            properties = androidx.compose.ui.window.PopupProperties(focusable = false)
+                        ) {
+                            filteredMerchants.forEach { m ->
+                                DropdownMenuItem(
+                                    text = { Text(m) },
+                                    onClick = {
+                                        state.merchantName = m
+                                        merchantExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (viewModel.discretionarySpendingTrackerEnabled && !isActuallyReadOnly) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
+                    Checkbox(checked = state.isDiscretionary, onCheckedChange = { state.isDiscretionary = it })
+                    Text("Discretionary spend", modifier = Modifier.clickable { state.isDiscretionary = !state.isDiscretionary })
+                }
+            }
 
             if (state.showCalculator && !isActuallyReadOnly) {
                 CalculatorKeypad(onValueChange = { 
@@ -1383,7 +1465,7 @@ fun validateAndSave(
         }
 
         if (state.type == "transfer") {
-            viewModel.addTransaction(state.date, state.time, state.selectedAccountId!!, null, amtBase, state.note, state.selectedToAccountId, tagsString, state.type, state.selectedPartyId, state.selectedToPartyId, subNameVal, subFreqVal, updateId = updateId)
+            viewModel.addTransaction(state.date, state.time, state.selectedAccountId!!, null, amtBase, state.note, state.selectedToAccountId, tagsString, state.type, state.selectedPartyId, state.selectedToPartyId, subNameVal, subFreqVal, updateId = updateId, isNegotiated = state.isNegotiated, negotiationAmountOriginal = state.negotiationAmountOriginal.toDoubleOrNull(), merchantName = state.merchantName, isDiscretionary = state.isDiscretionary)
             
             if (subNameVal?.startsWith("LOAN:") == true && updateId == null) {
                 val loanId = subNameVal.removePrefix("LOAN:").toLongOrNull()
@@ -1392,7 +1474,7 @@ fun validateAndSave(
                 }
             }
         } else {
-            viewModel.addTransaction(state.date, state.time, state.selectedAccountId!!, state.selectedCategoryId, amtBase, state.note, null, tagsString, state.type, state.selectedPartyId, null, subNameVal, subFreqVal, amtOriginal, state.foreignCurrency, amtBase, updateId = updateId)
+            viewModel.addTransaction(state.date, state.time, state.selectedAccountId!!, state.selectedCategoryId, amtBase, state.note, null, tagsString, state.type, state.selectedPartyId, null, subNameVal, subFreqVal, amtOriginal, state.foreignCurrency, amtBase, updateId = updateId, isNegotiated = state.isNegotiated, negotiationAmountOriginal = state.negotiationAmountOriginal.toDoubleOrNull(), merchantName = state.merchantName, isDiscretionary = state.isDiscretionary)
         }
         viewModel.draftTransaction = null
         onSuccess()

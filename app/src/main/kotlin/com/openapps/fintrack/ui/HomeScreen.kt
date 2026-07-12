@@ -18,6 +18,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -418,17 +420,24 @@ fun HomeView(
     val prevTransactions by viewModel.getFilteredTransactions(prevStart, prevEnd).collectAsState(initial = emptyList())
 
     var showTransactionListType by remember { mutableStateOf<String?>(null) }
+    var showDiscretionaryOnly by remember { mutableStateOf(false) }
 
     if (viewModel.selectedTransactionDetail != null) {
         BackHandler { viewModel.selectedTransactionDetail = null }
         AddTransactionScreen(viewModel = viewModel, onBack = { viewModel.selectedTransactionDetail = null }, onNavigate = onNavigate, readOnly = true)
-    } else if (showTransactionListType != null) {
-        BackHandler { showTransactionListType = null }
+    } else if (showTransactionListType != null || showDiscretionaryOnly) {
+        BackHandler { 
+            showTransactionListType = null
+            showDiscretionaryOnly = false
+        }
         TransactionListOverlay(
-            title = showTransactionListType!!.replaceFirstChar { it.uppercase() },
-            transactions = transactions.filter { it.categoryType == showTransactionListType },
+            title = if (showDiscretionaryOnly) "Discretionary Spending" else showTransactionListType!!.replaceFirstChar { it.uppercase() },
+            transactions = if (showDiscretionaryOnly) transactions.filter { it.transaction.isDiscretionary } else transactions.filter { it.categoryType == showTransactionListType },
             viewModel = viewModel,
-            onBack = { showTransactionListType = null }
+            onBack = { 
+                showTransactionListType = null
+                showDiscretionaryOnly = false
+            }
         )
     } else {
         Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
@@ -662,6 +671,36 @@ fun HomeView(
                 }
             }
 
+            if (viewModel.negotiationTrackerEnabled) {
+                val totalSavings = transactions.sumOf { (it.transaction.negotiationAmountOriginal ?: it.transaction.amount) - it.transaction.amount }
+                if (totalSavings > 0) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF4CAF50).copy(alpha = 0.1f))
+                    ) {
+                        Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Negotiated Savings", fontWeight = FontWeight.Bold, color = Color(0xFF4CAF50))
+                            Text(viewModel.formatAmount(totalSavings), fontWeight = FontWeight.Bold, color = Color(0xFF4CAF50))
+                        }
+                    }
+                }
+            }
+
+            if (viewModel.discretionarySpendingTrackerEnabled) {
+                val discTotal = transactions.filter { it.transaction.isDiscretionary }.sumOf { it.transaction.amount }
+                if (discTotal > 0) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp).clickable { showDiscretionaryOnly = true },
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f))
+                    ) {
+                        Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Discretionary Spend", fontWeight = FontWeight.Bold)
+                            Text(viewModel.formatAmount(discTotal), fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+
             // Unnecessary gap removed
             val balances by viewModel.getAccountBalances(endDate).collectAsState(initial = emptyList())
             val netPosition = balances.sumOf { it.balance }
@@ -882,6 +921,7 @@ fun AnalysisView(
                     transactions.filter { it.accountName == showDetailList || it.toAccountName == showDetailList }
                 }
             } else if (type == "Expense" || type == "Income") {
+                // ... (existing logic)
                 transactions.filter { 
                     val catName = it.categoryName ?: "Uncategorized"
                     if (isMainLevelAnalysis) {
@@ -892,6 +932,9 @@ fun AnalysisView(
                         minorPart == showDetailList
                     }
                 }
+            } else if (showDetailList!!.startsWith("MERCHANT:")) {
+                val merchant = showDetailList!!.removePrefix("MERCHANT:")
+                transactions.filter { it.transaction.merchantName == merchant }
             } else {
                 transactions.filter { it.accountName == showDetailList || it.toAccountName == showDetailList }
             }
@@ -930,6 +973,8 @@ fun AnalysisView(
                             DropdownMenuItem(text = { Text("Income") }, onClick = { type = "Income"; expanded = false })
                             DropdownMenuItem(text = { Text("Accounts") }, onClick = { type = "Accounts"; expanded = false })
                             DropdownMenuItem(text = { Text("Tags") }, onClick = { type = "Tags"; expanded = false })
+                            DropdownMenuItem(text = { Text("Merchants") }, onClick = { type = "Merchants"; expanded = false })
+                            DropdownMenuItem(text = { Text("Networth") }, onClick = { type = "Networth"; expanded = false })
                             DropdownMenuItem(text = { Text("On Account (Loan)") }, onClick = { type = "On Account (Loan)"; expanded = false })
                         }
                     }
@@ -1046,6 +1091,38 @@ fun AnalysisView(
                         trend.add(d.format(DateTimeFormatter.ofPattern("dd MMM")) to currentBal)
                     }
                     trend
+                } else if (type == "Networth") {
+                    val start = LocalDate.parse(startDate)
+                    val end = LocalDate.parse(endDate)
+                    
+                    val txnsBefore = allTransactionsList.filter { it.transaction.date < startDate }
+                    val openingBalancesSum = allAccountsList.sumOf { it.openingBalance }
+                    
+                    var currentNetPosition = openingBalancesSum + txnsBefore.sumOf { t ->
+                        if (t.transaction.toAccountId != null) 0.0 // Transfer doesn't change networth
+                        else if (t.categoryType == "income") t.transaction.amount 
+                        else if (t.categoryType == "expense") -t.transaction.amount 
+                        else 0.0
+                    }
+                    
+                    val daysInMonth = java.time.temporal.ChronoUnit.DAYS.between(start, end).toInt() + 1
+                    val trend = mutableListOf<Pair<String, Double>>()
+                    val monthTxns = allTransactionsList.filter { it.transaction.date >= startDate && it.transaction.date <= endDate }
+                    
+                    for (day in 0 until daysInMonth) {
+                        val d = start.plusDays(day.toLong())
+                        val dStr = d.format(DateTimeFormatter.ISO_DATE)
+                        val dayTxns = monthTxns.filter { it.transaction.date == dStr }
+                        
+                        currentNetPosition += dayTxns.sumOf { t ->
+                            if (t.transaction.toAccountId != null) 0.0
+                            else if (t.categoryType == "income") t.transaction.amount 
+                            else if (t.categoryType == "expense") -t.transaction.amount 
+                            else 0.0
+                        }
+                        trend.add(d.format(DateTimeFormatter.ofPattern("dd MMM")) to currentNetPosition)
+                    }
+                    trend
                 } else emptyList()
             }
 
@@ -1104,6 +1181,13 @@ fun AnalysisView(
                     val total = transactions.filter { t -> t.transaction.tags?.split(",")?.contains(tag.id.toString()) == true }.sumOf { it.transaction.amount }
                     tag.name to total
                 }.filter { it.second > 0 }.sortedByDescending { it.second }
+                "Merchants" -> {
+                    transactions.filter { it.transaction.merchantName != null && it.transaction.merchantName!!.isNotBlank() }
+                        .groupBy { it.transaction.merchantName!! }
+                        .mapValues { it.value.sumOf { t -> t.transaction.amount } }
+                        .toList().sortedByDescending { it.second }
+                }
+                "Networth" -> bTrendData
                 "On Account (Loan)" -> {
                     val onAccountLoanId = majorHeads.find { it.name.contains("On Account", ignoreCase = true) }?.id ?: 6
                     balances.filter { b ->
@@ -1163,12 +1247,12 @@ fun AnalysisView(
                     Text("Please select an account to analyze", color = Color.Gray)
                 }
             } else if (data.isNotEmpty()) {
-                val chartData = if (type == "On Account (Loan)" || type == "Accounts") {
+                val chartData = if (type == "On Account (Loan)" || type == "Accounts" || type == "Networth") {
                     data.map { it.first to kotlin.math.abs(it.second) }
                 } else data
 
                 Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-                    if (type == "Accounts" && accountsSubTab == "BTrend") {
+                    if ((type == "Accounts" && accountsSubTab == "BTrend") || type == "Networth") {
                         LineChart(data = data.map { it.second }, labels = data.map { it.first })
                     } else {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1194,18 +1278,25 @@ fun AnalysisView(
             }
 
             LazyColumn(modifier = Modifier.weight(1f)) {
-                if (type == "Accounts" && accountsSubTab == "BTrend") {
+                if ((type == "Accounts" && accountsSubTab == "BTrend") || type == "Networth") {
                     items(data.reversed()) { (dateLabel, amount) ->
-                        ListItem(
-                            headlineContent = { Text(dateLabel) },
-                            trailingContent = { 
-                                Text(
-                                    viewModel.formatAmount(amount), 
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = if (amount >= 0) Color(0xFF4CAF50) else Color.Red
-                                ) 
-                            }
-                        )
+                        Surface(
+                            color = (if (amount >= 0) Color(0xFF4CAF50) else Color.Red).copy(alpha = 0.05f),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
+                        ) {
+                            ListItem(
+                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                headlineContent = { Text(dateLabel) },
+                                trailingContent = { 
+                                    Text(
+                                        viewModel.formatAmount(amount), 
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = if (amount >= 0) Color(0xFF4CAF50) else Color.Red
+                                    ) 
+                                }
+                            )
+                        }
                     }
                 } else {
                     items(data) { (name, amount) ->
@@ -1222,31 +1313,42 @@ fun AnalysisView(
                             else -> "📁"
                         }
 
-                        ListItem(
-                            headlineContent = { 
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(Modifier.size(12.dp).background(chartColors[index % chartColors.size]))
-                                    Spacer(Modifier.width(8.dp))
-                                    Text(text = "$itemIcon $name", style = MaterialTheme.typography.bodyLarge)
+                        Surface(
+                            color = itemColor.copy(alpha = 0.05f),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 2.dp)
+                                .clickable { 
+                                    if (type == "Tags") {
+                                        showTagDetailList = tags.find { it.name == name }?.id
+                                    } else if (type == "Accounts" && accountsSubTab != "Balance") {
+                                        showDetailList = name
+                                    } else if (type == "Merchants") {
+                                        showDetailList = "MERCHANT:$name"
+                                    } else {
+                                        showDetailList = name 
+                                    }
                                 }
-                            },
-                            trailingContent = { 
-                                Text(
-                                    viewModel.formatAmount(amount), 
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = itemColor
-                                ) 
-                            },
-                            modifier = Modifier.clickable { 
-                                if (type == "Tags") {
-                                    showTagDetailList = tags.find { it.name == name }?.id
-                                } else if (type == "Accounts" && accountsSubTab != "Balance") {
-                                    showDetailList = name
-                                } else {
-                                    showDetailList = name 
+                        ) {
+                            ListItem(
+                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                headlineContent = { 
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(Modifier.size(12.dp).background(chartColors[index % chartColors.size]))
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(text = "$itemIcon $name", style = MaterialTheme.typography.bodyLarge)
+                                    }
+                                },
+                                trailingContent = { 
+                                    Text(
+                                        viewModel.formatAmount(amount), 
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = itemColor
+                                    ) 
                                 }
-                            }
-                        )
+                            )
+                        }
                     }
                 }
             }

@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -529,62 +530,71 @@ fun BudgetComparisonRow(item: com.openapps.fintrack.ui.BudgetVsActual, viewModel
         } catch (e: Exception) { Triple("", 0.0, false) }
     }
 
-    Column(modifier = Modifier.fillMaxWidth().clickable { onClick() }) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(
-                item.categoryName, 
-                fontWeight = FontWeight.Bold, 
-                fontSize = 16.sp,
-                color = statusColor
-            )
-            Text(item.duration, style = MaterialTheme.typography.labelSmall)
-        }
-        
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            if (stats.first.isNotEmpty()) {
-                Text(stats.first, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-            }
-            if (stats.second > 0) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Forecast: ", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-                    Text(
-                        viewModel.formatAmount(stats.second), 
-                        style = MaterialTheme.typography.labelSmall, 
-                        fontWeight = FontWeight.Bold,
-                        color = if (stats.third) Color.Red else Color(0xFF4CAF50)
-                    )
-                }
-            }
-        }
-        
-        Spacer(Modifier.height(4.dp))
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Column {
-                Text("Budget", style = MaterialTheme.typography.labelSmall)
-                Text(viewModel.formatAmount(item.budgetAmount))
-            }
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Actual", style = MaterialTheme.typography.labelSmall)
+    Surface(
+        color = statusColor.copy(alpha = 0.05f),
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .clickable { onClick() }
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(
-                    viewModel.formatAmount(item.actualAmount),
+                    item.categoryName, 
+                    fontWeight = FontWeight.Bold, 
+                    fontSize = 16.sp,
                     color = statusColor
                 )
+                Text(item.duration, style = MaterialTheme.typography.labelSmall)
             }
-            Column(horizontalAlignment = Alignment.End) {
-                val diff = item.actualAmount - item.budgetAmount
-                Text("Diff", style = MaterialTheme.typography.labelSmall)
-                Text(viewModel.formatAmount(diff), color = statusColor)
+            
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                if (stats.first.isNotEmpty()) {
+                    Text(stats.first, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                }
+                if (stats.second > 0) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Forecast: ", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                        Text(
+                            viewModel.formatAmount(stats.second), 
+                            style = MaterialTheme.typography.labelSmall, 
+                            fontWeight = FontWeight.Bold,
+                            color = if (stats.third) Color.Red else Color(0xFF4CAF50)
+                        )
+                    }
+                }
             }
+            
+            Spacer(Modifier.height(4.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Column {
+                    Text("Budget", style = MaterialTheme.typography.labelSmall)
+                    Text(viewModel.formatAmount(item.budgetAmount))
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("Actual", style = MaterialTheme.typography.labelSmall)
+                    Text(
+                        viewModel.formatAmount(item.actualAmount),
+                        color = statusColor
+                    )
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    val diff = item.actualAmount - item.budgetAmount
+                    Text("Diff", style = MaterialTheme.typography.labelSmall)
+                    Text(viewModel.formatAmount(diff), color = statusColor)
+                }
+            }
+            
+            Spacer(Modifier.height(8.dp))
+            val progress = if (item.budgetAmount > 0) (item.actualAmount / item.budgetAmount).toFloat().coerceIn(0f, 1f) else 0f
+            LinearProgressIndicator(
+                progress = progress,
+                modifier = Modifier.fillMaxWidth().height(8.dp),
+                color = statusColor,
+                trackColor = statusColor.copy(alpha = 0.2f)
+            )
         }
-        
-        Spacer(Modifier.height(8.dp))
-        val progress = if (item.budgetAmount > 0) (item.actualAmount / item.budgetAmount).toFloat().coerceIn(0f, 1f) else 0f
-        LinearProgressIndicator(
-            progress = progress,
-            modifier = Modifier.fillMaxWidth().height(8.dp),
-            color = statusColor,
-            trackColor = statusColor.copy(alpha = 0.2f)
-        )
     }
 }
 

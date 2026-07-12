@@ -277,7 +277,7 @@ fun HorizontalBalanceChart(
                 Text(
                     text = (account.icon ?: "📁") + " " + account.name,
                     style = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier.width(80.dp),
+                    modifier = Modifier.width(110.dp),
                     maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )

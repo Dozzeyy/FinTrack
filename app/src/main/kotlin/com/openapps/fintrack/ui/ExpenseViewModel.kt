@@ -122,6 +122,9 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
     var dismissedCcAlertIds by mutableStateOf(prefs.getStringSet("dismissed_cc_alerts", emptySet()) ?: emptySet())
     var disableScreenshots by mutableStateOf(prefs.getBoolean("disable_screenshots", false))
     var tapToShowNetPosition by mutableStateOf(prefs.getBoolean("tap_to_show_net_position", false))
+    var negotiationTrackerEnabled by mutableStateOf(prefs.getBoolean("negotiation_tracker_enabled", false))
+    var merchantTrackerEnabled by mutableStateOf(prefs.getBoolean("merchant_tracker_enabled", false))
+    var discretionarySpendingTrackerEnabled by mutableStateOf(prefs.getBoolean("discretionary_spending_tracker_enabled", false))
 
     // WebDAV
     var remoteSyncEnabled by mutableStateOf(prefs.getBoolean("remote_sync_enabled", false))
@@ -227,6 +230,9 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
     fun updateTemplateField(f: String, e: Boolean) { val n = templateFields.toMutableSet(); if(e) n.add(f) else n.remove(f); templateFields = n; prefs.edit().putStringSet("template_fields", n).apply() }
     fun updateDisableScreenshots(e: Boolean) { disableScreenshots = e; prefs.edit().putBoolean("disable_screenshots", e).apply() }
     fun updateTapToShowNetPosition(e: Boolean) { tapToShowNetPosition = e; prefs.edit().putBoolean("tap_to_show_net_position", e).apply() }
+    fun updateNegotiationTrackerEnabled(e: Boolean) { negotiationTrackerEnabled = e; prefs.edit().putBoolean("negotiation_tracker_enabled", e).apply() }
+    fun updateMerchantTrackerEnabled(e: Boolean) { merchantTrackerEnabled = e; prefs.edit().putBoolean("merchant_tracker_enabled", e).apply() }
+    fun updateDiscretionarySpendingTrackerEnabled(e: Boolean) { discretionarySpendingTrackerEnabled = e; prefs.edit().putBoolean("discretionary_spending_tracker_enabled", e).apply() }
 
     fun scheduleBackup(context: Context) {
         try {
@@ -719,8 +725,8 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
     suspend fun getLastTransactionForSubscription(name: String) = dao.getAllTransactionsWithDetails().first().find { it.transaction.subName == name }
 
     // Actions
-    fun saveAccount(name: String, openingBalance: Double, description: String?, isEnabled: Boolean, minorHeadId: Int?, creditLimit: Double?, billingCycleStart: String?, billingCycleEnd: String?, paymentDueDate: String?, icon: String?) {
-        viewModelScope.launch { dao.upsertAccount(editingAccount?.copy(name=name, openingBalance=openingBalance, description=description, isEnabled=isEnabled, minorHeadId=minorHeadId, creditLimit=creditLimit, billingCycleStart=billingCycleStart, billingCycleEnd=billingCycleEnd, paymentDueDate=paymentDueDate, icon=icon) ?: Account(name=name, type="asset", openingBalance=openingBalance, description=description, isEnabled=isEnabled, minorHeadId=minorHeadId, creditLimit=creditLimit, billingCycleStart=billingCycleStart, billingCycleEnd=billingCycleEnd, paymentDueDate=paymentDueDate, icon=icon)); editingAccount=null; triggerRefresh() }
+    fun saveAccount(name: String, openingBalance: Double, description: String?, isEnabled: Boolean, minorHeadId: Int?, creditLimit: Double?, billingCycleStart: String?, billingCycleEnd: String?, paymentDueDate: String?, icon: String?, isEmergencyFund: Boolean) {
+        viewModelScope.launch { dao.upsertAccount(editingAccount?.copy(name=name, openingBalance=openingBalance, description=description, isEnabled=isEnabled, minorHeadId=minorHeadId, creditLimit=creditLimit, billingCycleStart=billingCycleStart, billingCycleEnd=billingCycleEnd, paymentDueDate=paymentDueDate, icon=icon, isEmergencyFund=isEmergencyFund) ?: Account(name=name, type="asset", openingBalance=openingBalance, description=description, isEnabled=isEnabled, minorHeadId=minorHeadId, creditLimit=creditLimit, billingCycleStart=billingCycleStart, billingCycleEnd=billingCycleEnd, paymentDueDate=paymentDueDate, icon=icon, isEmergencyFund=isEmergencyFund)); editingAccount=null; triggerRefresh() }
     }
     fun saveCategory(name: String, type: String, description: String?, isEnabled: Boolean, icon: String?) {
         viewModelScope.launch { dao.upsertCategory(editingCategory?.copy(name=name, type=type, description=description, isEnabled=isEnabled, icon=icon) ?: Category(name=name, type=type, description=description, isEnabled=isEnabled, icon=icon)); editingCategory=null; triggerRefresh() }
@@ -800,7 +806,7 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
 
     // Transaction Management
     private val txnNumberMutex = Mutex()
-    private suspend fun executeAddTransaction(date: String, time: String, accId: Int, catId: Int?, amount: Double, note: String?, toAccId: Int?, tags: String?, type: String, pId: Int? = null, toPId: Int? = null, subN: String? = null, subF: Int? = null, amtO: Double? = null, cur: String? = null, amtB: Double? = null, updId: Int? = null) {
+    private suspend fun executeAddTransaction(date: String, time: String, accId: Int, catId: Int?, amount: Double, note: String?, toAccId: Int?, tags: String?, type: String, pId: Int? = null, toPId: Int? = null, subN: String? = null, subF: Int? = null, amtO: Double? = null, cur: String? = null, amtB: Double? = null, updId: Int? = null, isNeg: Boolean = false, negOrig: Double? = null, merch: String? = null, isDisc: Boolean = false) {
         txnNumberMutex.withLock {
             val prefix = when(type) { "income"->"INC"; "expense"->"EXP"; "transfer"->"TNF"; else->"TXN" }
             
@@ -834,7 +840,11 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
                 amountOriginal = amtO ?: amount,
                 currencyCode = cur ?: baseCurrency,
                 amountBase = amtB ?: amount,
-                editedAt = if (updId != null && updId != 0) System.currentTimeMillis() else null
+                editedAt = if (updId != null && updId != 0) System.currentTimeMillis() else null,
+                isNegotiated = isNeg,
+                negotiationAmountOriginal = negOrig,
+                merchantName = merch,
+                isDiscretionary = isDisc
             )
 
             if (updId != null && updId != 0) {
@@ -844,9 +854,9 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
             }
         }
     }
-    fun addTransaction(date: String, time: String, accountId: Int, categoryId: Int?, amount: Double, note: String?, toAccountId: Int?, tags: String?, type: String, partyId: Int? = null, toPartyId: Int? = null, subName: String? = null, subFrequency: Int? = null, amountOriginal: Double? = null, currencyCode: String? = null, amountBase: Double? = null, updateId: Int? = null) {
+    fun addTransaction(date: String, time: String, accountId: Int, categoryId: Int?, amount: Double, note: String?, toAccountId: Int?, tags: String?, type: String, partyId: Int? = null, toPartyId: Int? = null, subName: String? = null, subFrequency: Int? = null, amountOriginal: Double? = null, currencyCode: String? = null, amountBase: Double? = null, updateId: Int? = null, isNegotiated: Boolean = false, negotiationAmountOriginal: Double? = null, merchantName: String? = null, isDiscretionary: Boolean = false) {
         viewModelScope.launch { 
-            executeAddTransaction(date, time, accountId, categoryId, amount, note, toAccountId, tags, type, partyId, toPartyId, subName, subFrequency, amountOriginal, currencyCode, amountBase, updateId)
+            executeAddTransaction(date, time, accountId, categoryId, amount, note, toAccountId, tags, type, partyId, toPartyId, subName, subFrequency, amountOriginal, currencyCode, amountBase, updateId, isNegotiated, negotiationAmountOriginal, merchantName, isDiscretionary)
             triggerRefresh()
             triggerSyncOnNewRecord()
         }
@@ -1432,7 +1442,7 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
                 val majorHeads = dao.getAllMajorHeads().first()
                 val minorHeads = dao.getAllMinorHeads().first()
 
-                val insights = insightEngine.generateInsights(txns, balances, budgets, loans, majorHeads, minorHeads)
+                val insights = insightEngine.generateInsights(txns, balances, budgets, loans, majorHeads, minorHeads, merchantTrackerEnabled)
 
                 withContext(Dispatchers.Main) {
                     financialInsights.addAll(insights)
@@ -1454,6 +1464,6 @@ data class BudgetVsActual(val categoryName: String, val categoryType: String, va
 data class DraftTransaction(val type: String, val amount: String, val note: String, val date: String, val time: String, val accountId: Int?, val toAccountId: Int?, val categoryId: Int?, val selectedTagIds: List<Int>, val isMultiEntry: Boolean = false, val multiEntryRows: List<DraftMultiEntryRow> = emptyList())
 data class DraftMultiEntryRow(val categoryId: Int?, val amount: String, val note: String? = null, val currencyCode: String? = null)
 data class MultiEntryRowData(val categoryId: Int, val amount: Double, val note: String?, val currencyCode: String)
-data class DraftAccount(val name: String, val type: String, val description: String, val openingBalance: String, val isEnabled: Boolean, val selectedMajorHeadId: Int?, val selectedMinorHeadId: Int?, val creditLimit: String, val billingCycleStart: String, val billingCycleEnd: String, val paymentDueDate: String, val icon: String? = null)
+data class DraftAccount(val name: String, val type: String, val description: String, val openingBalance: String, val isEnabled: Boolean, val selectedMajorHeadId: Int?, val selectedMinorHeadId: Int?, val creditLimit: String, val billingCycleStart: String, val billingCycleEnd: String, val paymentDueDate: String, val icon: String? = null, val isEmergencyFund: Boolean = false)
 data class CcAlert(val accountId: Int, val accountName: String, val amount: Double, val dueDate: LocalDate)
 data class SubscriptionAlert(val subName: String, val amount: Double, val dueDate: LocalDate, val isTransfer: Boolean = false)
