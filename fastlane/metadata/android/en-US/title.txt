@@ -1,1 +1,1 @@
-FinTrack - Count Every Penny
+FinTrack - Expense manager (Money)
