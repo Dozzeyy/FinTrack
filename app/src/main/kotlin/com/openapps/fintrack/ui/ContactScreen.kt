@@ -107,11 +107,11 @@ fun ContactScreen(onBack: () -> Unit) {
             
             ContactRow(
                 icon = Icons.Default.Language,
-                label = "GitHub",
-                value = "https://github.com/Dozzeyy/Fintrack",
+                label = "GitHub Issues",
+                value = "https://github.com/Dozzeyy/FinTrack/issues",
                 isLink = true,
                 onClick = {
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/Dozzeyy/Fintrack"))
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/Dozzeyy/FinTrack/issues"))
                     context.startActivity(intent)
                 }
             )
@@ -186,7 +186,7 @@ fun ContactScreen(onBack: () -> Unit) {
                     color = Color.Gray
                 )
                 Text(
-                    "Version 1.0.14",
+                    "Version 1.0.15",
                     style = MaterialTheme.typography.labelSmall,
                     color = Color.Gray,
                     modifier = Modifier.padding(top = 4.dp)
