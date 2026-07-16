@@ -48,7 +48,8 @@ fun PermissionsScreen(onBack: () -> Unit) {
         val list = mutableListOf(
             PermissionInfo(Manifest.permission.INTERNET, "Network", "Needed to sync your data to your cloud provider (WebDAV)."),
             PermissionInfo(Manifest.permission.RECEIVE_SMS, "SMS Receive", "Needed to automatically capture transaction details from bank messages."),
-            PermissionInfo(Manifest.permission.READ_SMS, "SMS Read", "Used to parse message content for amounts and dates.")
+            PermissionInfo(Manifest.permission.READ_SMS, "SMS Read", "Used to parse message content for amounts and dates."),
+            PermissionInfo(Manifest.permission.CAMERA, "Camera", "Required to scan QR codes for pairing with the web client.")
         )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             list.add(PermissionInfo(Manifest.permission.POST_NOTIFICATIONS, "Notifications", "Required to alert you when a transaction is detected."))

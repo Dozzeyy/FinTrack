@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Ultimate Financial Mastery Guide - FinTrack & Xpent</title>
+    <style>
+        :root {
+            --primary: #bb86fc;
+            --secondary: #03dac6;
+            --bg: #000000;
+            --surface: #121212;
+            --text-main: #e1e1e1;
+            --text-dim: #b0b0b0;
+            --error: #cf6679;
+            --success: #4caf50;
+            --warning: #ff9800;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--bg);
+            color: var(--text-main);
+            line-height: 1.7;
+            margin: 0;
+            padding: 0;
+        }
+
+        header {
+            padding: 80px 20px;
+            text-align: center;
+            background: radial-gradient(circle at center, #1a1a1a 0%, #000000 100%);
+            border-bottom: 1px solid #222;
+        }
+
+        h1 {
+            font-size: 2.8rem;
+            color: var(--primary);
+            margin: 0;
+            font-weight: 800;
+            letter-spacing: -1px;
+        }
+
+        .subtitle {
+            color: var(--text-dim);
+            font-size: 1.1rem;
+            max-width: 600px;
+            margin: 15px auto 0;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        nav {
+            position: sticky;
+            top: 0;
+            background: rgba(0,0,0,0.8);
+            backdrop-filter: blur(10px);
+            padding: 15px 0;
+            border-bottom: 1px solid #222;
+            z-index: 100;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        nav a {
+            color: var(--primary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+
+        section {
+            padding: 60px 0;
+            border-bottom: 1px solid #1a1a1a;
+        }
+
+        h2 {
+            font-size: 2.2rem;
+            color: var(--secondary);
+            margin-bottom: 40px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        h3 {
+            color: var(--primary);
+            font-size: 1.4rem;
+            margin-top: 30px;
+        }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid #222;
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 25px;
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            border-color: var(--primary);
+            transform: translateY(-2px);
+        }
+
+        .glossary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .term-box {
+            background: #1a1a1a;
+            padding: 20px;
+            border-radius: 15px;
+            border-left: 4px solid var(--primary);
+        }
+
+        .term-box strong {
+            display: block;
+            font-size: 1.2rem;
+            margin-bottom: 5px;
+            color: var(--secondary);
+        }
+
+        .logic-flow {
+            background: rgba(187, 134, 252, 0.05);
+            padding: 20px;
+            border-radius: 12px;
+            margin: 15px 0;
+            border: 1px dashed var(--primary);
+        }
+
+        .highlight {
+            color: var(--warning);
+            font-weight: 700;
+        }
+
+        .step-list {
+            padding-left: 20px;
+        }
+
+        .step-list li {
+            margin-bottom: 15px;
+        }
+
+        .faq-q {
+            font-weight: bold;
+            font-size: 1.1rem;
+            margin-bottom: 10px;
+            color: var(--text-main);
+        }
+
+        .faq-a {
+            color: var(--text-dim);
+            margin-bottom: 30px;
+        }
+
+        .secure-tag {
+            background: var(--success);
+            color: black;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            vertical-align: middle;
+        }
+
+        footer {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-dim);
+            font-size: 0.9rem;
+        }
+
+        ul { padding-left: 20px; }
+        li { margin-bottom: 8px; }
+
+        @media (max-width: 768px) {
+            h1 { font-size: 2rem; }
+            nav { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>Financial Mastery Guide</h1>
+    <p class="subtitle">Complete onboarding for FinTrack & Xpent. Turn your mobile device into a professional financial fortress.</p>
+</header>
+
+<nav>
+    <a href="#basics">Glossary</a>
+    <a href="#structure">App Logic</a>
+    <a href="#advanced">Advanced Tracking</a>
+    <a href="#automation">Smart Features</a>
+    <a href="#security">Security & Sync</a>
+    <a href="#tips">Best Practices</a>
+</nav>
+
+<div class="container">
+
+    <!-- Section 1: Financial Basics -->
+    <section id="basics">
+        <h2>💰 Core Financial Concepts</h2>
+        <div class="glossary-grid">
+            <div class="term-box">
+                <strong>Asset</strong>
+                Resources you own that have economic value. In the app, this includes your Bank Balance, Cash in wallet, and long-term Investments.
+            </div>
+            <div class="term-box">
+                <strong>Liability</strong>
+                Money you owe to others. This includes Credit Card outstanding, Bank Loans, and money borrowed from friends.
+            </div>
+            <div class="term-box">
+                <strong>Networth</strong>
+                The "Gold Standard" metric. <strong>Total Assets - Total Liabilities</strong>. It tells you your true wealth at any moment.
+            </div>
+            <div class="term-box">
+                <strong>Income</strong>
+                Any money entering your ecosystem (Salary, Dividends, Cash gifts).
+            </div>
+            <div class="term-box">
+                <strong>Expense</strong>
+                Money leaving your ecosystem to pay for goods or services (Rent, Food, Netflix).
+            </div>
+            <div class="term-box">
+                <strong>Transfer</strong>
+                Moving money between your own accounts. <em>Critical:</em> Transfers do NOT change your Networth.
+            </div>
+            <div class="term-box">
+                <strong>Budget</strong>
+                A target spending ceiling. You set these for categories (e.g., "$500 for Food") to prevent overspending.
+            </div>
+        </div>
+    </section>
+
+    <!-- Section 2: App Structure -->
+    <section id="structure">
+        <h2>🏗️ How the App is Structured</h2>
+        <p>The app follows a 3-layer hierarchy to organize your world:</p>
+        <div class="card">
+            <p><strong>1. Major Head:</strong> The broadest category (e.g., Bank Accounts, Investments, Credit Cards).</p>
+            <p><strong>2. Minor Head:</strong> A sub-group (e.g., Savings Accounts, Equity, Visa Cards).</p>
+            <p><strong>3. Account (Micro Head):</strong> The specific entity (e.g., Chase Bank, Robinhood, Apple Card).</p>
+        </div>
+
+        <h3>What happens when you record an entry?</h3>
+        <div class="logic-flow">
+            <strong>Recording Income:</strong> The selected Account balance <strong>increases</strong>. Your Networth <strong>increases</strong>.
+        </div>
+        <div class="logic-flow">
+            <strong>Recording Expense:</strong> The selected Account balance <strong>decreases</strong>. Your Networth <strong>decreases</strong>.
+        </div>
+        <div class="logic-flow">
+            <strong>Recording Transfer:</strong> Source Account balance <strong>decreases</strong>; Destination Account balance <strong>increases</strong>. Networth remains <strong>unchanged</strong>.
+        </div>
+    </section>
+
+    <!-- Section 3: Advanced Management -->
+    <section id="advanced">
+        <h2>🚀 Advanced Management</h2>
+
+        <div class="card">
+            <h3>🤝 "On Account" - Informal Tracking</h3>
+            <p>Use the <strong>On Account</strong> feature when money is in "limbo" with another party.</p>
+            <ul>
+                <li><strong>Scenario:</strong> You lend $100 to your friend Bob.</li>
+                <li><strong>The Entry:</strong> Record a transfer from your Cash to Bob (On Account).</li>
+                <li><strong>Relevance:</strong> Your cash is gone, but Bob owes you. Your Networth stays stable because Bob is now a "Receivable Asset".</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h3>💳 Credit Card Mastery</h3>
+            <ul>
+                <li><strong>Billing Cycle:</strong> The duration (e.g., 1st to 30th) where your spends are tracked.</li>
+                <li><strong>Due Date:</strong> The day you must pay the bank (e.g., 15th of next month).</li>
+                <li><strong>Billed Amount:</strong> Spends already captured on your last statement.</li>
+                <li><strong>Unbilled Amount:</strong> Spends since your last statement generated.</li>
+            </ul>
+            <p class="link-box">💡 <strong>Insight:</strong> The app automatically tracks <strong>Utilization</strong>. If you use >30% of your limit, we'll warn you to protect your Credit Score.</p>
+        </div>
+
+        <div class="card">
+            <h3>🏠 Loans & EMI</h3>
+            <p><strong>EMI (Equated Monthly Installment)</strong> is the fixed payment made to a lender.</p>
+            <ul>
+                <li>The app calculates the <strong>Interest vs Principal</strong> split for every payment.</li>
+                <li><strong>Interest Rate:</strong> The annual percentage the bank charges you.</li>
+                <li><strong>Outstanding Balance:</strong> The actual principal remaining to be paid.</li>
+            </ul>
+        </div>
+    </section>
+
+    <!-- Section 4: Automation -->
+    <section id="automation">
+        <h2>🤖 Smart Automation</h2>
+        <div class="card">
+            <h3>Auto-Record Magic</h3>
+            <p>Tired of manual entries? The app handles two types of automatic recording:</p>
+            <ol class="step-list">
+                <li><strong>Recurring Transfers/Subs:</strong> Set up a Subscription (e.g., Spotify). On the next due date, the app prompts or automatically records it.</li>
+                <li><strong>Loan EMIs:</strong> If "Auto-Record" is enabled on a loan, the app creates a transfer from your Bank to the Loan account on the due date, ensuring your balance is always accurate.</li>
+            </ol>
+        </div>
+
+        <h3>📊 Financial Insights</h3>
+        <p>The app acts as a proactive advisor by providing:</p>
+        <ul>
+            <li><strong>Vendor Concentration:</strong> Alert if >30% of spend goes to one merchant.</li>
+            <li><strong>Windfall Advice:</strong> Suggestions on how to invest sudden spikes in income.</li>
+            <li><strong>Seasonal Trends:</strong> Predictions based on past years' spending patterns.</li>
+            <li><strong>Idle Cash:</strong> Alerts you if too much money is sitting in low-interest accounts.</li>
+        </ul>
+    </section>
+
+    <!-- Section 5: Security & Synchronization -->
+    <section id="security">
+        <h2>🔒 Security & Sync <span class="secure-tag">Military Grade</span></h2>
+
+        <div class="card">
+            <h3>Encryption at Rest</h3>
+            <p>In <strong>Ultra Secure Mode</strong>, your entire database is encrypted using AES-256 before being written to disk. If your phone is stolen, the data is just random gibberish without your Master Password.</p>
+        </div>
+
+        <div class="card">
+            <h3>WebDAV & E2EE</h3>
+            <p><strong>E2EE (End-to-End Encryption)</strong> ensures that even the sync server cannot read your data.</p>
+            <p><strong>To set up WebDAV Sync:</strong></p>
+            <ol class="step-list">
+                <li>Provide your WebDAV URL (from Nextcloud, Koofr, etc.).</li>
+                <li>Input Username and Password.</li>
+                <li>Set a <strong>Remote Master Password</strong>. This password generates the key that encrypts your file <em>before</em> it leaves the phone.</li>
+            </ol>
+        </div>
+    </section>
+
+    <!-- Section 6: Data Integrity (3-2-1 Rule) -->
+    <section id="tips">
+        <h2>🛡️ Data Best Practices</h2>
+        <div class="card">
+            <h3>The 3-2-1 Backup Strategy</h3>
+            <p>Financial data is irreplaceable. Follow this professional industry standard:</p>
+            <ul>
+                <li><strong>3 Copies of Data:</strong> (1) The live app, (2) Local Backup, (3) Remote Sync.</li>
+                <li><strong>2 Different Formats:</strong> Use internal DB format and periodic CSV exports.</li>
+                <li><strong>1 Offsite Copy:</strong> Always keep a copy in a different physical location (WebDAV cloud).</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h3>Password Hygiene</h3>
+            <p>Your <strong>Master Password</strong> is the only key to your data. There is NO "Forgot Password" button (to keep it private).</p>
+            <p class="highlight">Best Practice: Use a passphrase of 4 random words (e.g., "blue-mountain-coffee-desk"). It is easy to remember but impossible for computers to guess.</p>
+        </div>
+    </section>
+
+    <!-- Section 7: FAQs -->
+    <section id="faq">
+        <h2>🙋 Frequently Asked Questions</h2>
+        <div class="faq-q">Can the developers see my expenses?</div>
+        <div class="faq-a">No. The app is open-source and has NO back-end. All processing happens on your device.</div>
+
+        <div class="faq-q">Why does the AI need a large download?</div>
+        <div class="faq-a">To maintain 100% privacy, the "Brain" of the AI must live on your phone. Sending data to the cloud would compromise your privacy.</div>
+
+        <div class="faq-q">What is the "Merchant Tracker"?</div>
+        <div class="faq-a">It's an optional feature to track specific shops/vendors. It helps identify spending patterns and vendor-specific risks.</div>
+    </section>
+
+</div>
+
+<footer>
+    <p>&copy; 2026 FinTrack & Xpent Ecosystem. <br>Built for the financially conscious. Built for the privacy-obsessed.</p>
+</footer>
+
+</body>
+</html>

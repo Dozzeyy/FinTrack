@@ -849,7 +849,18 @@ fun TransactionTypeRow(state: AddTransactionState, readOnly: Boolean, isTemplate
 
 @Composable
 fun DateTimeSection(state: AddTransactionState, readOnly: Boolean, context: android.content.Context, isEditMode: Boolean) {
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (!readOnly && !isEditMode) {
+            IconButton(onClick = {
+                try {
+                    val current = LocalDate.parse(state.date)
+                    state.date = current.minusDays(1).format(DateTimeFormatter.ISO_DATE)
+                } catch (e: Exception) {}
+            }, modifier = Modifier.size(24.dp)) {
+                Icon(Icons.Default.ChevronLeft, "Previous Day", tint = MaterialTheme.colorScheme.primary)
+            }
+        }
+
         Box(modifier = Modifier.weight(1f).clickable(enabled = !readOnly && !isEditMode) {
             val dateParts = state.date.split("-")
             DatePickerDialog(context, { _, year, month, dayOfMonth ->
@@ -872,7 +883,18 @@ fun DateTimeSection(state: AddTransactionState, readOnly: Boolean, context: andr
             )
         }
 
-        Box(modifier = Modifier.weight(1f).clickable(enabled = !readOnly && !isEditMode) {
+        if (!readOnly && !isEditMode) {
+            IconButton(onClick = {
+                try {
+                    val current = LocalDate.parse(state.date)
+                    state.date = current.plusDays(1).format(DateTimeFormatter.ISO_DATE)
+                } catch (e: Exception) {}
+            }, modifier = Modifier.size(24.dp)) {
+                Icon(Icons.Default.ChevronRight, "Next Day", tint = MaterialTheme.colorScheme.primary)
+            }
+        }
+
+        Box(modifier = Modifier.weight(0.7f).clickable(enabled = !readOnly && !isEditMode) {
             val timeParts = state.time.split(":")
             TimePickerDialog(context, { _, hour, minute ->
                 state.time = String.format("%02d:%02d", hour, minute)

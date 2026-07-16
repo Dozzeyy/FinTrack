@@ -731,8 +731,8 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
     fun saveCategory(name: String, type: String, description: String?, isEnabled: Boolean, icon: String?) {
         viewModelScope.launch { dao.upsertCategory(editingCategory?.copy(name=name, type=type, description=description, isEnabled=isEnabled, icon=icon) ?: Category(name=name, type=type, description=description, isEnabled=isEnabled, icon=icon)); editingCategory=null; triggerRefresh() }
     }
-    fun saveTag(name: String, isEnabled: Boolean) {
-        viewModelScope.launch { dao.upsertTag(editingTag?.copy(name=name, isEnabled=isEnabled) ?: Tag(name=name, isEnabled=isEnabled)); editingTag=null; triggerRefresh() }
+    fun saveTag(name: String, isEnabled: Boolean, trackingType: String, targetNumber: Double?) {
+        viewModelScope.launch { dao.upsertTag(editingTag?.copy(name=name, isEnabled=isEnabled, trackingType=trackingType, targetNumber=targetNumber) ?: Tag(name=name, isEnabled=isEnabled, trackingType=trackingType, targetNumber=targetNumber)); editingTag=null; triggerRefresh() }
     }
     fun saveParty(name: String, openingBalance: Double, isEnabled: Boolean) {
         viewModelScope.launch { dao.upsertParty(editingParty?.copy(name=name, openingBalance=openingBalance, isEnabled=isEnabled) ?: Party(name=name, openingBalance=openingBalance, isEnabled=isEnabled)); editingParty=null; triggerRefresh() }
@@ -1338,7 +1338,7 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
                         b.amount, b.duration, b.note, b.higherIsBetter
                     )
                 },
-                tags = tags.map { TagConfig(it.name, it.isEnabled) }
+                tags = tags.map { TagConfig(it.name, it.isEnabled, it.trackingType, it.targetNumber) }
             )
             return Json.encodeToString(export)
         } catch (e: Exception) {
@@ -1352,7 +1352,7 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
             val existingTags = dao.getAllTags().first()
             config.tags.forEach { tagCfg ->
                 val existing = existingTags.find { it.name == tagCfg.name }
-                dao.upsertTag(Tag(id = existing?.id ?: 0, name = tagCfg.name, isEnabled = tagCfg.isEnabled))
+                dao.upsertTag(Tag(id = existing?.id ?: 0, name = tagCfg.name, isEnabled = tagCfg.isEnabled, trackingType = tagCfg.trackingType, targetNumber = tagCfg.targetNumber))
             }
             val existingMajors = dao.getAllMajorHeads().first()
             config.majorHeads.forEach { majorCfg ->

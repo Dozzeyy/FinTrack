@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
@@ -82,6 +83,8 @@ fun ManageTagsScreen(
 fun AddTagScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
     var name by remember { mutableStateOf(viewModel.editingTag?.name ?: "") }
     var isEnabled by remember { mutableStateOf(viewModel.editingTag?.isEnabled ?: true) }
+    var trackingType by remember { mutableStateOf(viewModel.editingTag?.trackingType ?: "Both") }
+    var targetNumber by remember { mutableStateOf(viewModel.editingTag?.targetNumber?.toString() ?: "") }
 
     Scaffold(
         topBar = {
@@ -102,6 +105,43 @@ fun AddTagScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                 label = { Text("Tag Name") },
                 modifier = Modifier.fillMaxWidth()
             )
+
+            Spacer(Modifier.height(16.dp))
+
+            var trackingExpanded by remember { mutableStateOf(false) }
+            Box(modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = trackingType,
+                    onValueChange = {},
+                    label = { Text("Track Type") },
+                    readOnly = true,
+                    modifier = Modifier.fillMaxWidth().clickable { trackingExpanded = true },
+                    enabled = false,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                        disabledBorderColor = MaterialTheme.colorScheme.outline,
+                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
+                    trailingIcon = { Icon(Icons.Default.ArrowDropDown, "") }
+                )
+                DropdownMenu(expanded = trackingExpanded, onDismissRequest = { trackingExpanded = false }) {
+                    listOf("Income", "Expense", "Both").forEach { type ->
+                        DropdownMenuItem(text = { Text(type) }, onClick = {
+                            trackingType = type
+                            trackingExpanded = false
+                        })
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            OutlinedTextField(
+                value = targetNumber,
+                onValueChange = { targetNumber = it },
+                label = { Text("Target Number (Optional)") },
+                modifier = Modifier.fillMaxWidth()
+            )
             
             Row(
                 modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
@@ -115,7 +155,7 @@ fun AddTagScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
             Button(
                 onClick = {
                     if (name.isNotBlank()) {
-                        viewModel.saveTag(name, isEnabled)
+                        viewModel.saveTag(name, isEnabled, trackingType, targetNumber.toDoubleOrNull())
                         onBack()
                     }
                 },

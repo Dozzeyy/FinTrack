@@ -380,7 +380,7 @@ fun SubscriptionDashboard(viewModel: ExpenseViewModel, onBack: () -> Unit, onNav
             LazyColumn(modifier = Modifier.padding(padding).fillMaxSize()) {
                 items(currentTxns) { item ->
                     Box(modifier = Modifier.clickable { viewModel.selectedTransactionDetail = item }.padding(16.dp)) {
-                        TransactionRow(detail = item, viewModel = viewModel, showTxnNumber = true)
+                        TransactionRow(detail = item, viewModel = viewModel, showTxnNumber = false)
                     }
                     Divider(modifier = Modifier.alpha(0.5f))
                 }

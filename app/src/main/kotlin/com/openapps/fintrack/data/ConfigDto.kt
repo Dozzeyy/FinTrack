@@ -44,7 +44,7 @@ data class AccountConfig(
 data class CategoryConfig(val name: String, val type: String, val description: String?, val isEnabled: Boolean)
 
 @Serializable
-data class TagConfig(val name: String, val isEnabled: Boolean)
+data class TagConfig(val name: String, val isEnabled: Boolean, val trackingType: String = "Both", val targetNumber: Double? = null)
 
 @Serializable
 data class TemplateConfig(

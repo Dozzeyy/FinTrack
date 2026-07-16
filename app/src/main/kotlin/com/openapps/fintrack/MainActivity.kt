@@ -498,6 +498,9 @@ fun FinTrackApp(
         composable("notes") {
             NotesScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
         }
+        composable("tutorial") {
+            TutorialScreen(onBack = { navController.popBackStack() })
+        }
         composable("rules") {
             RulesScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
         }

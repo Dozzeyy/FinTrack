@@ -55,7 +55,9 @@ data class Category(
 data class Tag(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val name: String,
-    val isEnabled: Boolean = true
+    val isEnabled: Boolean = true,
+    val trackingType: String = "Both", // Income, Expense, Both
+    val targetNumber: Double? = null
 )
 
 @Entity(tableName = "parties")

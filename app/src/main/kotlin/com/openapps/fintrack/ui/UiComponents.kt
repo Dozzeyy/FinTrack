@@ -15,6 +15,14 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.TextStyle
+import kotlin.math.abs
+import kotlin.math.roundToInt
+import kotlin.math.abs
+import kotlin.math.roundToInt
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -332,8 +340,12 @@ fun LineChart(
     val maxVal = (data.maxOrNull() ?: 0.0).coerceAtLeast(1.0)
     val minVal = (data.minOrNull() ?: 0.0)
     val range = (maxVal - minVal).coerceAtLeast(1.0)
+    
+    val textMeasurer = rememberTextMeasurer()
+    val onSurfaceColor = MaterialTheme.colorScheme.onSurface
+    val labelStyle = MaterialTheme.typography.labelSmall.copy(color = onSurfaceColor)
 
-    Canvas(modifier = modifier.padding(16.dp)) {
+    Canvas(modifier = modifier.padding(16.dp).padding(top = 24.dp, start = 48.dp)) {
         val width = size.width
         val height = size.height
         val spacing = width / (data.size - 1).coerceAtLeast(1)
@@ -355,12 +367,30 @@ fun LineChart(
             )
         }
 
-        // Draw points
-        points.forEach { point ->
+        // Draw points and values
+        points.forEachIndexed { index, point ->
             drawCircle(
                 color = pointColor,
                 radius = 4.dp.toPx(),
                 center = point
+            )
+            
+            // Draw value text on the left edge
+            val valueText = if (abs(data[index]) >= 1000000) {
+                String.format(java.util.Locale.US, "%.1fM", data[index] / 1000000)
+            } else if (abs(data[index]) >= 1000) {
+                String.format(java.util.Locale.US, "%.1fk", data[index] / 1000)
+            } else {
+                data[index].roundToInt().toString()
+            }
+            
+            val textLayoutResult = textMeasurer.measure(valueText, style = labelStyle)
+            drawText(
+                textLayoutResult = textLayoutResult,
+                topLeft = androidx.compose.ui.geometry.Offset(
+                    -48.dp.toPx(),
+                    point.y - textLayoutResult.size.height / 2
+                )
             )
         }
         
@@ -1322,7 +1352,7 @@ fun DateRangeFilterDialog(onDismiss: () -> Unit, onApply: (String, String) -> Un
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TransactionListOverlay(title: String, transactions: List<TransactionWithDetails>, viewModel: ExpenseViewModel, onBack: () -> Unit) {
+fun TransactionListOverlay(title: String, transactions: List<TransactionWithDetails>, viewModel: ExpenseViewModel, showTxnNumber: Boolean = false, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(title = { Text(title) }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "") } })
@@ -1332,7 +1362,7 @@ fun TransactionListOverlay(title: String, transactions: List<TransactionWithDeta
         LazyColumn(modifier = Modifier.padding(padding).padding(16.dp)) {
             items(transactions) { detail ->
                 Box(modifier = Modifier.clickable { viewModel.selectedTransactionDetail = detail }) {
-                    TransactionRow(detail = detail, viewModel = viewModel, showTxnNumber = true)
+                    TransactionRow(detail = detail, viewModel = viewModel, showTxnNumber = showTxnNumber)
                 }
             }
         }

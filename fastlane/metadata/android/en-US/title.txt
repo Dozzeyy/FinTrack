@@ -1,1 +1,1 @@
-FinTrack - Expense manager (Money)
+FinTrack - Expense, Money & Finance manager

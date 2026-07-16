@@ -150,6 +150,12 @@ fun HomeScreen(
                             icon = { Icon(Icons.Default.Security, null) }
                         )
                         NavigationDrawerItem(
+                            label = { Text("Tutorial & Guide") },
+                            selected = false,
+                            onClick = { scope.launch { drawerState.close() }; onNavigate("tutorial") },
+                            icon = { Icon(Icons.Default.HelpCenter, null) }
+                        )
+                        NavigationDrawerItem(
                             label = { Text("Settings") },
                             selected = false,
                             onClick = { scope.launch { drawerState.close() }; onNavigate("settings") },
@@ -222,7 +228,7 @@ fun HomeScreen(
                                     Box(modifier = Modifier.clickable { 
                                         viewModel.selectedTransactionDetail = detail 
                                     }) {
-                                        TransactionRow(detail = detail, viewModel = viewModel, showTxnNumber = true)
+                                        TransactionRow(detail = detail, viewModel = viewModel, showTxnNumber = false)
                                     }
                                 }
                             }
@@ -272,17 +278,17 @@ fun HomeScreen(
                     }
                 }
 
-                if (!isSearchActive) {
+                if (!isSearchActive && viewModel.selectedTransactionDetail == null) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(bottom = 16.dp)
                             .navigationBarsPadding(),
                         contentAlignment = Alignment.BottomCenter
                     ) {
                         FloatingBottomNav(
                             selectedTab = selectedTab,
                             onTabChange = { selectedTab = it },
+                            onSearchClick = { isSearchActive = true },
                             tabOrder = viewModel.bottomTabOrder
                         )
                     }
@@ -290,17 +296,10 @@ fun HomeScreen(
                     Column(
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
-                            .padding(16.dp),
+                            .padding(bottom = 72.dp, end = 16.dp),
                         horizontalAlignment = Alignment.End,
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        FloatingActionButton(
-                            onClick = { isSearchActive = true },
-                            containerColor = MaterialTheme.colorScheme.secondaryContainer
-                        ) {
-                            Icon(Icons.Default.Search, "Search")
-                        }
-                        
                         val fabLabel = when (selectedTab) {
                             "budgets" -> "Add Budget"
                             else -> "Add Transaction"
@@ -338,18 +337,19 @@ fun HomeScreen(
 fun FloatingBottomNav(
     selectedTab: String,
     onTabChange: (String) -> Unit,
+    onSearchClick: () -> Unit,
     tabOrder: List<String>
 ) {
     Surface(
         modifier = Modifier
             .wrapContentWidth()
-            .height(56.dp),
-        shape = androidx.compose.foundation.shape.CircleShape,
+            .height(60.dp),
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
         color = MaterialTheme.colorScheme.surfaceColorAtElevation(4.dp),
         shadowElevation = 8.dp
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 8.dp),
+            modifier = Modifier.padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
@@ -358,19 +358,19 @@ fun FloatingBottomNav(
                 val (label, icon) = when (tabKey) {
                     "home" -> "Home" to Icons.Default.Home
                     "analysis" -> "Analysis" to Icons.Default.PieChart
-                    "transactions" -> "Transactns" to Icons.Default.List
+                    "transactions" -> "Transactions" to Icons.Default.List
                     "budgets" -> "Budgets" to Icons.Default.AccountBalanceWallet
                     else -> "" to Icons.Default.Home
                 }
 
                 Box(
                     modifier = Modifier
-                        .padding(horizontal = 4.dp)
+                        .padding(horizontal = 2.dp)
                         .height(40.dp)
                         .clip(CircleShape)
                         .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
                         .clickable { onTabChange(tabKey) }
-                        .padding(horizontal = 12.dp),
+                        .padding(horizontal = 10.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -381,7 +381,7 @@ fun FloatingBottomNav(
                             tint = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         if (isSelected) {
-                            Spacer(Modifier.width(8.dp))
+                            Spacer(Modifier.width(6.dp))
                             Text(
                                 text = label,
                                 style = MaterialTheme.typography.labelLarge,
@@ -391,6 +391,17 @@ fun FloatingBottomNav(
                         }
                     }
                 }
+            }
+
+            IconButton(
+                onClick = onSearchClick,
+                modifier = Modifier.padding(start = 4.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = "Search",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
@@ -675,7 +686,7 @@ fun HomeView(
                 val totalSavings = transactions.sumOf { (it.transaction.negotiationAmountOriginal ?: it.transaction.amount) - it.transaction.amount }
                 if (totalSavings > 0) {
                     Card(
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                         colors = CardDefaults.cardColors(containerColor = Color(0xFF4CAF50).copy(alpha = 0.1f))
                     ) {
                         Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -690,7 +701,7 @@ fun HomeView(
                 val discTotal = transactions.filter { it.transaction.isDiscretionary }.sumOf { it.transaction.amount }
                 if (discTotal > 0) {
                     Card(
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp).clickable { showDiscretionaryOnly = true },
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp).clickable { showDiscretionaryOnly = true },
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f))
                     ) {
                         Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -701,7 +712,6 @@ fun HomeView(
                 }
             }
 
-            // Unnecessary gap removed
             val balances by viewModel.getAccountBalances(endDate).collectAsState(initial = emptyList())
             val netPosition = balances.sumOf { it.balance }
             var isNetPositionVisible by remember { mutableStateOf(!viewModel.tapToShowNetPosition) }
@@ -709,7 +719,7 @@ fun HomeView(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 8.dp), 
+                    .padding(top = 4.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
             ) {
                 Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -908,7 +918,7 @@ fun AnalysisView(
         BackHandler { showDetailList = null }
         val filteredList = remember(transactions, type, accountsSubTab, analysisSelectedAccountId, showDetailList, isMainLevelAnalysis) {
             if (type == "Accounts") {
-                // ... (Existing accounts logic remains unchanged)
+            
                 if (accountsSubTab == "Spending") {
                     transactions.filter { it.transaction.accountId == analysisSelectedAccountId && it.categoryName == showDetailList }
                 } else if (accountsSubTab == "Source") {
@@ -921,7 +931,7 @@ fun AnalysisView(
                     transactions.filter { it.accountName == showDetailList || it.toAccountName == showDetailList }
                 }
             } else if (type == "Expense" || type == "Income") {
-                // ... (existing logic)
+            
                 transactions.filter { 
                     val catName = it.categoryName ?: "Uncategorized"
                     if (isMainLevelAnalysis) {
