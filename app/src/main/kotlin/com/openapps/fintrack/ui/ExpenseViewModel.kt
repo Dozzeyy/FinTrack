@@ -41,6 +41,26 @@ import java.time.temporal.ChronoUnit
 import java.util.*
 import java.util.concurrent.TimeUnit
 
+data class ExtractedTransaction(
+    val date: LocalDate,
+    val description: String,
+    val amount: Double,
+    val isCredit: Boolean,
+    val sourceColumn: String? = null
+)
+
+enum class ColumnRole { DATE, DESCRIPTION, AMOUNT, DEBIT, CREDIT, DR_CR, BALANCE, IGNORE }
+
+data class ColumnAssignment(
+    val role: ColumnRole,
+    val start: Float,
+    val end: Float
+)
+
+data class ColumnMap(
+    val assignments: List<ColumnAssignment>
+)
+
 class ExpenseViewModel(application: Application) : AndroidViewModel(application) {
     private val prefs = application.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
     
@@ -64,7 +84,7 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
         if (_database == null) {
             val df = getApplication<Application>().getDatabasePath("expenses_database")
             val ef = File(df.path + ".xpt")
-            // If encrypted file exists, we MUST NOT let Room create a new plain one
+    
             if (ef.exists() && !isDatabaseDecrypted) {
                 throw IllegalStateException("Database is encrypted. Unlock required.")
             }
@@ -93,7 +113,18 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
     var editingNote by mutableStateOf<Note?>(null)
     var selectedNotebookId by mutableStateOf<Int?>(null)
     var draftTransaction by mutableStateOf<DraftTransaction?>(null)
+    var currentRecordingImportTxnKey by mutableStateOf<String?>(null)
     var draftAccount by mutableStateOf<DraftAccount?>(null)
+
+    // Import Statement State
+    var pendingTransactions by mutableStateOf<List<ExtractedTransaction>>(emptyList())
+    var importStatus by mutableStateOf("")
+    var showAccountSelection by mutableStateOf(true)
+    var selectedImportAccount by mutableStateOf<Account?>(null)
+    var rawRows by mutableStateOf<List<List<String>>>(emptyList())
+    var detectedColumnMap by mutableStateOf<ColumnMap?>(null)
+    var isShowingTablePreview by mutableStateOf(false)
+    var importType by mutableStateOf("CSV")
 
     // Settings
     var inactivityTimeout by mutableStateOf(prefs.getString("inactivity_timeout", "1") ?: "1")
@@ -179,6 +210,22 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
 
     // Insights State
     val financialInsights = mutableStateListOf<FinancialInsight>()
+    var showWhatIsNew by mutableStateOf(false)
+    var keyChanges by mutableStateOf("")
+
+    fun checkAppUpdate(currentVersion: Int) {
+        val lastVersion = prefs.getInt("last_seen_version", 0)
+        if (currentVersion > lastVersion) {
+            keyChanges = """
+                - Multi-Account Entry: Now you can add multiple accounts for a single income/expense entry! 🚀
+                - Auto-Record for recurring items: Enable auto-record for subscriptions and recurring transfers to save time. 🔄
+                - Enhanced Financial Insights: New patterns for Net Worth, Category Overspending, and Savings Rate. 📈
+                - CSV Import fix: Handles comma-separated values in quoted amounts correctly. 📊
+            """.trimIndent()
+            showWhatIsNew = true
+            prefs.edit().putInt("last_seen_version", currentVersion).apply()
+        }
+    }
     var isGeneratingInsights by mutableStateOf(false)
     var showInsightsOverlay by mutableStateOf(false)
     private val insightEngine = FinancialInsightEngine()
@@ -302,11 +349,9 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
 
     fun scheduleCcAlerts() {
         val workManager = WorkManager.getInstance(getApplication())
-        // We always run CcAlertWorker daily because it also handles Loan Auto-Recording
-        // but it will only process alerts if ccAlertEnabled is true.
         
         val ccAlertRequest = androidx.work.PeriodicWorkRequestBuilder<com.openapps.fintrack.data.CcAlertWorker>(1, TimeUnit.DAYS)
-            .setInitialDelay(1, TimeUnit.HOURS) // Run an hour after start to not bog down init
+            .setInitialDelay(1, TimeUnit.HOURS) 
             .build()
 
         workManager.enqueueUniquePeriodicWork(
@@ -326,7 +371,7 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
         } else {
             val bp = getApplication<Application>().getSharedPreferences("backup_prefs", Context.MODE_PRIVATE)
             bp.edit().putBoolean("encrypt_scheduled_backup", true).apply()
-            isDatabaseDecrypted = false // Force lock immediately
+            isDatabaseDecrypted = false 
             encryptDatabaseAtRest()
         }
     }
@@ -338,7 +383,6 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
         val df = getApplication<Application>().getDatabasePath("expenses_database")
         val ef = File(df.path + ".xpt")
         
-        // Return true (show lock) if either file exists and we haven't unlocked yet
         return ef.exists() || df.exists()
     }
     
@@ -381,11 +425,11 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
                         File(df.path + "-journal").delete() 
                         
                         withContext(Dispatchers.Main) {
-                            remoteMasterPassword = "" // Securely wipe session memory
+                            remoteMasterPassword = ""
                         }
                         Log.d("SecureMode", "Database is now encrypted at rest.")
                     } else {
-                        // If encryption failed, we MUST allow retries or revert state
+                    
                         withContext(Dispatchers.Main) {
                             isDatabaseDecrypted = true
                             prefs.edit().putBoolean("db_encrypted_at_rest", false).apply()
@@ -625,7 +669,7 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
                 .header("Authorization", Credentials.basic(webdavUsername, webdavPassword))
                 .header("User-Agent", "FinTrack-Android")
                 .method("PROPFIND", null)
-                .header("Depth", "0") // Depth 0 is just the resource itself
+                .header("Depth", "0") 
                 .build()
             
             val client = OkHttpClient.Builder()
@@ -877,12 +921,11 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
             val year = try { LocalDate.parse(date).year } catch(ex:Exception) { LocalDate.now(ZoneId.of("UTC")).year }
             val txnNumber = "$prefix/$year/$nextSerial"
             
-            // Priority 1: Issue 3 - Multi-entry atomicity
             val transactions = entries.map { e -> 
                 Transaction(
                     date = date, 
                     time = time, 
-                    accountId = accountId, 
+                    accountId = e.accountId ?: accountId,
                     categoryId = e.categoryId, 
                     amount = e.amount, 
                     note = e.note, 
@@ -1088,7 +1131,8 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
     fun toggleCcPaid(id: Int, p: Boolean) { toggleCcPaidCustom(id.toString(), p) }
     fun toggleCcPaidCustom(id: String, p: Boolean) { val k = LocalDate.now(ZoneId.of("UTC")).format(DateTimeFormatter.ofPattern("yyyy-MM")); val n = dismissedCcAlertIds.toMutableSet(); if(p) n.add("${id}_$k") else n.remove("${id}_$k"); dismissedCcAlertIds=n; prefs.edit().putStringSet("dismissed_cc_alerts", n).apply() }
     fun dismissCcAlert(id: Int) { toggleCcPaidCustom(id.toString(), true) }
-    fun toggleSubscriptionStopped(n: String, s: Boolean) { viewModelScope.launch { dao.upsertSubscriptionStatus(SubscriptionStatus(n, s)); triggerRefresh() } }
+    fun toggleSubscriptionStopped(n: String, s: Boolean) { viewModelScope.launch { val current = dao.getAllSubscriptionStatuses().first().find { it.subName == n }; dao.upsertSubscriptionStatus(current?.copy(isStopped = s) ?: SubscriptionStatus(n, isStopped = s)); triggerRefresh() } }
+    fun toggleSubscriptionAutoRecord(n: String, e: Boolean) { viewModelScope.launch { val current = dao.getAllSubscriptionStatuses().first().find { it.subName == n }; dao.upsertSubscriptionStatus(current?.copy(isAutoRecordEnabled = e) ?: SubscriptionStatus(n, isAutoRecordEnabled = e)); triggerRefresh() } }
     
     fun getCcAlerts(): Flow<List<CcAlert>> = combine(
         dao.getEnabledAccounts(),
@@ -1100,7 +1144,7 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
         
         accounts.filter { it.minorHeadId != null }.forEach { acc ->
             val minor = minorHeads.find { it.id == acc.minorHeadId }
-            if (minor?.majorHeadId == 8) { // Credit Card
+            if (minor?.majorHeadId == 8) {
                 val daysPost = acc.paymentDueDate?.toIntOrNull() ?: return@forEach
                 val endDay = acc.billingCycleEnd?.toIntOrNull() ?: return@forEach
                 val startDay = acc.billingCycleStart?.toIntOrNull() ?: return@forEach
@@ -1461,9 +1505,9 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
 }
 
 data class BudgetVsActual(val categoryName: String, val categoryType: String, val budgetAmount: Double, val actualAmount: Double, val duration: String, val higherIsBetter: Boolean = false, val categoryIds: List<Int> = emptyList(), val accountIds: List<Int> = emptyList(), val startDate: String = "", val endDate: String = "")
-data class DraftTransaction(val type: String, val amount: String, val note: String, val date: String, val time: String, val accountId: Int?, val toAccountId: Int?, val categoryId: Int?, val selectedTagIds: List<Int>, val isMultiEntry: Boolean = false, val multiEntryRows: List<DraftMultiEntryRow> = emptyList())
-data class DraftMultiEntryRow(val categoryId: Int?, val amount: String, val note: String? = null, val currencyCode: String? = null)
-data class MultiEntryRowData(val categoryId: Int, val amount: Double, val note: String?, val currencyCode: String)
+data class DraftTransaction(val type: String, val amount: String, val note: String, val date: String, val time: String, val accountId: Int?, val toAccountId: Int?, val categoryId: Int?, val selectedTagIds: List<Int>, val isMultiEntry: Boolean = false, val multiEntryRows: List<DraftMultiEntryRow> = emptyList(), val multiEntryType: String = "Category")
+data class DraftMultiEntryRow(val categoryId: Int?, val accountId: Int?, val amount: String, val note: String? = null, val currencyCode: String? = null)
+data class MultiEntryRowData(val categoryId: Int?, val accountId: Int?, val amount: Double, val note: String?, val currencyCode: String)
 data class DraftAccount(val name: String, val type: String, val description: String, val openingBalance: String, val isEnabled: Boolean, val selectedMajorHeadId: Int?, val selectedMinorHeadId: Int?, val creditLimit: String, val billingCycleStart: String, val billingCycleEnd: String, val paymentDueDate: String, val icon: String? = null, val isEmergencyFund: Boolean = false)
 data class CcAlert(val accountId: Int, val accountName: String, val amount: Double, val dueDate: LocalDate)
 data class SubscriptionAlert(val subName: String, val amount: Double, val dueDate: LocalDate, val isTransfer: Boolean = false)

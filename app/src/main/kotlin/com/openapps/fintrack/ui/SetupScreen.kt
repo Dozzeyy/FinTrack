@@ -108,7 +108,6 @@ fun SetupScreen(viewModel: ExpenseViewModel, onComplete: () -> Unit) {
                             Intent.FLAG_GRANT_WRITE_URI_PERMISSION
                     context.contentResolver.takePersistableUriPermission(it, takeFlags)
                     
-                    // Save to backup prefs
                     backupPrefs.edit()
                         .putString("path", it.toString())
                         .putBoolean("enabled", scheduleBackupEnabled)
@@ -222,7 +221,6 @@ fun SetupScreen(viewModel: ExpenseViewModel, onComplete: () -> Unit) {
 
                 prefs.edit().putBoolean("setup_complete", true).apply()
                 
-                // Touch the database once to ensure seeding happens BEFORE user reaches home
                 viewModel.triggerRefresh() 
 
                 onComplete()
@@ -239,7 +237,6 @@ fun SetupScreen(viewModel: ExpenseViewModel, onComplete: () -> Unit) {
         TextButton(
             onClick = {
                 prefs.edit().putBoolean("setup_complete", true).apply()
-                // Ensure backup is disabled if skipped
                 backupPrefs.edit().putBoolean("enabled", false).apply()
                 onComplete()
             },

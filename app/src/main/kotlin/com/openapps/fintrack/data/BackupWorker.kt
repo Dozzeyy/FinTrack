@@ -46,13 +46,13 @@ class BackupWorker(context: Context, params: WorkerParameters) : CoroutineWorker
 
             AppDatabase.databaseMutex.withLock {
                 if (secureMode && encryptedAtRestFile.exists()) {
-                    // If in Ultra Secure mode and DB is already encrypted, back up the encrypted file directly
+                
                     encryptedAtRestFile.copyTo(finalFile, overwrite = true)
                 } else {
-                    // Aggressive flush to ensure all transactions are merged into main file
+                
                     val database = AppDatabase.getDatabase(applicationContext, kotlinx.coroutines.GlobalScope)
                     database.checkpoint()
-                    AppDatabase.closeDatabase() // Release file locks for clean copy
+                    AppDatabase.closeDatabase()
                     
                     if (dbFile.exists()) {
                         FileInputStream(dbFile).use { input ->
@@ -65,7 +65,7 @@ class BackupWorker(context: Context, params: WorkerParameters) : CoroutineWorker
                             val result = EncryptionService.encryptFile(tempSnapshot, finalFile, masterPassword)
                             if (result.isFailure) throw Exception("Encryption failed")
                         } else if (encryptBackup || secureMode) {
-                            // This case handles if encryption is required but password was missing
+                            
                             throw Exception("Encryption required but master password is not set.")
                         } else {
                             tempSnapshot.copyTo(finalFile, overwrite = true)

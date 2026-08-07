@@ -34,7 +34,7 @@ fun ManageCategoriesScreen(
     val accounts by viewModel.getAllAccounts().collectAsState(initial = emptyList())
     val filterTypes = remember { mutableStateListOf("Income", "Expense", "Accounts") }
     
-    var showDeleteConfirm by remember { mutableStateOf<Any?>(null) } // Category or Account
+    var showDeleteConfirm by remember { mutableStateOf<Any?>(null) }
     var isSearchActive by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
 
@@ -128,7 +128,7 @@ fun ManageCategoriesScreen(
                             selected = isSelected,
                             onClick = { 
                                 if (isSelected) filterTypes.remove(type) else filterTypes.add(type)
-                                if (filterTypes.isEmpty()) filterTypes.add(type) // Ensure at least one is selected
+                                if (filterTypes.isEmpty()) filterTypes.add(type) 
                             },
                             label = { Text(type, style = MaterialTheme.typography.labelSmall) }
                         )
@@ -148,7 +148,6 @@ fun ManageCategoriesScreen(
                     accounts.filter { it.name.contains(searchQuery, ignoreCase = true) }
                 } else emptyList()
 
-                // Sort: Expense, Income, Accounts
                 list.addAll(filteredCategories.filter { it.type == "expense" }.sortedBy { it.name })
                 list.addAll(filteredCategories.filter { it.type == "income" }.sortedBy { it.name })
                 list.addAll(filteredAccounts.sortedBy { it.name })

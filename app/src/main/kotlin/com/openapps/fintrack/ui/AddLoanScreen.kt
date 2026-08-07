@@ -361,8 +361,6 @@ fun AddLoanScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: (
             }
 
             // Show First Payment Info Card
-            // Removed card to reflect constant cash outflow
-
             if (!isNewMode) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -396,7 +394,7 @@ fun AddLoanScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: (
                         gapInterest = gapInterest,
                         firstRepaymentDate = firstRepaymentDate,
                         frequency = frequency,
-                        asOfDate = LocalDate.now().plusYears(100) // Far future to get end of tenure
+                        asOfDate = LocalDate.now().plusYears(100)
                     )
                 } else 0.0
             }
@@ -443,7 +441,7 @@ fun AddLoanScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: (
             val allAccounts by viewModel.getEnabledAccounts().collectAsState(initial = emptyList())
             val disbursementAccounts = allAccounts.filter { acc ->
                 val minor = allMinorHeads.find { it.id == acc.minorHeadId }
-                minor?.majorHeadId in listOf(2, 3, 7) // Bank, Wallet, Cash
+                minor?.majorHeadId in listOf(2, 3, 7)
             }
 
             AccountSelectionDialog(

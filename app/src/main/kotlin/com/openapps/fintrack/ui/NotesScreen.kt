@@ -127,7 +127,7 @@ fun NotesScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
     val isServerRunning by viewModel.isServerRunning.collectAsState()
 
     var noteForAction by remember { mutableStateOf<Note?>(null) }
-    var actionType by remember { mutableStateOf("") } // "move" or "copy"
+    var actionType by remember { mutableStateOf("") } 
 
     if (isAddingNote || editingNoteLocal != null) {
         AddEditNoteScreen(
@@ -322,7 +322,6 @@ fun NotesScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                     }
                 }
                 
-                // Vertical Divider
                 Divider(modifier = Modifier.fillMaxHeight().width(1.dp))
 
                 // Right Pane: Pages (Notes)
@@ -530,7 +529,6 @@ fun ViewNoteScreen(viewModel: ExpenseViewModel, note: Note, onBack: () -> Unit, 
 
     val dateFormatter = remember { java.text.SimpleDateFormat("dd MMM yyyy, HH:mm", java.util.Locale.getDefault()) }
 
-    // Local state for checklist items to allow toggling/quantity change
     val checklistItems = remember(note.content, note.type) {
         if (note.type == "checklist") {
             try {
@@ -752,7 +750,6 @@ fun AddEditNoteScreen(viewModel: ExpenseViewModel, note: Note?, initialType: Str
         }
     }
 
-    // Checklist specific state
     val checklistItems = remember {
         if (note?.type == "checklist") {
             try {
@@ -864,7 +861,6 @@ fun AddEditNoteScreen(viewModel: ExpenseViewModel, note: Note?, initialType: Str
                     onToggleToolbar = { isCanvasFullWorkspace = !it }
                 )
                 
-                // We need to capture the elements to save
                 LaunchedEffect(drawingElements.toList()) {
                     content = Json.encodeToString(DrawingData(drawingElements.toList()))
                 }
@@ -930,12 +926,10 @@ fun DrawingCanvas(
     var currentColor by remember { mutableIntStateOf(Color.Black.toArgb()) }
     var currentThickness by remember { mutableFloatStateOf(5f) }
     
-    // Zoom and Pan State
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
     var isDarkCanvas by remember { mutableStateOf(false) }
 
-    // Optimization: Path trigger to avoid excessive list allocations
     val activePath = remember { androidx.compose.ui.graphics.Path() }
     val pathTrigger = remember { mutableIntStateOf(0) }
     val currentPathPoints = remember { mutableListOf<Offset>() }
@@ -945,7 +939,6 @@ fun DrawingCanvas(
 
     Column {
         if (isToolbarVisible) {
-            // Toolbar 1: Tools
             Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 IconButton(onClick = { currentTool = "pen" }, colors = if (currentTool == "pen") IconButtonDefaults.filledIconButtonColors() else IconButtonDefaults.iconButtonColors()) {
                     Icon(Icons.Default.Edit, "Pen")
@@ -1024,7 +1017,6 @@ fun DrawingCanvas(
                         if (pressed.size >= 2) {
                             multiTouchActive = true
                             if (isDrawing) {
-                                // Cancel drawing if second finger touches
                                 isDrawing = false
                                 activePath.reset()
                                 currentPathPoints.clear()
@@ -1040,13 +1032,11 @@ fun DrawingCanvas(
                             val move1 = p1.position - p1.previousPosition
                             val move2 = p2.position - p2.previousPosition
                             val dot = move1.x * move2.x + move1.y * move2.y
-                            // Fingers moving in same direction = Zoom Out
                             if (dot > 30f && (curDist / preDist) < 1.02f) scale *= 0.98f
                             
                             offset += (move1 + move2) / 2f
                             changes.forEach { it.consume() }
                         } else if (!multiTouchActive) {
-                            // Only allow drawing if it's a single-touch gesture from the start
                             val change = changes[0]
                             val adj = (change.position - offset) / scale
                             

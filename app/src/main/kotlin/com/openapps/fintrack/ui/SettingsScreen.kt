@@ -57,7 +57,7 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: 
         Column(modifier = Modifier.padding(padding).fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
             Text("Appearance", style = MaterialTheme.typography.titleMedium)
             
-            val themes = listOf("Light", "Dark", "OLED Dark")
+            val themes = listOf("Light", "Dark", "OLED")
             var themeExpanded by remember { mutableStateOf(false) }
             var showColorPicker by remember { mutableStateOf(false) }
             

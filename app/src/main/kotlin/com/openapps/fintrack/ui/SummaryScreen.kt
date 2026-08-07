@@ -19,11 +19,7 @@ import androidx.compose.ui.Modifier
 fun SummaryScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
     var currentSubView by remember { mutableStateOf(viewModel.summaryInitialTab) }
     
-    // Clear initial state once used
     LaunchedEffect(Unit) {
-        // We keep it until explicitly changed by navigation logic if needed, 
-        // but for now, reset to default for next entry
-        // viewModel.summaryInitialTab = "Transactions"
     }
     
     if (viewModel.selectedTransactionDetail != null) {

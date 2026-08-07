@@ -34,7 +34,6 @@ class RateUpdateWorker(context: Context, params: WorkerParameters) : CoroutineWo
 
         val isEnabled = prefs.getBoolean("enable_multi_currency", false)
         
-        // If multi-currency is disabled, skip network activity
         if (!isEnabled) {
             return@withContext Result.success()
         }
@@ -71,7 +70,6 @@ class RateUpdateWorker(context: Context, params: WorkerParameters) : CoroutineWo
                 return@withContext Result.failure(Data.Builder().putString("error", "No rates found in XML").build())
             }
 
-            // Add EUR itself
             ratesAgainstEur["EUR"] = 1.0
 
             setProgress(Data.Builder().putString("status", "Saving to database...").build())

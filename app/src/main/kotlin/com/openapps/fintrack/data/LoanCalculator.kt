@@ -94,7 +94,6 @@ object LoanCalculator {
         for (i in 0 until 100) {
             val rMid = (low + high) / 2.0
             
-            // Re-calculate gap interest for this specific rate
             val annualRate = rMid * 100.0 * getMultiplier(frequency)
             val monthlyRate = rMid * 100.0 * getMonthlyMultiplierAdjustment(frequency)
             

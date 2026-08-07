@@ -1,1 +1,1 @@
-FinTrack is a privacy focused, feature rich money manager.
+Privacy first, feature rich money manager (Cash and budget management).

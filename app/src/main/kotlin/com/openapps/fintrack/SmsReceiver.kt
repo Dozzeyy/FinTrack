@@ -39,7 +39,6 @@ class SmsReceiver : BroadcastReceiver() {
                 val body = msg.messageBody
                 val sender = msg.displayOriginatingAddress ?: ""
                 
-                // 1. Check Automation Rules First
                 processRules(context, body, sender, currencies)
 
                 val matchesA = currencies.any { body.contains(it, ignoreCase = true) }

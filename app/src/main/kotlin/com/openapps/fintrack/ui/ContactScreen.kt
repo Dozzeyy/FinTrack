@@ -186,7 +186,7 @@ fun ContactScreen(onBack: () -> Unit) {
                     color = Color.Gray
                 )
                 Text(
-                    "Version 1.0.15",
+                    "Version 1.0.16",
                     style = MaterialTheme.typography.labelSmall,
                     color = Color.Gray,
                     modifier = Modifier.padding(top = 4.dp)
@@ -227,9 +227,8 @@ fun ContactRow(
 suspend fun exportLogs(context: Context, uri: Uri): Boolean = withContext(Dispatchers.IO) {
     try {
         val logFile = File(context.cacheDir, "temp_logs.txt")
-        // Get logs for the last 2 days using logcat
-        // On Android, we can filter by time
-        val process = Runtime.getRuntime().exec("logcat -d -t 1000") // Simplified: last 1000 lines
+
+        val process = Runtime.getRuntime().exec("logcat -d -t 1000")
         val reader = process.inputStream.bufferedReader()
         val logs = reader.readText()
         

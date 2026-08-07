@@ -40,7 +40,7 @@ fun FinTrackTheme(
             primaryContainer = pColor.copy(alpha = 0.1f),
             onPrimaryContainer = pColor
         )
-        "OLED Dark" -> darkColorScheme(
+        "OLED" -> darkColorScheme(
             primary = pColor,
             onPrimary = Color.Black,
             primaryContainer = pColor.copy(alpha = 0.2f),

@@ -102,6 +102,12 @@ fun HomeScreen(
                             icon = { Icon(Icons.Default.Assessment, null) }
                         )
                         NavigationDrawerItem(
+                            label = { Text("Import Statement") },
+                            selected = false,
+                            onClick = { scope.launch { drawerState.close() }; onNavigate("import_statement") },
+                            icon = { Icon(Icons.Default.FileUpload, null) }
+                        )
+                        NavigationDrawerItem(
                             label = { Text("Credit Cards") },
                             selected = false,
                             onClick = { scope.launch { drawerState.close() }; onNavigate("credit_cards") },
@@ -143,6 +149,7 @@ fun HomeScreen(
                             onClick = { scope.launch { drawerState.close() }; onNavigate("notes") },
                             icon = { Icon(Icons.Default.Notes, null) }
                         )
+
                         NavigationDrawerItem(
                             label = { Text("Permissions") },
                             selected = false,
@@ -176,7 +183,7 @@ fun HomeScreen(
                     }
                     
                     Text(
-                        "v1.0.15",
+                        "v1.0.16",
                         modifier = Modifier.padding(16.dp),
                         style = MaterialTheme.typography.labelSmall,
                         color = Color.Gray
@@ -887,6 +894,7 @@ fun AnalysisView(
     var isMainLevelAnalysis by remember { mutableStateOf(false) }
     
     var accountsSubTab by remember { mutableStateOf("Balance") }
+    var isTagBarChartView by remember { mutableStateOf(false) }
     var analysisSelectedAccountId by remember { mutableStateOf<Int?>(null) }
     
     val allTransactionsList by viewModel.allTransactions.collectAsState(initial = emptyList())
@@ -1006,7 +1014,14 @@ fun AnalysisView(
                         }
                     }
                 }
-                IconButton(onClick = { showFilter = true }) { Icon(Icons.Default.FilterList, "") }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (type == "Tags") {
+                        IconButton(onClick = { isTagBarChartView = !isTagBarChartView }) {
+                            Icon(if (isTagBarChartView) Icons.Default.PieChart else Icons.Default.BarChart, "Toggle Chart")
+                        }
+                    }
+                    IconButton(onClick = { showFilter = true }) { Icon(Icons.Default.FilterList, "") }
+                }
             }
                 
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 16.dp)) {
@@ -1109,7 +1124,7 @@ fun AnalysisView(
                     val openingBalancesSum = allAccountsList.sumOf { it.openingBalance }
                     
                     var currentNetPosition = openingBalancesSum + txnsBefore.sumOf { t ->
-                        if (t.transaction.toAccountId != null) 0.0 // Transfer doesn't change networth
+                        if (t.transaction.toAccountId != null) 0.0 
                         else if (t.categoryType == "income") t.transaction.amount 
                         else if (t.categoryType == "expense") -t.transaction.amount 
                         else 0.0
@@ -1264,6 +1279,12 @@ fun AnalysisView(
                 Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
                     if ((type == "Accounts" && accountsSubTab == "BTrend") || type == "Networth") {
                         LineChart(data = data.map { it.second }, labels = data.map { it.first })
+                    } else if (type == "Tags" && isTagBarChartView) {
+                        val tagBarData = tags.filter { (it.targetNumber ?: 0.0) > 0.0 }.map { tag ->
+                            val total = transactions.filter { t -> t.transaction.tags?.split(",")?.contains(tag.id.toString()) == true }.sumOf { it.transaction.amount }
+                            tag to total
+                        }
+                        TagTargetBarChart(data = tagBarData, viewModel = viewModel)
                     } else {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             PieChart(data = chartData, colors = chartColors)

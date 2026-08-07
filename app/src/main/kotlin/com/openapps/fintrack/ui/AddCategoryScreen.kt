@@ -63,14 +63,12 @@ fun AddCategoryScreen(viewModel: ExpenseViewModel, onNavigate: (String) -> Unit,
         mutableStateOf(draft?.icon ?: editingCategory?.icon ?: editingAccount?.icon ?: "📁")
     }
 
-    // New fields
     val allMajorHeads by viewModel.getAllMajorHeads().collectAsState(initial = emptyList())
     val allMinorHeads by viewModel.getAllMinorHeads().collectAsState(initial = emptyList())
 
     var selectedMajorHeadId by remember(draft) { mutableStateOf<Int?>(draft?.selectedMajorHeadId) }
     var selectedMinorHeadId by remember(draft) { mutableStateOf<Int?>(draft?.selectedMinorHeadId) }
 
-    // Initialize selection when editing or when lists load
     LaunchedEffect(editingAccount, allMajorHeads, allMinorHeads) {
         if (draft != null) return@LaunchedEffect
         
@@ -385,7 +383,6 @@ fun AddCategoryScreen(viewModel: ExpenseViewModel, onNavigate: (String) -> Unit,
                 }
             }
 
-            // User requested: "add opening balance field for payer/ee creation (similar to accounts...)"
             if (type == "accounts" || type == "party") {
                 OutlinedTextField(
                     value = openingBalance,

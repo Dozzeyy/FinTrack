@@ -844,11 +844,11 @@ fun scheduleWebDavSync(context: Context, frequency: String) {
         return
     }
 
-    // Also trigger an immediate sync
+    // Trigger an immediate sync
     WorkManager.getInstance(context).enqueue(OneTimeWorkRequestBuilder<com.openapps.fintrack.data.WebDavWorker>().build())
 
     val minutes = when (frequency) {
-        "5 minutes" -> 15L // WorkManager minimum
+        "5 minutes" -> 15L
         "10 minutes" -> 15L
         "30 minutes" -> 30L
         "2 hours" -> 120L
@@ -865,7 +865,6 @@ fun scheduleWebDavSync(context: Context, frequency: String) {
         .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 1, TimeUnit.MINUTES)
         .build()
 
-    // Using REPLACE to ensure interval change is applied immediately
     WorkManager.getInstance(context).enqueueUniquePeriodicWork(
         "webdav_sync",
         ExistingPeriodicWorkPolicy.REPLACE,
@@ -879,7 +878,7 @@ fun validateDatabaseSchema(file: File): Boolean {
     if (!EncryptionService.isValidSQLite(file)) return false
     var db: android.database.sqlite.SQLiteDatabase? = null
     return try {
-        // Open the file as a SQLite database temporarily to verify it contains the core FinTrack tables
+
         db = android.database.sqlite.SQLiteDatabase.openDatabase(file.path, null, android.database.sqlite.SQLiteDatabase.OPEN_READONLY)
         
         val tablesToCheck = listOf("transactions", "major_heads", "minor_heads", "accounts", "categories")
@@ -908,13 +907,11 @@ suspend fun importFileDirectly(context: Context, file: File): Boolean = withCont
     try {
         val dbFile = context.getDatabasePath("expenses_database")
         
-        // 1. Permanently delete all current session files
         File(dbFile.path).delete()
         File(dbFile.path + "-shm").delete()
         File(dbFile.path + "-wal").delete()
         File(dbFile.path + "-journal").delete()
 
-        // 2. Perform a clean stream-copy of the backup to the active path
         FileInputStream(file).use { input ->
             dbFile.outputStream().use { output ->
                 input.copyTo(output)

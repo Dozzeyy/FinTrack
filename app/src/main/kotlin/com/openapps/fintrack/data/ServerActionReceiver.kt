@@ -18,7 +18,6 @@ class ServerActionReceiver : BroadcastReceiver() {
             val dbFile = context.getDatabasePath("expenses_database")
             val ef = File(dbFile.path + ".xpt")
             
-            // Safety: Don't stop server if it would trigger DB access while encrypted
             if (ef.exists() && !dbFile.exists()) return
 
             val database = try { 

@@ -19,7 +19,7 @@ import javax.crypto.spec.SecretKeySpec
 import javax.crypto.AEADBadTagException
 
 object EncryptionService {
-    private const val HEADER = "XPT" // FinTrack Data
+    private const val HEADER = "XPT"
     private const val VERSION = "01"
     private const val ITERATIONS = 600000
     private const val KEY_LENGTH = 256

@@ -46,9 +46,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.openapps.fintrack.data.AmortizationRow
 import com.google.zxing.BarcodeFormat
 import com.journeyapps.barcodescanner.BarcodeEncoder
 import com.openapps.fintrack.data.AccountBalance
+import com.openapps.fintrack.data.Tag
 import com.openapps.fintrack.data.TransactionWithDetails
 import com.openapps.fintrack.data.PartyBalance
 import kotlinx.coroutines.flow.first
@@ -328,6 +330,88 @@ fun HorizontalBalanceChart(
 }
 
 @Composable
+fun TagTargetBarChart(
+    data: List<Pair<Tag, Double>>,
+    viewModel: ExpenseViewModel,
+    modifier: Modifier = Modifier.fillMaxWidth().height(200.dp)
+) {
+    if (data.isEmpty()) return
+    
+    val textMeasurer = rememberTextMeasurer()
+    val labelStyle = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurface)
+    val primaryColor = MaterialTheme.colorScheme.primary
+    
+    val maxVal = data.maxOf { Math.max(it.first.targetNumber ?: 0.0, it.second) }.coerceAtLeast(1.0)
+    
+    Canvas(modifier = modifier.padding(16.dp).padding(start = 48.dp, bottom = 24.dp)) {
+        val width = size.width
+        val height = size.height
+        val spacing = width / data.size
+        val barWidth = spacing * 0.6f
+        
+        data.forEachIndexed { index, (tag, current) ->
+            val target = tag.targetNumber ?: 1.0
+            val x = index * spacing + (spacing - barWidth) / 2
+            
+            val targetHeight = ((target / maxVal) * height).toFloat()
+            val currentHeight = ((current / maxVal) * height).toFloat().coerceAtMost(height)
+            
+            // Draw target bar (light)
+            drawRoundRect(
+                color = primaryColor.copy(alpha = 0.1f),
+                topLeft = androidx.compose.ui.geometry.Offset(x, height - targetHeight),
+                size = androidx.compose.ui.geometry.Size(barWidth, targetHeight),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx())
+            )
+            
+            // Draw current progress (water filling)
+            val color = if (current >= target) Color(0xFF4CAF50) else primaryColor
+            drawRoundRect(
+                color = color,
+                topLeft = androidx.compose.ui.geometry.Offset(x, height - currentHeight),
+                size = androidx.compose.ui.geometry.Size(barWidth, currentHeight),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx())
+            )
+            
+            // Target line
+            drawLine(
+                color = Color.White,
+                start = androidx.compose.ui.geometry.Offset(x, height - targetHeight),
+                end = androidx.compose.ui.geometry.Offset(x + barWidth, height - targetHeight),
+                strokeWidth = 2.dp.toPx()
+            )
+
+            // Label
+            val textResult = textMeasurer.measure(tag.name.take(6), style = labelStyle)
+            drawText(
+                textLayoutResult = textResult,
+                topLeft = androidx.compose.ui.geometry.Offset(x + (barWidth - textResult.size.width) / 2, height + 4.dp.toPx())
+            )
+            
+            // Amount label on top
+            val amtText = viewModel.formatAmountWhole(current)
+            val amtResult = textMeasurer.measure(amtText, style = labelStyle.copy(fontSize = 8.sp))
+            drawText(
+                textLayoutResult = amtResult,
+                topLeft = androidx.compose.ui.geometry.Offset(x + (barWidth - amtResult.size.width) / 2, height - currentHeight - amtResult.size.height - 2.dp.toPx())
+            )
+        }
+
+        // Draw Y axis labels
+        val yLabels = listOf(maxVal, maxVal / 2, 0.0)
+        yLabels.forEach { valY ->
+            val yPos = height - ((valY / maxVal) * height).toFloat()
+            val labelText = if (valY >= 1000000) String.format("%.1fM", valY / 1000000) else if (valY >= 1000) String.format("%.1fk", valY / 1000) else valY.toInt().toString()
+            val textResult = textMeasurer.measure(labelText, style = labelStyle)
+            drawText(
+                textLayoutResult = textResult,
+                topLeft = androidx.compose.ui.geometry.Offset(-48.dp.toPx(), yPos - textResult.size.height / 2)
+            )
+        }
+    }
+}
+
+@Composable
 fun LineChart(
     data: List<Double>,
     labels: List<String>,
@@ -337,8 +421,11 @@ fun LineChart(
 ) {
     if (data.isEmpty()) return
 
-    val maxVal = (data.maxOrNull() ?: 0.0).coerceAtLeast(1.0)
-    val minVal = (data.minOrNull() ?: 0.0)
+    val actualMin = data.minOrNull() ?: 0.0
+    val actualMax = data.maxOrNull() ?: 0.0
+    val rawRange = actualMax - actualMin
+    val minVal = actualMin - (if (rawRange == 0.0) 1.0 else rawRange) * 0.1
+    val maxVal = actualMax + (if (rawRange == 0.0) 1.0 else rawRange) * 0.1
     val range = (maxVal - minVal).coerceAtLeast(1.0)
     
     val textMeasurer = rememberTextMeasurer()
@@ -1035,7 +1122,7 @@ fun OnAccountPartyBalancesView(viewModel: ExpenseViewModel, asOfDate: String, on
             }
             val isFiltered = selectedTagIds.isNotEmpty() || selectedCategoryIds.isNotEmpty()
             if (isFiltered) {
-                // If filtered, only show if they have transactions matching the filter
+                
                 val hasMatch = allTransactions.any { t ->
                     (t.transaction.partyId == p.id || t.transaction.toPartyId == p.id) &&
                     t.transaction.date <= asOfDate &&
@@ -1307,6 +1394,22 @@ fun exportToUri(context: Context, data: List<TransactionWithDetails>, format: St
                         val t = d.transaction
                         out.write("${t.transactionNumber ?: ""}\t${t.date}\t${t.time}\t${d.accountName}\t${d.toAccountName ?: ""}\t${d.partyName ?: ""}\t${d.categoryName ?: ""}\t${d.categoryType ?: "transfer"}\t${t.amount}\t${t.note ?: ""}\n")
                     }
+                }
+            }
+        }
+        Toast.makeText(context, "Export Successful!", Toast.LENGTH_SHORT).show()
+    } catch (e: Exception) {
+        Toast.makeText(context, "Export Failed: ${e.message}", Toast.LENGTH_SHORT).show()
+    }
+}
+
+fun exportScheduleToUri(context: Context, data: List<AmortizationRow>, uri: Uri) {
+    try {
+        context.contentResolver.openOutputStream(uri)?.use { outputStream ->
+            outputStream.bufferedWriter().use { out ->
+                out.write("Period,Due Date,Installment,Interest Portion,Principal Portion,Closing Balance\n")
+                data.forEach { row ->
+                    out.write("${row.period},${row.dueDate},${row.installment},${row.interestPortion},${row.principalPortion},${row.closingBalance}\n")
                 }
             }
         }

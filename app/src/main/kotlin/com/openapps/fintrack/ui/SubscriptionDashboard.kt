@@ -79,6 +79,7 @@ fun SubscriptionDashboard(viewModel: ExpenseViewModel, onBack: () -> Unit, onNav
                 val totalPaid = txns.sumOf { it.transaction.amount }
                 val status = statuses.find { it.subName == name }
                 val isStopped = status?.isStopped ?: false
+                val isAutoRecord = status?.isAutoRecordEnabled ?: false
                 
                 SubscriptionInfo(
                     name = name,
@@ -89,12 +90,14 @@ fun SubscriptionDashboard(viewModel: ExpenseViewModel, onBack: () -> Unit, onNav
                     transactions = sortedTxns,
                     isPaidCurrentMonth = isPaid,
                     isStopped = isStopped,
-                    isTransfer = isTransfer
+                    isTransfer = isTransfer,
+                    isAutoRecordEnabled = isAutoRecord
                 )
             }
 
         val fromMaster = masterSubscriptions.filter { master -> fromTxns.none { it.name == master.name } }
             .map { master ->
+                val status = statuses.find { it.subName == master.name }
                 SubscriptionInfo(
                     name = master.name,
                     amount = 0.0,
@@ -103,8 +106,9 @@ fun SubscriptionDashboard(viewModel: ExpenseViewModel, onBack: () -> Unit, onNav
                     totalPaid = 0.0,
                     transactions = emptyList(),
                     isPaidCurrentMonth = false,
-                    isStopped = statuses.find { it.subName == master.name }?.isStopped ?: false,
-                    isTransfer = master.isTransfer
+                    isStopped = status?.isStopped ?: false,
+                    isTransfer = master.isTransfer,
+                    isAutoRecordEnabled = status?.isAutoRecordEnabled ?: false
                 )
             }
         
@@ -115,6 +119,7 @@ fun SubscriptionDashboard(viewModel: ExpenseViewModel, onBack: () -> Unit, onNav
     val tabTitles = listOf("Subscriptions", "Recurring Transfers", "Loans")
 
     var selectedSubscriptionTxns by remember { mutableStateOf<List<TransactionWithDetails>?>(null) }
+    var selectedSchedule by remember { mutableStateOf<List<AmortizationRow>?>(null) }
     var selectedLoanRepayments by remember { mutableStateOf<Long?>(null) }
     var detailTitle by remember { mutableStateOf("") }
     val context = LocalContext.current
@@ -130,6 +135,7 @@ fun SubscriptionDashboard(viewModel: ExpenseViewModel, onBack: () -> Unit, onNav
     var selectedLoanForSchedule by remember { mutableStateOf<Loan?>(null) }
     var showLoanContextMenu by remember { mutableStateOf<Loan?>(null) }
     var showCatchupDialog by remember { mutableStateOf<Loan?>(null) }
+    var showLoanDeleteConfirm by remember { mutableStateOf<Loan?>(null) }
 
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("text/csv"),
@@ -137,6 +143,17 @@ fun SubscriptionDashboard(viewModel: ExpenseViewModel, onBack: () -> Unit, onNav
             uri?.let { uriVal ->
                 selectedSubscriptionTxns?.let { data ->
                     exportToUri(context, data, "CSV", uriVal)
+                }
+            }
+        }
+    )
+
+    val exportScheduleLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/csv"),
+        onResult = { uri ->
+            uri?.let { uriVal ->
+                selectedSchedule?.let { data ->
+                    exportScheduleToUri(context, data, uriVal)
                 }
             }
         }
@@ -166,12 +183,20 @@ fun SubscriptionDashboard(viewModel: ExpenseViewModel, onBack: () -> Unit, onNav
         }
         val upcomingPeriod = loan.periodsPassed + 1
         
-        BackHandler { selectedLoanForSchedule = null }
+        BackHandler { selectedLoanForSchedule = null; selectedSchedule = null }
         Scaffold(
             topBar = {
                 TopAppBar(
                     title = { Text("Schedule: ${loan.name}") },
-                    navigationIcon = { IconButton(onClick = { selectedLoanForSchedule = null }) { Icon(Icons.Default.ArrowBack, null) } }
+                    navigationIcon = { IconButton(onClick = { selectedLoanForSchedule = null; selectedSchedule = null }) { Icon(Icons.Default.ArrowBack, null) } },
+                    actions = {
+                        IconButton(onClick = { 
+                            selectedSchedule = schedule
+                            exportScheduleLauncher.launch("Schedule_${loan.name.replace(" ", "_")}.csv")
+                        }) {
+                            Icon(Icons.Default.FileDownload, "Export")
+                        }
+                    }
                 )
             }
         ) { padding ->
@@ -251,10 +276,43 @@ fun SubscriptionDashboard(viewModel: ExpenseViewModel, onBack: () -> Unit, onNav
                     Button(onClick = { showCatchupDialog = loan; showLoanContextMenu = null }, modifier = Modifier.fillMaxWidth()) {
                         Text("Catchup Entries")
                     }
+                    Button(
+                        onClick = { showLoanDeleteConfirm = loan; showLoanContextMenu = null },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("Delete Loan")
+                    }
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showLoanContextMenu = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (showLoanDeleteConfirm != null) {
+        val loan = showLoanDeleteConfirm!!
+        AlertDialog(
+            onDismissRequest = { showLoanDeleteConfirm = null },
+            title = { Text("Delete Loan?") },
+            text = { Text("This will delete the loan tracking data. Previously recorded entries and the account will be preserved. No further automated entries will be posted.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteLoan(loan)
+                        showLoanDeleteConfirm = null
+                        Toast.makeText(context, "Loan Deleted", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLoanDeleteConfirm = null }) {
                     Text("Cancel")
                 }
             }
@@ -693,6 +751,16 @@ fun SubscriptionCard(sub: SubscriptionInfo, viewModel: ExpenseViewModel, onClick
                         color = textColor
                     )
                 }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Auto Record", style = MaterialTheme.typography.labelSmall, color = textColor.copy(alpha = 0.8f))
+                        Switch(
+                            checked = sub.isAutoRecordEnabled,
+                            onCheckedChange = { viewModel.toggleSubscriptionAutoRecord(sub.name, it) },
+                            modifier = Modifier.scale(0.7f)
+                        )
+                    }
+                }
                 Column(horizontalAlignment = Alignment.End) {
                     Text("Total Paid", style = MaterialTheme.typography.labelSmall, color = textColor.copy(alpha = 0.8f))
                     Text(viewModel.formatAmount(sub.totalPaid), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold, color = textColor)
@@ -714,5 +782,6 @@ data class SubscriptionInfo(
     val transactions: List<TransactionWithDetails>,
     val isPaidCurrentMonth: Boolean = false,
     val isStopped: Boolean = false,
-    val isTransfer: Boolean = false
+    val isTransfer: Boolean = false,
+    val isAutoRecordEnabled: Boolean = false
 )

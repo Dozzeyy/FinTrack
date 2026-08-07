@@ -30,7 +30,6 @@ class CcAlertWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         val dbFile = applicationContext.getDatabasePath("expenses_database")
         val ef = File(dbFile.path + ".xpt")
         
-        // Safety: If database is encrypted at rest, background workers cannot run
         if (ef.exists() && !dbFile.exists()) {
             Log.w("CcAlertWorker", "Database is encrypted. Skipping background processing.")
             return Result.success()
@@ -42,18 +41,15 @@ class CcAlertWorker(context: Context, params: WorkerParameters) : CoroutineWorke
             return Result.success() 
         }
         val dao = db.expenseDao()
-        // Priority 1: Issue 1 - Use fixed UTC for calculations to avoid timezone shifts
+    
         val today = LocalDate.now(ZoneId.of("UTC"))
 
-        // 1. Credit Card & Subscription Alerts
         if (prefs.getBoolean("cc_alert_enabled", false)) {
             processAlerts(dao, today)
         }
 
-        // 2. Loan Auto-Recording
         processLoanAutoRecords(dao, today)
 
-        // 3. Subscription & Recurring Transfer Auto-Recording
         processSubscriptionAutoRecords(dao, today)
 
         return Result.success()
@@ -65,10 +61,12 @@ class CcAlertWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         val allTxns = dao.getAllTransactionsWithDetails().first()
         
         for (sub in masterSubs) {
-            val isStopped = statuses.find { it.subName == sub.name }?.isStopped ?: false
-            if (isStopped) continue
+            val status = statuses.find { it.subName == sub.name }
+            val isStopped = status?.isStopped ?: false
+            val isAutoRecordEnabled = status?.isAutoRecordEnabled ?: false
             
-            // Find last transaction for this subscription
+            if (isStopped || !isAutoRecordEnabled) continue
+            
             val subTxns = allTxns.filter { it.transaction.subName == sub.name }
             if (subTxns.isEmpty()) continue
             
@@ -112,12 +110,11 @@ class CcAlertWorker(context: Context, params: WorkerParameters) : CoroutineWorke
 
         accounts.filter { it.minorHeadId != null }.forEach { acc ->
             val minor = minorHeads.find { it.id == acc.minorHeadId }
-            if (minor?.majorHeadId == 8) { // Credit Card
+            if (minor?.majorHeadId == 8) { 
                 val daysPost = acc.paymentDueDate?.toIntOrNull() ?: return@forEach
                 val endDay = acc.billingCycleEnd?.toIntOrNull() ?: return@forEach
                 val startDay = acc.billingCycleStart?.toIntOrNull() ?: return@forEach
                 
-                // Calculate current cycle end
                 var cycleEnd = try {
                     val lastDay = today.lengthOfMonth()
                     LocalDate.of(today.year, today.monthValue, endDay.coerceAtMost(lastDay))
@@ -184,7 +181,7 @@ class CcAlertWorker(context: Context, params: WorkerParameters) : CoroutineWorke
             val effectiveSourceId = loan.sourceAccountId ?: suspenseAcc?.id ?: return@forEach
 
             while (!nextDue.isAfter(today) && !loan.isClosed) {
-                // ...
+
                 recordRepayment(dao, loan, nextDue, intExpCat, intIncCat, intMiscCat, effectiveSourceId)
                 
                 val updatedLoan = dao.getLoanById(loan.id) ?: break

@@ -34,7 +34,6 @@ class WebDavWorker(context: Context, params: WorkerParameters) : CoroutineWorker
         val dbFile = applicationContext.getDatabasePath("expenses_database")
         val ef = File(dbFile.path + ".xpt")
         
-        // Safety: If database is encrypted at rest, background workers cannot run
         if (ef.exists() && !dbFile.exists()) {
             Log.w("WebDavWorker", "Database is encrypted. Skipping background processing.")
             return Result.success()
@@ -69,13 +68,12 @@ class WebDavWorker(context: Context, params: WorkerParameters) : CoroutineWorker
 
             AppDatabase.databaseMutex.withLock {
                 if (secureMode && encryptedAtRestFile.exists()) {
-                    // If in Ultra Secure mode and DB is already encrypted, sync the encrypted file directly
                     encryptedAtRestFile.copyTo(finalFile, overwrite = true)
                 } else {
                     if (dbFile.exists()) {
                         val database = AppDatabase.getDatabase(applicationContext, kotlinx.coroutines.GlobalScope)
                         database.checkpoint()
-                        AppDatabase.closeDatabase() // Release file locks for clean copy
+                        AppDatabase.closeDatabase()
 
                         FileInputStream(dbFile).use { input ->
                             FileOutputStream(tempSnapshot).use { output ->
@@ -103,7 +101,6 @@ class WebDavWorker(context: Context, params: WorkerParameters) : CoroutineWorker
                 throw Exception("Failed to prepare synchronization file.")
             }
 
-            // Joplin-style reliable configuration
             val client = OkHttpClient.Builder()
                 .connectTimeout(60, TimeUnit.SECONDS)
                 .writeTimeout(300, TimeUnit.SECONDS)

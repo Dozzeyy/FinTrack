@@ -7,6 +7,9 @@ package com.openapps.fintrack.data
 
 import android.content.Context
 import android.util.Log
+import android.widget.Toast
+import android.os.Handler
+import android.os.Looper
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 
@@ -28,8 +31,10 @@ object EncryptedPrefsHelper {
             )
         } catch (e: Exception) {
             Log.e("EncryptedPrefsHelper", "Failed to initialize encrypted shared preferences", e)
-            // Fallback to regular prefs if encryption fails (better than crashing, though less secure)
-            encryptedPrefs = context.getSharedPreferences("secret_prefs_fallback", Context.MODE_PRIVATE)
+            // Notify the user about the failure.
+            Handler(Looper.getMainLooper()).post {
+                Toast.makeText(context, "Security Error: Encrypted storage is unavailable", Toast.LENGTH_LONG).show()
+            }
         }
     }
 

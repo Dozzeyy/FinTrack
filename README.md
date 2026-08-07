@@ -11,15 +11,18 @@ FinTrack is a robust, privacy-focused Android expense tracker designed to help y
 - **Encryption at rest:** Once turn on Ultra Secure Mode, your App data remains encrypted on your device as soon as you close the app (not just when you backup database).
 - **Financial insights:** App detects anamolies and notifies user for any unusual spending habits, debt crisis, lesser investments, excess liquidity.
 - **Loan management:** Manage loans taken or given with auto recording of entries and alerts during repayment every month.
+
 - **Credit cards:** Handy if you are having more than 1 credit card. Just set up billing cycle and payment due dates, app will construct full credit card dashboard for your review.
 - **Credit cards usage suggestion:** When you have more than one credit cards, app will suggest best card to use for optimum usage of credit period. 
 - **Notes:** Comes with built in notes app for easy note taking within app with drawing, checklist and text notes.
 - **Subscription management:** Manage recurring expenses easily.
 - **Fetch and use exchange rates:** Multi currency support. Set one currency as your home currency and record any entry in other currencies. App will take care of exchange rate conversions.
 - **Negotiation tracker:** Lets user fill in original amount and negotiated amount. Track savings through negotiation for a transaction.
+- **CSV Import:** Import bank statements using CSV files in any format, app lets to assign input fields for each of csv columns letting user decide what to import. (Use Amount if csv columns are negative and positive values to indicate deposit and withdrawals and use combination of Amount and DR_CR if deposit and withdrawals are in one single column with an additional single column to indicate deposit and withdrawal). Apps also takes care of de-duplication so that any transaction already recorded will not be repeated again.
 
 ## Other Features
 - **Multi Category:** In same Add transaction screen, pick more than one expense/ income categories to save your time by avoiding creation of multiple entries for the same shopping transaction.
+- **Multi Account:** Assume you bought a phone with 50% by paying cash and 50% by making online payment, app lets to record this entry using one single add transaction interface. You can record a transaction involving multiple accounts in just one entry. 
 - **Biometric Security:** Secure your financial data with Fingerprint, Face ID, or System PIN.
 - **Budgeting System:** Set targets for any category (Daily, Weekly, Monthly, Yearly) and track your progress in real-time.
 - **Advanced Tags:** Organize transactions with multi-select tags for deep analytical insights.

@@ -53,8 +53,9 @@ import java.util.Locale
 @Serializable
 data class MultiEntryRow(
     val id: String = UUID.randomUUID().toString(),
-    var categoryId: Int?,
-    var amount: String,
+    var categoryId: Int? = null,
+    var accountId: Int? = null,
+    var amount: String = "",
     var note: String? = null,
     var currencyCode: String? = null
 )
@@ -93,6 +94,7 @@ class AddTransactionState(
     var isManualLocalAmount by mutableStateOf(initialIsManual)
     
     var isMultiEntry by mutableStateOf(false)
+    var multiEntryType by mutableStateOf("Category") 
     val multiEntryRows = mutableStateListOf<MultiEntryRow>()
     
     var isSubscription by mutableStateOf(false)
@@ -124,29 +126,33 @@ fun rememberAddTransactionState(
     initialData: Bundle?
 ): AddTransactionState {
     val initialType = remember {
-        draft?.type ?: editingTemplate?.type ?: 
-        (if (txnDetail?.transaction?.toAccountId != null) "transfer" else txnDetail?.categoryType) ?: 
-        "expense"
+        if (txnDetail != null) (if (txnDetail.transaction.toAccountId != null) "transfer" else txnDetail.categoryType) ?: "expense"
+        else if (editingTemplate != null) editingTemplate.type
+        else draft?.type ?: initialData?.getString("type") ?: "expense"
     }
     
     val initialAmount = remember {
-        draft?.amount ?: editingTemplate?.amount?.toString() ?: 
-        txnDetail?.transaction?.let { (it.amountOriginal ?: it.amount).toString() } ?: 
-        initialData?.getDouble("amount", 0.0)?.takeIf { it > 0 }?.toString() ?: ""
+        if (txnDetail != null) txnDetail.transaction.let { (it.amountOriginal ?: it.amount).toString() }
+        else if (editingTemplate != null) editingTemplate.amount?.toString() ?: ""
+        else draft?.amount ?: initialData?.getDouble("amount", 0.0)?.takeIf { it > 0 }?.toString() ?: ""
     }
     
     val initialNote = remember {
-        draft?.note ?: editingTemplate?.note ?: txnDetail?.transaction?.note ?: initialData?.getString("sms_body") ?: ""
+        if (txnDetail != null) txnDetail.transaction.note ?: ""
+        else if (editingTemplate != null) editingTemplate.note ?: ""
+        else draft?.note ?: initialData?.getString("sms_body") ?: ""
     }
 
     val calendar = Calendar.getInstance()
     val initialDate = remember {
-        draft?.date ?: txnDetail?.transaction?.date ?: initialData?.getString("date") ?:
+        if (txnDetail != null) txnDetail.transaction.date
+        else draft?.date ?: initialData?.getString("date") ?:
         String.format("%d-%02d-%02d", calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH) + 1, calendar.get(Calendar.DAY_OF_MONTH))
     }
     
     val initialTime = remember {
-        draft?.time ?: txnDetail?.transaction?.time ?: initialData?.getString("time") ?:
+        if (txnDetail != null) txnDetail.transaction.time
+        else draft?.time ?: initialData?.getString("time") ?:
         String.format("%02d:%02d", calendar.get(Calendar.HOUR_OF_DAY), calendar.get(Calendar.MINUTE))
     }
 
@@ -157,9 +163,9 @@ fun rememberAddTransactionState(
             initialNote = initialNote,
             initialDate = initialDate,
             initialTime = initialTime,
-            initialAccountId = draft?.accountId ?: editingTemplate?.accountId ?: txnDetail?.transaction?.accountId,
-            initialToAccountId = draft?.toAccountId ?: editingTemplate?.toAccountId ?: txnDetail?.transaction?.toAccountId,
-            initialCategoryId = draft?.categoryId ?: editingTemplate?.categoryId ?: txnDetail?.transaction?.categoryId,
+            initialAccountId = (if(txnDetail != null) txnDetail.transaction.accountId else editingTemplate?.accountId ?: draft?.accountId),
+            initialToAccountId = (if(txnDetail != null) txnDetail.transaction.toAccountId else editingTemplate?.toAccountId ?: draft?.toAccountId),
+            initialCategoryId = (if(txnDetail != null) txnDetail.transaction.categoryId else editingTemplate?.categoryId ?: draft?.categoryId),
             initialBaseCurrency = viewModel.baseCurrency,
             initialForeignCurrency = txnDetail?.transaction?.currencyCode,
             initialAmountLocal = txnDetail?.transaction?.amountBase?.toString()?.takeIf { it != "null" },
@@ -180,9 +186,11 @@ fun rememberAddTransactionState(
         if (state.multiEntryRows.isEmpty()) {
             if (draft?.isMultiEntry == true) {
                 state.isMultiEntry = true
-                state.multiEntryRows.addAll(draft.multiEntryRows.map { MultiEntryRow(categoryId = it.categoryId, amount = it.amount, note = it.note, currencyCode = it.currencyCode) })
+                state.multiEntryType = draft.multiEntryType
+                state.multiEntryRows.addAll(draft.multiEntryRows.map { MultiEntryRow(categoryId = it.categoryId, accountId = it.accountId, amount = it.amount, note = it.note, currencyCode = it.currencyCode) })
             } else if (editingTemplate?.multiEntries != null) {
                 state.isMultiEntry = true
+                state.multiEntryType = "Category" 
                 editingTemplate.multiEntries.split("|").forEach { entry ->
                     val parts = entry.split(":")
                     if (parts.size >= 2) {
@@ -191,7 +199,7 @@ fun rememberAddTransactionState(
                 }
             } else if (!state.isMultiEntry) {
                 state.multiEntryRows.clear()
-                state.multiEntryRows.add(MultiEntryRow(categoryId = null, amount = "", currencyCode = viewModel.baseCurrency))
+                state.multiEntryRows.add(MultiEntryRow(categoryId = null, accountId = null, amount = "", currencyCode = viewModel.baseCurrency))
             }
         }
         
@@ -361,8 +369,7 @@ fun AddTransactionScreen(
     LaunchedEffect(state.amount, state.currentRate, state.foreignCurrency, viewModel.enableMultiCurrency) {
         if (!state.isManualLocalAmount || !viewModel.enableMultiCurrency || state.foreignCurrency == viewModel.baseCurrency) {
             if (viewModel.enableMultiCurrency && state.foreignCurrency != viewModel.baseCurrency) {
-                // If multi-currency is ON and foreign is selected,
-                // state.amount acts as the original (foreign) amount.
+
                 state.amountForeign = state.amount
                 val foreignVal = evaluateExpression(state.amount)
                 if (foreignVal > 0) {
@@ -375,7 +382,6 @@ fun AddTransactionScreen(
                     state.amountLocal = ""
                 }
             } else {
-                // If multi-currency is OFF or same as base, sync all amount fields
                 state.amountForeign = state.amount
                 state.amountLocal = state.amount
             }
@@ -395,7 +401,8 @@ fun AddTransactionScreen(
                 categoryId = state.selectedCategoryId,
                 selectedTagIds = selectedTagIds.toList(),
                 isMultiEntry = state.isMultiEntry,
-                multiEntryRows = state.multiEntryRows.map { DraftMultiEntryRow(it.categoryId, it.amount, it.note, it.currencyCode) }
+                multiEntryRows = state.multiEntryRows.map { DraftMultiEntryRow(it.categoryId, it.accountId, it.amount, it.note, it.currencyCode) },
+                multiEntryType = state.multiEntryType
             )
         }
     }
@@ -569,6 +576,7 @@ fun AddTransactionScreen(
                 balances = accountBalances,
                 majorHeads = allMajorHeads,
                 minorHeads = allMinorHeads,
+                categories = categories,
                 onAccountMicroAccounts = onAccountMicroAccounts,
                 readOnly = isActuallyReadOnly,
                 onNavigate = onNavigate,
@@ -583,7 +591,7 @@ fun AddTransactionScreen(
             if (!isActuallyReadOnly && state.type == "expense" && state.selectedAccountId != null) {
                 val selectedAcc = accountsRaw.find { it.id == state.selectedAccountId }
                 val selectedMinor = allMinorHeads.find { it.id == selectedAcc?.minorHeadId }
-                if (selectedMinor?.majorHeadId == 8) { // Is CC
+                if (selectedMinor?.majorHeadId == 8) { 
                     val otherCCs = accountsRaw.filter { a -> 
                         a.id != state.selectedAccountId && 
                         allMinorHeads.find { it.id == a.minorHeadId }?.majorHeadId == 8 
@@ -630,12 +638,12 @@ fun AddTransactionScreen(
             Spacer(Modifier.height(8.dp))
 
             if (state.type != "transfer") {
-                MultiEntrySection(state, viewModel, categories, isActuallyReadOnly, onNavigate)
+                MultiEntrySection(state, viewModel, categories, accounts, accountBalances, allMajorHeads, allMinorHeads, isActuallyReadOnly, onNavigate)
             }
 
             AmountAndCurrencySection(state, viewModel, isActuallyReadOnly, hideCurrencyPicker = state.isMultiEntry)
 
-            if (viewModel.negotiationTrackerEnabled && !isActuallyReadOnly) {
+            if (state.type != "transfer" && viewModel.negotiationTrackerEnabled && !isActuallyReadOnly) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
                     Checkbox(checked = state.isNegotiated, onCheckedChange = { state.isNegotiated = it })
                     Text("I negotiated in this", modifier = Modifier.clickable { state.isNegotiated = !state.isNegotiated })
@@ -696,7 +704,7 @@ fun AddTransactionScreen(
                 }
             }
 
-            if (viewModel.discretionarySpendingTrackerEnabled && !isActuallyReadOnly) {
+            if (state.type != "transfer" && viewModel.discretionarySpendingTrackerEnabled && !isActuallyReadOnly) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
                     Checkbox(checked = state.isDiscretionary, onCheckedChange = { state.isDiscretionary = it })
                     Text("Discretionary spend", modifier = Modifier.clickable { state.isDiscretionary = !state.isDiscretionary })
@@ -800,8 +808,6 @@ fun AddTransactionScreen(
 @Composable
 fun TransactionTypeRow(state: AddTransactionState, readOnly: Boolean, isTemplateMode: Boolean, viewModel: ExpenseViewModel) {
     if (viewModel.templateFields.contains("type") || !isTemplateMode) {
-        var menuExpanded by remember { mutableStateOf(false) }
-        
         Row(
             modifier = Modifier.fillMaxWidth(), 
             horizontalArrangement = Arrangement.SpaceEvenly,
@@ -821,23 +827,46 @@ fun TransactionTypeRow(state: AddTransactionState, readOnly: Boolean, isTemplate
             )
             FilterChip(
                 selected = state.type == "transfer", 
-                onClick = { if (!readOnly) { state.type = "transfer"; state.selectedAccountId = null; state.selectedToAccountId = null; state.selectedCategoryId = null } },
+                onClick = { if (!readOnly) { state.type = "transfer"; state.selectedAccountId = null; state.selectedToAccountId = null; state.selectedCategoryId = null; state.isMultiEntry = false } },
                 label = { Text("Transfer") },
                 enabled = !readOnly || state.type == "transfer"
             )
             
             if (state.type != "transfer" && !isTemplateMode && !readOnly) {
-                IconButton(onClick = { state.isMultiEntry = !state.isMultiEntry }) {
+                IconButton(onClick = {
+                    when {
+                        !state.isMultiEntry -> {
+                            // Single -> Multi Category
+                            state.multiEntryType = "Category"
+                            state.isMultiEntry = true
+                            state.multiEntryRows.clear()
+                            state.multiEntryRows.add(MultiEntryRow(categoryId = state.selectedCategoryId, accountId = state.selectedAccountId, amount = state.amount, currencyCode = viewModel.baseCurrency))
+                        }
+                        state.multiEntryType == "Category" -> {
+                            // Multi Category -> Multi Account
+                            state.multiEntryType = "Account"
+                            state.multiEntryRows.clear()
+                            state.multiEntryRows.add(MultiEntryRow(categoryId = state.selectedCategoryId, accountId = state.selectedAccountId, amount = state.amount, currencyCode = viewModel.baseCurrency))
+                        }
+                        else -> {
+                            // Multi Account -> Single
+                            state.isMultiEntry = false
+                        }
+                    }
+                }) {
                     Icon(
-                        imageVector = if (state.isMultiEntry) Icons.Default.List else Icons.Default.HorizontalRule,
-                        contentDescription = "Toggle Multi-Entry",
+                        imageVector = when {
+                            !state.isMultiEntry -> Icons.Default.HorizontalRule
+                            state.multiEntryType == "Category" -> Icons.Default.List
+                            else -> Icons.Default.Tune
+                        },
+                        contentDescription = "Cycle Mode",
                         tint = if (state.isMultiEntry) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             } else if (readOnly && state.type != "transfer") {
-                // Show text only if read-only and not transfer
                 Text(
-                    text = if (state.isMultiEntry) "Multi" else "Single",
+                    text = if (state.isMultiEntry) "Multi (${state.multiEntryType})" else "Single",
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(start = 8.dp)
@@ -850,7 +879,7 @@ fun TransactionTypeRow(state: AddTransactionState, readOnly: Boolean, isTemplate
 @Composable
 fun DateTimeSection(state: AddTransactionState, readOnly: Boolean, context: android.content.Context, isEditMode: Boolean) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-        if (!readOnly && !isEditMode) {
+        if (!readOnly) {
             IconButton(onClick = {
                 try {
                     val current = LocalDate.parse(state.date)
@@ -861,7 +890,7 @@ fun DateTimeSection(state: AddTransactionState, readOnly: Boolean, context: andr
             }
         }
 
-        Box(modifier = Modifier.weight(1f).clickable(enabled = !readOnly && !isEditMode) {
+        Box(modifier = Modifier.weight(1f).clickable(enabled = !readOnly) {
             val dateParts = state.date.split("-")
             DatePickerDialog(context, { _, year, month, dayOfMonth ->
                 state.date = String.format("%d-%02d-%02d", year, month + 1, dayOfMonth)
@@ -883,7 +912,7 @@ fun DateTimeSection(state: AddTransactionState, readOnly: Boolean, context: andr
             )
         }
 
-        if (!readOnly && !isEditMode) {
+        if (!readOnly) {
             IconButton(onClick = {
                 try {
                     val current = LocalDate.parse(state.date)
@@ -894,7 +923,7 @@ fun DateTimeSection(state: AddTransactionState, readOnly: Boolean, context: andr
             }
         }
 
-        Box(modifier = Modifier.weight(0.7f).clickable(enabled = !readOnly && !isEditMode) {
+        Box(modifier = Modifier.weight(0.7f).clickable(enabled = !readOnly) {
             val timeParts = state.time.split(":")
             TimePickerDialog(context, { _, hour, minute ->
                 state.time = String.format("%02d:%02d", hour, minute)
@@ -926,6 +955,7 @@ fun AccountSection(
     balances: List<com.openapps.fintrack.data.AccountBalance>,
     majorHeads: List<com.openapps.fintrack.data.MajorHead>,
     minorHeads: List<com.openapps.fintrack.data.MinorHead>,
+    categories: List<com.openapps.fintrack.data.Category>,
     onAccountMicroAccounts: List<com.openapps.fintrack.data.Account>,
     readOnly: Boolean,
     onNavigate: ((String) -> Unit)?,
@@ -936,6 +966,21 @@ fun AccountSection(
     onFromOnAccountChange: (Boolean) -> Unit,
     onToOnAccountChange: (Boolean) -> Unit
 ) {
+    if (state.isMultiEntry && state.multiEntryType == "Account" && state.type != "transfer") {
+
+        CategorySelectionDialog(
+            label = "Category",
+            categories = categories,
+            selectedId = state.selectedCategoryId,
+            onSelected = { state.selectedCategoryId = it; state.categoryError = null },
+            enabled = !readOnly,
+            onAdd = { onNavigate?.let { it("add_category") } },
+            isError = state.categoryError != null
+        )
+        state.categoryError?.let { Text(it, color = Color.Red, style = MaterialTheme.typography.labelSmall) }
+        return
+    }
+
     if (state.type == "transfer") {
         AccountSelectionDialog(
             label = "From Account",
@@ -1048,6 +1093,10 @@ fun MultiEntrySection(
     state: AddTransactionState,
     viewModel: ExpenseViewModel,
     categories: List<com.openapps.fintrack.data.Category>,
+    accounts: List<com.openapps.fintrack.data.Account>,
+    balances: List<com.openapps.fintrack.data.AccountBalance>,
+    majorHeads: List<com.openapps.fintrack.data.MajorHead>,
+    minorHeads: List<com.openapps.fintrack.data.MinorHead>,
     readOnly: Boolean,
     onNavigate: ((String) -> Unit)?
 ) {
@@ -1057,15 +1106,16 @@ fun MultiEntrySection(
         exit = shrinkVertically() + fadeOut()
     ) {
         Column {
-            Text("Categories & Amounts", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(vertical = 8.dp))
+            Text(if (state.multiEntryType == "Account") "Accounts & Amounts" else "Categories & Amounts", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(vertical = 8.dp))
             state.multiEntryRows.forEachIndexed { index, row ->
                 key(row.id) {
-                    MultiEntryRowItem(state, index, row, categories, readOnly, onNavigate, viewModel)
+                    MultiEntryRowItem(state, index, row, categories, accounts, balances, majorHeads, minorHeads, readOnly, onNavigate, viewModel)
                 }
             }
             state.categoryError?.let { Text(it, color = Color.Red, style = MaterialTheme.typography.labelSmall) }
+            state.accountError?.let { Text(it, color = Color.Red, style = MaterialTheme.typography.labelSmall) }
             if (!readOnly) {
-                TextButton(onClick = { state.multiEntryRows.add(MultiEntryRow(categoryId = null, amount = "", currencyCode = viewModel.baseCurrency)) }, modifier = Modifier.align(Alignment.End)) {
+                TextButton(onClick = { state.multiEntryRows.add(MultiEntryRow(categoryId = if (state.multiEntryType == "Account") state.selectedCategoryId else null, accountId = if (state.multiEntryType == "Category") state.selectedAccountId else null, amount = "", currencyCode = viewModel.baseCurrency)) }, modifier = Modifier.align(Alignment.End)) {
                     Icon(Icons.Default.Add, null)
                     Text("Add Row")
                 }
@@ -1097,6 +1147,10 @@ fun MultiEntryRowItem(
     index: Int,
     row: MultiEntryRow,
     categories: List<com.openapps.fintrack.data.Category>,
+    accounts: List<com.openapps.fintrack.data.Account>,
+    balances: List<com.openapps.fintrack.data.AccountBalance>,
+    majorHeads: List<com.openapps.fintrack.data.MajorHead>,
+    minorHeads: List<com.openapps.fintrack.data.MinorHead>,
     readOnly: Boolean,
     onNavigate: ((String) -> Unit)?,
     viewModel: ExpenseViewModel
@@ -1104,18 +1158,40 @@ fun MultiEntryRowItem(
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), MaterialTheme.shapes.small).padding(8.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Box(modifier = Modifier.weight(0.55f)) {
-                CategorySelectionDialog(
-                    label = "Category",
-                    categories = categories,
-                    selectedId = row.categoryId,
-                    onSelected = { 
-                        state.multiEntryRows[index] = row.copy(categoryId = it) 
-                        state.categoryError = null
-                    },
-                    enabled = !readOnly,
-                    onAdd = { onNavigate?.let { it("add_category") } },
-                    isError = state.categoryError != null && row.categoryId == null
-                )
+                if (state.multiEntryType == "Account") {
+                    AccountSelectionDialog(
+                        label = "Account",
+                        accounts = accounts,
+                        balances = balances,
+                        majorHeads = majorHeads,
+                        minorHeads = minorHeads,
+                        viewModel = viewModel,
+                        selectedId = row.accountId,
+                        onSelected = { 
+                            state.multiEntryRows[index] = row.copy(accountId = it)
+                            state.accountError = null
+                        },
+                        onOnAccountSelected = {}, // Multi-account doesn't support On Account for now for simplicity
+                        isOnAccountSelected = false,
+                        hasOnAccountOption = false,
+                        enabled = !readOnly,
+                        onAdd = { onNavigate?.invoke("add_category") },
+                        isError = state.accountError != null && row.accountId == null
+                    )
+                } else {
+                    CategorySelectionDialog(
+                        label = "Category",
+                        categories = categories,
+                        selectedId = row.categoryId,
+                        onSelected = { 
+                            state.multiEntryRows[index] = row.copy(categoryId = it) 
+                            state.categoryError = null
+                        },
+                        enabled = !readOnly,
+                        onAdd = { onNavigate?.let { it("add_category") } },
+                        isError = state.categoryError != null && row.categoryId == null
+                    )
+                }
             }
             Spacer(Modifier.width(8.dp))
             OutlinedTextField(
@@ -1135,7 +1211,7 @@ fun MultiEntryRowItem(
                 modifier = Modifier.weight(0.35f),
                 readOnly = readOnly,
                 shape = CircleShape,
-                isError = state.categoryError != null && row.amount.isBlank(),
+                isError = (state.categoryError != null || state.accountError != null) && row.amount.isBlank(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
             )
             if (!readOnly) {
@@ -1289,7 +1365,6 @@ fun SubscriptionSection(state: AddTransactionState, viewModel: ExpenseViewModel,
                                 state.foreignCurrency = lastTxn.transaction.currencyCode ?: viewModel.baseCurrency
                                 state.subFrequency = lastTxn.transaction.subFrequency?.toString() ?: ""
                                 
-                                // Handle Multi-entry if needed
                                 val siblings = allTransactions.filter { 
                                     it.transaction.date == lastTxn.transaction.date && 
                                     it.transaction.time == lastTxn.transaction.time && 
@@ -1312,7 +1387,7 @@ fun SubscriptionSection(state: AddTransactionState, viewModel: ExpenseViewModel,
                                     state.isMultiEntry = false
                                 }
                             } else {
-                                // Check master for frequency
+                                
                                 masterSubscriptions.find { it.name == name }?.let { 
                                     state.subFrequency = it.frequency.toString()
                                 }
@@ -1412,7 +1487,7 @@ fun ActionButtons(
                 OutlinedButton(onClick = onShowTemplateSelection, modifier = Modifier.weight(1f)) { Text("Use Template") }
                 Button(onClick = {
                     if (validateAndSave(state, viewModel, selectedTagIds, allTransactions, onTransactionSaved, context, updateId, isTemplateMode)) {
-                        // success
+                        
                     }
                 }, modifier = Modifier.weight(1f)) { Text("Save") }
             }
@@ -1432,13 +1507,17 @@ fun validateAndSave(
 ): Boolean {
     var hasError = false
     val amtToCheck = if (viewModel.enableMultiCurrency && state.type != "transfer") state.amountForeign else state.amount
-    if (evaluateExpression(amtToCheck) <= 0.0) { state.amountError = "missing value"; hasError = true }
-    if (state.selectedAccountId == null) { state.accountError = "missing value"; hasError = true }
-    if (state.type == "transfer" && state.selectedToAccountId == null) { state.toAccountError = "missing value"; hasError = true }
     val isMultiEntryToUse = state.isMultiEntry && state.type != "transfer"
+    val isMultiAccount = isMultiEntryToUse && state.multiEntryType == "Account"
+
+    if (evaluateExpression(amtToCheck) <= 0.0) { state.amountError = "Total amount required"; hasError = true }
+    if (state.selectedAccountId == null && !isMultiAccount) { state.accountError = "Primary account required"; hasError = true }
+    if (state.type == "transfer" && state.selectedToAccountId == null) { state.toAccountError = "Destination account required"; hasError = true }
     
-    if (!isMultiEntryToUse && state.type != "transfer" && state.selectedCategoryId == null) { state.categoryError = "missing value"; hasError = true }
-    if (isMultiEntryToUse && state.multiEntryRows.any { it.categoryId == null || evaluateExpression(it.amount) <= 0.0 }) { state.categoryError = "missing value"; hasError = true }
+    if (!isMultiEntryToUse && state.type != "transfer" && state.selectedCategoryId == null) { state.categoryError = "Category required"; hasError = true }
+    if (isMultiEntryToUse && state.multiEntryType == "Category" && state.multiEntryRows.any { it.categoryId == null || evaluateExpression(it.amount) <= 0.0 }) { state.categoryError = "Each row needs a category and amount"; hasError = true }
+    if (isMultiAccount && state.multiEntryRows.any { it.accountId == null || evaluateExpression(it.amount) <= 0.0 }) { state.accountError = "Each row needs an account and amount"; hasError = true }
+    if (isMultiAccount && state.selectedCategoryId == null) { state.categoryError = "Category required at top"; hasError = true }
 
     if (state.isSubscription && state.subName.isBlank()) {
         Toast.makeText(context, "Please enter a name for the subscription/transfer", Toast.LENGTH_SHORT).show()
@@ -1466,7 +1545,41 @@ fun validateAndSave(
             state.showMismatchDialog = true
             return false
         }
-        viewModel.addMultiEntryTransactionExtended(state.date, state.time, state.selectedAccountId!!, state.multiEntryRows.map { com.openapps.fintrack.ui.MultiEntryRowData(it.categoryId!!, evaluateExpression(it.amount), it.note ?: state.note, state.foreignCurrency) }, tagsString, state.type, state.selectedPartyId, state.subName, state.subFrequency.toIntOrNull(), updateId)
+        
+        if (state.multiEntryType == "Account") {
+            // Multi-account mode
+            val entries = state.multiEntryRows.map { r ->
+                com.openapps.fintrack.ui.MultiEntryRowData(
+                    state.selectedCategoryId!!,
+                    r.accountId,
+                    evaluateExpression(r.amount),
+                    r.note ?: state.note,
+                    state.foreignCurrency
+                )
+            }
+            viewModel.addMultiEntryTransactionExtended(state.date, state.time, 0, entries, tagsString, state.type, state.selectedPartyId, state.subName, state.subFrequency.toIntOrNull(), updateId)
+        } else {
+            // Multi-category mode
+            val entries = state.multiEntryRows.map { r ->
+                com.openapps.fintrack.ui.MultiEntryRowData(
+                    r.categoryId!!,
+                    state.selectedAccountId,
+                    evaluateExpression(r.amount),
+                    r.note ?: state.note,
+                    state.foreignCurrency
+                )
+            }
+            viewModel.addMultiEntryTransactionExtended(state.date, state.time, state.selectedAccountId ?: 0, entries, tagsString, state.type, state.selectedPartyId, state.subName, state.subFrequency.toIntOrNull(), updateId)
+        }
+        
+        // Remove from pending import if applicable
+        viewModel.currentRecordingImportTxnKey?.let { key ->
+            viewModel.pendingTransactions = viewModel.pendingTransactions.filter { 
+                (it.description + it.date.toString() + it.amount.toString()) != key 
+            }
+            viewModel.currentRecordingImportTxnKey = null
+        }
+
         viewModel.draftTransaction = null
         onSuccess()
     } else {
@@ -1498,6 +1611,15 @@ fun validateAndSave(
         } else {
             viewModel.addTransaction(state.date, state.time, state.selectedAccountId!!, state.selectedCategoryId, amtBase, state.note, null, tagsString, state.type, state.selectedPartyId, null, subNameVal, subFreqVal, amtOriginal, state.foreignCurrency, amtBase, updateId = updateId, isNegotiated = state.isNegotiated, negotiationAmountOriginal = state.negotiationAmountOriginal.toDoubleOrNull(), merchantName = state.merchantName, isDiscretionary = state.isDiscretionary)
         }
+
+        // Remove from pending import if applicable
+        viewModel.currentRecordingImportTxnKey?.let { key ->
+            viewModel.pendingTransactions = viewModel.pendingTransactions.filter { 
+                (it.description + it.date.toString() + it.amount.toString()) != key 
+            }
+            viewModel.currentRecordingImportTxnKey = null
+        }
+
         viewModel.draftTransaction = null
         onSuccess()
     }

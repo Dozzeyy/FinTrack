@@ -52,13 +52,21 @@ class MainActivity : FragmentActivity() {
         
         viewModel = ViewModelProvider(this)[ExpenseViewModel::class.java]
         
-        // Check if DB encryption is needed before anything else
+        try {
+            val pInfo = packageManager.getPackageInfo(packageName, 0)
+            val version = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                pInfo.longVersionCode.toInt()
+            } else {
+                pInfo.versionCode
+            }
+            viewModel.checkAppUpdate(version)
+        } catch (e: Exception) {}
+
         isDecryptionRequired.value = viewModel.checkDatabaseEncryptionStatus()
         
         val prefs = getSharedPreferences("app_settings", Context.MODE_PRIVATE)
         val appLockEnabledOnStart = prefs.getBoolean("app_lock_enabled", false)
         
-        // Always lock on app restart if lock is enabled
         isLockedState.value = appLockEnabledOnStart
 
         setContent {
@@ -90,11 +98,9 @@ class MainActivity : FragmentActivity() {
                             progress = progress,
                             onDecrypt = { password ->
                                 isDecrypting.value = true
-                                // Start at 5% to show activity during key derivation
                                 decryptionProgress.value = 0.05f 
                                 lifecycleScope.launch {
                                     val success = viewModel.decryptDatabaseAtRest(password) { p ->
-                                        // Offset file progress to 10%-100% range
                                         decryptionProgress.value = 0.1f + (p * 0.9f)
                                     }
                                     if (success) {
@@ -163,8 +169,6 @@ class MainActivity : FragmentActivity() {
             val required = viewModel.checkDatabaseEncryptionStatus()
             isDecryptionRequired.value = required
             
-            // If secure mode is ON and it doesn't think it needs decryption (file missing),
-            // ensure internal state is clean.
             if (!required && !viewModel.isDatabaseDecrypted) {
                 viewModel.refreshDatabase(false)
             }
@@ -343,6 +347,19 @@ fun FinTrackApp(
     
     val initialRoute = if (isSetupComplete) startRoute else "setup"
 
+    if (viewModel.showWhatIsNew) {
+        AlertDialog(
+            onDismissRequest = { viewModel.showWhatIsNew = false },
+            title = { Text("What's New in This Update") },
+            text = { Text(viewModel.keyChanges) },
+            confirmButton = {
+                Button(onClick = { viewModel.showWhatIsNew = false }) {
+                    Text("OK")
+                }
+            }
+        )
+    }
+
     LaunchedEffect(extras) {
         val navigateTo = extras?.getString("navigate_to")
         if (navigateTo != null && isSetupComplete) {
@@ -475,6 +492,13 @@ fun FinTrackApp(
         }
         composable("contact") {
             ContactScreen(onBack = { navController.popBackStack() })
+        }
+        composable("import_statement") {
+            ImportStatementScreen(
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() },
+                onNavigate = { navController.navigate(it) }
+            )
         }
         composable("budgets_main") {
             BudgetsMainScreen(

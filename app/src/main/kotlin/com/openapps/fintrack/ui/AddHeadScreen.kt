@@ -34,7 +34,6 @@ fun AddHeadScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
     val majorHeads by viewModel.getAllMajorHeads().collectAsState(initial = emptyList())
     var selectedMajorId by remember { mutableStateOf(editingMinor?.majorHeadId) }
     
-    // Ensure selectedMajorId is updated when editingMinor changes
     LaunchedEffect(editingMinor) {
         if (editingMinor != null) {
             selectedMajorId = editingMinor.majorHeadId

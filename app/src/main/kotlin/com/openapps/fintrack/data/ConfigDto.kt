@@ -56,7 +56,7 @@ data class TemplateConfig(
     val categoryType: String?,
     val amount: Double?,
     val note: String?,
-    val tags: String?, // This still contains IDs, but we can't easily map them without names
+    val tags: String?,
     val multiEntries: String?,
     val subName: String?,
     val subFrequency: Int?

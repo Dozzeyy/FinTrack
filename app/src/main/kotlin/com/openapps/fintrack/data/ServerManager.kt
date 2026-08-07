@@ -150,7 +150,7 @@ class ServerManager(private val context: Context, private val dao: ExpenseDao) {
         // Start active client pruning job
         serverJob = serverScope.launch {
             while (isActive) {
-                delay(60000) // Prune every minute
+                delay(60000) 
                 val now = System.currentTimeMillis()
                 val currentClients = _activeClients.value
                 val pruned = currentClients.filter { now - it.value.lastSeen < 300000 } // 5 minute TTL
@@ -312,7 +312,7 @@ class ServerManager(private val context: Context, private val dao: ExpenseDao) {
                             get("/parties") {
                                 try {
                                     val parties = dao.getAllParties().first()
-                                    call.respond(parties.map { TagDto(it.id, it.name, it.isEnabled) }) // Re-using TagDto for Party too
+                                    call.respond(parties.map { TagDto(it.id, it.name, it.isEnabled) })
                                 } catch (e: Exception) {
                                     call.respond(HttpStatusCode.InternalServerError, "DB Error")
                                 }

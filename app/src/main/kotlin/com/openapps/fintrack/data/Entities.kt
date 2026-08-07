@@ -9,7 +9,7 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 import androidx.room.ForeignKey
 
-@Entity(tableName = "accounts")
+@Entity(tableName = "accounts", indices = [androidx.room.Index(value = ["name", "minorHeadId"], unique = true)])
 data class Account(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val name: String,
@@ -26,14 +26,20 @@ data class Account(
     val isEmergencyFund: Boolean = false
 )
 
-@Entity(tableName = "major_heads")
+@Entity(tableName = "major_heads", indices = [androidx.room.Index(value = ["name"], unique = true)])
 data class MajorHead(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val name: String,
     val isEnabled: Boolean = true
 )
 
-@Entity(tableName = "minor_heads")
+@Entity(
+    tableName = "minor_heads", 
+    indices = [androidx.room.Index(value = ["name", "majorHeadId"], unique = true)],
+    foreignKeys = [
+        ForeignKey(entity = MajorHead::class, parentColumns = ["id"], childColumns = ["majorHeadId"], onDelete = ForeignKey.CASCADE)
+    ]
+)
 data class MinorHead(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val name: String,
@@ -139,7 +145,8 @@ data class ExchangeRate(
 @Entity(tableName = "subscription_status")
 data class SubscriptionStatus(
     @PrimaryKey val subName: String,
-    val isStopped: Boolean = false
+    val isStopped: Boolean = false,
+    val isAutoRecordEnabled: Boolean = false
 )
 
 @Entity(tableName = "notebooks")
