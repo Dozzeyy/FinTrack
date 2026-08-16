@@ -120,6 +120,12 @@ fun HomeScreen(
                             icon = { Icon(Icons.Default.CardMembership, null) }
                         )
                         NavigationDrawerItem(
+                            label = { Text("Performance") },
+                            selected = false,
+                            onClick = { scope.launch { drawerState.close() }; onNavigate("performance") },
+                            icon = { Icon(Icons.Default.Speed, null) }
+                        )
+                        NavigationDrawerItem(
                             label = { Text("Categories & Accounts") },
                             selected = false,
                             onClick = { scope.launch { drawerState.close() }; onNavigate("manage_categories") },
@@ -183,7 +189,7 @@ fun HomeScreen(
                     }
                     
                     Text(
-                        "v1.0.16",
+                        "v1.0.17",
                         modifier = Modifier.padding(16.dp),
                         style = MaterialTheme.typography.labelSmall,
                         color = Color.Gray
@@ -622,12 +628,24 @@ fun HomeView(
                             ),
                         shape = MaterialTheme.shapes.medium
                     ) {
-                        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(icon, null)
-                            Spacer(Modifier.width(12.dp))
-                            Column {
-                                Text(insight.title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-                                Text(insight.description, style = MaterialTheme.typography.bodyMedium)
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(icon, null)
+                                Spacer(Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(insight.title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                                    Text(insight.description, style = MaterialTheme.typography.bodyMedium)
+                                }
+                            }
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                                TextButton(
+                                    onClick = { viewModel.pauseInsight(insight.id) },
+                                    contentPadding = PaddingValues(4.dp)
+                                ) {
+                                    Icon(Icons.Default.PauseCircle, null, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("Pause for 7 days", style = MaterialTheme.typography.labelSmall)
+                                }
                             }
                         }
                     }

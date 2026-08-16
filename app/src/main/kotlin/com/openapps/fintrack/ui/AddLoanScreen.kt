@@ -54,6 +54,7 @@ fun AddLoanScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: (
     var isUpdateBankBalanceChecked by remember { mutableStateOf(false) }
     var selectedTagIds = remember { mutableStateListOf<Int>() }
     var showConfirmDialog by remember { mutableStateOf(false) }
+    var showFullSchedule by remember { mutableStateOf(false) }
 
     // Mapping State
     var selectedMinorHeadId by remember { mutableStateOf<Int?>(null) }
@@ -101,6 +102,35 @@ fun AddLoanScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: (
         } else {
             LoanCalculator.calculateGapInterestBankConvention(p, monthlyRate, loanIssueDate, firstRepaymentDate)
         }
+    }
+
+    val schedule = remember(principalInput, periodicRate, totalTenure, installment, gapInterest, firstRepaymentDate, frequency) {
+        val pVal = principalInput.toDoubleOrNull() ?: 0.0
+        val nTotal = totalTenure.toIntOrNull() ?: 0
+        val inst = installment.toDoubleOrNull() ?: 0.0
+        
+        if (pVal > 0 && nTotal > 0) {
+            LoanCalculator.generateSchedule(
+                principal = pVal,
+                periodicRatePercent = periodicRate,
+                totalPeriods = nTotal,
+                installment = inst,
+                gapInterest = gapInterest,
+                firstRepaymentDate = firstRepaymentDate,
+                frequency = frequency
+            )
+        } else emptyList()
+    }
+
+    if (showFullSchedule && schedule.isNotEmpty()) {
+        androidx.activity.compose.BackHandler { showFullSchedule = false }
+        AmortizationScheduleOverlay(
+            title = "Loan Schedule: $name",
+            schedule = schedule,
+            viewModel = viewModel,
+            onBack = { showFullSchedule = false }
+        )
+        return
     }
 
     // EMI Auto-population (only if not manually edited)
@@ -400,6 +430,39 @@ fun AddLoanScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: (
             }
 
             if (principalInput.isNotEmpty() && totalTenure.isNotEmpty()) {
+                val totalRepayment = schedule.sumOf { it.installment }
+                val totalInterestSum = schedule.sumOf { it.interestPortion }
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f))
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Column {
+                                Text("Total Repayment", style = MaterialTheme.typography.labelSmall)
+                                Text(viewModel.formatAmount(totalRepayment), fontWeight = FontWeight.Bold)
+                            }
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text("Total Interest", style = MaterialTheme.typography.labelSmall)
+                                Text(viewModel.formatAmount(totalInterestSum), fontWeight = FontWeight.Bold, color = Color.Red)
+                            }
+                        }
+                        
+                        if (schedule.isNotEmpty()) {
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedButton(
+                                onClick = { showFullSchedule = true },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.List, null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("See Schedule")
+                            }
+                        }
+                    }
+                }
+
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))

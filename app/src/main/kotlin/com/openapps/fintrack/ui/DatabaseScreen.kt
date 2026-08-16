@@ -132,9 +132,12 @@ fun DatabaseScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                             val decrypted = File(context.cacheDir, "import_decrypted.db")
                             
                             val result = withContext(Dispatchers.IO) {
-                                EncryptionService.decryptFile(tempPicked, decrypted, importPass) { p ->
+                                val pChars = importPass.toCharArray()
+                                val res = EncryptionService.decryptFile(tempPicked, decrypted, pChars) { p ->
                                     progress = p
                                 }
+                                pChars.fill('\u0000')
+                                res
                             }
                             
                             if (result.isSuccess && validateDatabaseSchema(decrypted)) {
@@ -185,13 +188,15 @@ fun DatabaseScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
             },
             confirmButton = {
                 Button(onClick = {
-                    if (pass == viewModel.remoteMasterPassword) {
+                    val pChars = pass.toCharArray()
+                    if (pChars.contentEquals(viewModel.remoteMasterPassword)) {
                         viewModel.updateEncryptRemote(false)
                         showDisableE2EEDialog = false
                         Toast.makeText(context, "E2EE disabled.", Toast.LENGTH_SHORT).show()
                     } else {
                         Toast.makeText(context, "Incorrect password.", Toast.LENGTH_SHORT).show()
                     }
+                    pChars.fill('\u0000')
                 }, enabled = pass.isNotEmpty()) {
                     Text("Verify & Disable")
                 }

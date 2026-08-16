@@ -189,8 +189,9 @@ fun ImportStatementScreen(
                             "1. Select the bank account from the dropdown.",
                             "2. Upload your bank statement CSV file.",
                             "3. Confirm column mapping (Date, Description, Amount).",
-                            "4. Review and tap any transaction to record it.",
-                            "5. Save and repeat until finished!"
+                            "4. Use Amount as dropdown if the statement has single column with negative and positive values for deposits and withdrawals. Use DR_CR to identify deposit and withdrawal if statement has single positive amount column for withdrawal and deposits with another column to indicate DR and CR ",
+                            "5. Review and tap any transaction to record it.",
+                            "6. Save and repeat until finished!"
                         )
                         steps.forEach { step ->
                             Text(step, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 2.dp))

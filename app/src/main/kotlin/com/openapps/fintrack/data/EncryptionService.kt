@@ -27,7 +27,7 @@ object EncryptionService {
     private const val IV_LENGTH = 12
     private const val TAG_LENGTH = 128
 
-    fun encryptFile(inputFile: File, outputFile: File, password: String, onProgress: (Float) -> Unit = {}): Result<Unit> {
+    fun encryptFile(inputFile: File, outputFile: File, password: CharArray, onProgress: (Float) -> Unit = {}): Result<Unit> {
         val tempFile = File(outputFile.path + ".tmp")
         if (tempFile.exists()) tempFile.delete()
 
@@ -77,7 +77,7 @@ object EncryptionService {
         }
     }
 
-    fun decryptFile(inputFile: File, outputFile: File, password: String, onProgress: (Float) -> Unit = {}): Result<Unit> {
+    fun decryptFile(inputFile: File, outputFile: File, password: CharArray, onProgress: (Float) -> Unit = {}): Result<Unit> {
         val tempFile = File(outputFile.path + ".tmp")
         if (tempFile.exists()) tempFile.delete()
 
@@ -169,10 +169,10 @@ object EncryptionService {
         }
     }
 
-    private fun deriveKey(password: String, salt: ByteArray): SecretKeySpec {
+    private fun deriveKey(password: CharArray, salt: ByteArray): SecretKeySpec {
         return try {
             val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
-            val spec = PBEKeySpec(password.toCharArray(), salt, ITERATIONS, KEY_LENGTH)
+            val spec = PBEKeySpec(password, salt, ITERATIONS, KEY_LENGTH)
             val tmp = factory.generateSecret(spec)
             SecretKeySpec(tmp.encoded, "AES")
         } catch (e: Exception) {

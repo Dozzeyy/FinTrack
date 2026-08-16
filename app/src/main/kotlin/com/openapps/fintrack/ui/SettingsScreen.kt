@@ -273,6 +273,17 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: 
             }
 
             Spacer(Modifier.height(16.dp))
+            Text("Financial Behavior", style = MaterialTheme.typography.titleMedium)
+            
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("I receive Income at month end")
+                    Text("Toggle this on if 90% of income is received at month end (E.g: Salary).", style = MaterialTheme.typography.labelSmall)
+                }
+                Switch(checked = viewModel.incomeAtMonthEnd, onCheckedChange = { viewModel.updateIncomeAtMonthEnd(it) })
+            }
+
+            Spacer(Modifier.height(16.dp))
             Text("Security", style = MaterialTheme.typography.titleMedium)
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {

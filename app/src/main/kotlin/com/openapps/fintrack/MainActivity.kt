@@ -493,6 +493,9 @@ fun FinTrackApp(
         composable("contact") {
             ContactScreen(onBack = { navController.popBackStack() })
         }
+        composable("performance") {
+            PerformanceScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+        }
         composable("import_statement") {
             ImportStatementScreen(
                 viewModel = viewModel,

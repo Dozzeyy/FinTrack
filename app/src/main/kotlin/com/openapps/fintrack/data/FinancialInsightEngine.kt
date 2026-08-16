@@ -31,13 +31,15 @@ class FinancialInsightEngine {
         loans: List<Loan>,
         majorHeads: List<MajorHead>,
         minorHeads: List<MinorHead>,
-        isMerchantTrackerEnabled: Boolean = false
+        isMerchantTrackerEnabled: Boolean = false,
+        incomeAtMonthEnd: Boolean = false
     ): List<FinancialInsight> {
         val insights = mutableListOf<FinancialInsight>()
         val today = LocalDate.now()
         val currentMonthStr = today.toString().substring(0, 7)
         val prevMonth = today.minusMonths(1)
         val prevMonthStr = prevMonth.toString().substring(0, 7)
+        val monthToUseForIncomeMetrics = if (incomeAtMonthEnd) prevMonthStr else currentMonthStr
 
         val monthlyExpenses = transactions.filter { it.categoryType == "expense" }
             .groupBy { it.transaction.date.substring(0, 7) }
@@ -91,8 +93,8 @@ class FinancialInsightEngine {
         }
 
         // 3. Windfall Allocation Recommendation
-        val latestIncome = monthlyIncomes[currentMonthStr] ?: 0.0
-        val last3MonthsIncomes = monthlyIncomes.values.toList().takeLast(3)
+        val latestIncome = monthlyIncomes[monthToUseForIncomeMetrics] ?: 0.0
+        val last3MonthsIncomes = monthlyIncomes.filterKeys { it != monthToUseForIncomeMetrics }.values.toList().takeLast(3)
         val avg3MonthInc = if (last3MonthsIncomes.size >= 2) last3MonthsIncomes.average() else 0.0
         
         if (avg3MonthInc > 0 && latestIncome > avg3MonthInc * 1.75) {
@@ -203,6 +205,13 @@ class FinancialInsightEngine {
             minor?.majorHeadId == bankMajorId
         }.sumOf { it.balance }
 
+        val ccMajorId = majorHeads.find { it.name.contains("Credit Card", true) }?.id
+        val ccLiabilities = abs(accounts.filter { a -> 
+            val minor = minorHeads.find { it.id == a.minorHeadId }
+            minor?.majorHeadId == ccMajorId
+        }.sumOf { it.balance })
+        val trueBankBalance = bankBalance - ccLiabilities
+
         if (bankBalance < avgMonthlyExp && avgMonthlyExp > 0) {
             insights.add(FinancialInsight("low_bank_bal", "Liquidity Alert", "Your net bank balance is below your average monthly expenses. Maintain a safety buffer.", InsightType.WARNING))
         }
@@ -243,8 +252,13 @@ class FinancialInsightEngine {
         // 12. Income Variability
         if (monthlyIncomes.size >= 2) {
             val incomesSorted = monthlyIncomes.keys.sorted()
-            val rollingAvg = monthlyIncomes.filter { it.key != incomesSorted.last() }.values.average()
-            val latest = monthlyIncomes[incomesSorted.last()] ?: 0.0
+            val latestKey = if (incomeAtMonthEnd) {
+                if (incomesSorted.last() == currentMonthStr && incomesSorted.size >= 2) incomesSorted[incomesSorted.size - 2]
+                else incomesSorted.last()
+            } else incomesSorted.last()
+            
+            val rollingAvg = monthlyIncomes.filter { it.key != latestKey }.values.average()
+            val latest = monthlyIncomes[latestKey] ?: 0.0
             if (latest < rollingAvg * 0.8 && rollingAvg > 0) {
                 insights.add(FinancialInsight("income_drop", "Income Variability", "Your income has dropped by more than 20% vs average. Tighten discretionary spending.", InsightType.WARNING))
             }
@@ -333,12 +347,12 @@ class FinancialInsightEngine {
             insights.add(FinancialInsight("correlation_work_food", "Spending Pattern", "You tend to spend more on outside food on days you work late or travel for work.", InsightType.TREND))
         }
 
-        // 17. Idle Cash Investment Alert (Bank bal > 25% of 3mo avg expense)
+        // 17. Idle Cash Investment Alert (True Bank bal > 25% of 3mo avg expense)
         val last3MonthExpsList = monthlyExpenses.values.toList().takeLast(3)
         val avg3MonthExp = if (last3MonthExpsList.isNotEmpty()) last3MonthExpsList.average() else 0.0
         
-        if (avg3MonthExp > 0 && bankBalance > avg3MonthExp * 0.25) {
-             insights.add(FinancialInsight("idle_cash", "Investment Opportunity", "Your bank balance exceeds 25% of your 3-month average expenses. Consider investing the surplus to earn better returns.", InsightType.OPPORTUNITY))
+        if (avg3MonthExp > 0 && trueBankBalance > avg3MonthExp * 0.25) {
+             insights.add(FinancialInsight("idle_cash", "Investment Opportunity", "Your net bank balance (after credit card liabilities) of ${trueBankBalance} exceeds 25% of your 3-month average expenses. Consider investing the surplus to earn better returns.", InsightType.OPPORTUNITY))
         }
 
         // 18. Emergency Fund Adequacy Score
@@ -445,21 +459,28 @@ class FinancialInsightEngine {
 
         // 21. Savings Rate Trend
         if (monthlyIncomes.size >= 4) {
-            val savingsRates = months.map { m ->
+            val monthToEvaluate = monthToUseForIncomeMetrics
+            val incomesSorted = monthlyIncomes.keys.sorted()
+            
+            val savingsRates = incomesSorted.map { m ->
                 val inc = monthlyIncomes[m] ?: 0.0
                 val exp = monthlyExpenses[m] ?: 0.0
                 if (inc > 0) (inc - exp) / inc else 0.0
             }
-            val currentRate = savingsRates.last()
-            val avg3MonthRate = savingsRates.take(3).average()
             
-            if (currentRate < avg3MonthRate * 0.8 && avg3MonthRate > 0) {
-                insights.add(FinancialInsight(
-                    "savings_rate_drop",
-                    "Savings Rate Alert",
-                    "Your savings rate this month (${(currentRate * 100).toInt()}%) is significantly lower than your 3-month average (${(avg3MonthRate * 100).toInt()}%).",
-                    InsightType.TREND
-                ))
+            val targetIndex = incomesSorted.indexOf(monthToEvaluate)
+            if (targetIndex >= 3) {
+                val currentRate = savingsRates[targetIndex]
+                val avg3MonthRate = savingsRates.subList(targetIndex - 3, targetIndex).average()
+                
+                if (currentRate < avg3MonthRate * 0.8 && avg3MonthRate > 0) {
+                    insights.add(FinancialInsight(
+                        "savings_rate_drop",
+                        "Savings Rate Alert",
+                        "Your savings rate in $monthToEvaluate (${(currentRate * 100).toInt()}%) is significantly lower than your 3-month average (${(avg3MonthRate * 100).toInt()}%).",
+                        InsightType.TREND
+                    ))
+                }
             }
         }
 

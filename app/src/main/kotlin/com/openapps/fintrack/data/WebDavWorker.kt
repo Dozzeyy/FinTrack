@@ -82,7 +82,9 @@ class WebDavWorker(context: Context, params: WorkerParameters) : CoroutineWorker
                         }
 
                         if ((encryptRemote || secureMode) && masterPassword.isNotEmpty()) {
-                            val encResult = EncryptionService.encryptFile(tempSnapshot, finalFile, masterPassword)
+                            val passChars = masterPassword.toCharArray()
+                            val encResult = EncryptionService.encryptFile(tempSnapshot, finalFile, passChars)
+                            passChars.fill('\u0000')
                             if (encResult.isFailure) {
                                 throw Exception("Encryption failed: ${encResult.exceptionOrNull()?.message}")
                             }

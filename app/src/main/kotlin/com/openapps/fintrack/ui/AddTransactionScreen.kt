@@ -203,19 +203,29 @@ fun rememberAddTransactionState(
             }
         }
         
-        if (txnDetail?.transaction?.subFrequency != null) {
+        if (draft != null) {
+            state.selectedPartyId = draft.selectedPartyId
+            state.selectedToPartyId = draft.selectedToPartyId
+            state.foreignCurrency = draft.foreignCurrency ?: state.foreignCurrency
+            state.isNegotiated = draft.isNegotiated
+            state.negotiationAmountOriginal = draft.negotiationAmountOriginal
+            state.merchantName = draft.merchantName
+            state.isDiscretionary = draft.isDiscretionary
+            state.subName = draft.subName
+            state.subFrequency = draft.subFrequency
+            state.isSubscription = draft.subName.isNotEmpty()
+        } else if (txnDetail?.transaction?.subFrequency != null) {
             state.isSubscription = true
             state.subName = txnDetail.transaction.subName ?: ""
             state.subFrequency = txnDetail.transaction.subFrequency.toString()
+            state.selectedPartyId = txnDetail.transaction.partyId
+            state.selectedToPartyId = txnDetail.transaction.toPartyId
         } else if (editingTemplate?.subName != null) {
             state.isSubscription = true
             state.subName = editingTemplate.subName
             state.subFrequency = editingTemplate.subFrequency?.toString() ?: ""
             state.isExistingSubscription = true
         }
-        
-        state.selectedPartyId = txnDetail?.transaction?.partyId
-        state.selectedToPartyId = txnDetail?.transaction?.toPartyId
     }
 
     return state
@@ -402,9 +412,23 @@ fun AddTransactionScreen(
                 selectedTagIds = selectedTagIds.toList(),
                 isMultiEntry = state.isMultiEntry,
                 multiEntryRows = state.multiEntryRows.map { DraftMultiEntryRow(it.categoryId, it.accountId, it.amount, it.note, it.currencyCode) },
-                multiEntryType = state.multiEntryType
+                multiEntryType = state.multiEntryType,
+                selectedPartyId = state.selectedPartyId,
+                selectedToPartyId = state.selectedToPartyId,
+                foreignCurrency = state.foreignCurrency,
+                isNegotiated = state.isNegotiated,
+                negotiationAmountOriginal = state.negotiationAmountOriginal,
+                merchantName = state.merchantName,
+                isDiscretionary = state.isDiscretionary,
+                subName = state.subName,
+                subFrequency = state.subFrequency
             )
         }
+    }
+
+    val navWithDraft: (String) -> Unit = { route ->
+        saveAsDraft()
+        onNavigate?.invoke(route)
     }
 
     BackHandler {
@@ -485,7 +509,7 @@ fun AddTransactionScreen(
             TemplateSelectionDialog(
                 templates = templates,
                 onDismiss = { showTemplateSelection = false },
-                onNavigate = onNavigate,
+                onNavigate = navWithDraft,
                 onSelected = { t ->
                     state.type = t.type
                     state.selectedAccountId = t.accountId
@@ -579,7 +603,7 @@ fun AddTransactionScreen(
                 categories = categories,
                 onAccountMicroAccounts = onAccountMicroAccounts,
                 readOnly = isActuallyReadOnly,
-                onNavigate = onNavigate,
+                onNavigate = navWithDraft,
                 displayPartyName = displayPartyName,
                 displayToPartyName = displayToPartyName,
                 isFromOnAccountSelected = isFromOnAccountSelected,
@@ -638,7 +662,7 @@ fun AddTransactionScreen(
             Spacer(Modifier.height(8.dp))
 
             if (state.type != "transfer") {
-                MultiEntrySection(state, viewModel, categories, accounts, accountBalances, allMajorHeads, allMinorHeads, isActuallyReadOnly, onNavigate)
+                MultiEntrySection(state, viewModel, categories, accounts, accountBalances, allMajorHeads, allMinorHeads, isActuallyReadOnly, navWithDraft)
             }
 
             AmountAndCurrencySection(state, viewModel, isActuallyReadOnly, hideCurrencyPicker = state.isMultiEntry)
@@ -729,7 +753,7 @@ fun AddTransactionScreen(
                     selectedIds = selectedTagIds,
                     multiSelect = viewModel.multiTagEnabled,
                     enabled = !isActuallyReadOnly,
-                    onAdd = { onNavigate?.invoke("add_tag") }
+                    onAdd = { navWithDraft("add_tag") }
                 )
             }
 
@@ -974,7 +998,7 @@ fun AccountSection(
             selectedId = state.selectedCategoryId,
             onSelected = { state.selectedCategoryId = it; state.categoryError = null },
             enabled = !readOnly,
-            onAdd = { onNavigate?.let { it("add_category") } },
+            onAdd = { onNavigate?.invoke("add_category") },
             isError = state.categoryError != null
         )
         state.categoryError?.let { Text(it, color = Color.Red, style = MaterialTheme.typography.labelSmall) }
@@ -1134,7 +1158,7 @@ fun MultiEntrySection(
             selectedId = state.selectedCategoryId,
             onSelected = { state.selectedCategoryId = it; state.categoryError = null },
             enabled = !readOnly,
-            onAdd = { onNavigate?.let { it("add_category") } },
+            onAdd = { onNavigate?.invoke("add_category") },
             isError = state.categoryError != null
         )
         state.categoryError?.let { Text(it, color = Color.Red, style = MaterialTheme.typography.labelSmall) }
@@ -1188,7 +1212,7 @@ fun MultiEntryRowItem(
                             state.categoryError = null
                         },
                         enabled = !readOnly,
-                        onAdd = { onNavigate?.let { it("add_category") } },
+                        onAdd = { onNavigate?.invoke("add_category") },
                         isError = state.categoryError != null && row.categoryId == null
                     )
                 }

@@ -156,6 +156,7 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
     var negotiationTrackerEnabled by mutableStateOf(prefs.getBoolean("negotiation_tracker_enabled", false))
     var merchantTrackerEnabled by mutableStateOf(prefs.getBoolean("merchant_tracker_enabled", false))
     var discretionarySpendingTrackerEnabled by mutableStateOf(prefs.getBoolean("discretionary_spending_tracker_enabled", false))
+    var incomeAtMonthEnd by mutableStateOf(prefs.getBoolean("income_at_month_end", false))
 
     // WebDAV
     var remoteSyncEnabled by mutableStateOf(prefs.getBoolean("remote_sync_enabled", false))
@@ -183,7 +184,7 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
 
     // Security
     var encryptRemoteEnabled by mutableStateOf(prefs.getBoolean("encrypt_remote_enabled", false))
-    var remoteMasterPassword by mutableStateOf(EncryptedPrefsHelper.getString("remote_master_password", "") ?: "")
+    var remoteMasterPassword by mutableStateOf(EncryptedPrefsHelper.getString("remote_master_password", "")?.toCharArray() ?: charArrayOf())
     var secureModeEnabled by mutableStateOf(prefs.getBoolean("secure_mode_enabled", false))
     var isDatabaseDecrypted by mutableStateOf(false)
     var isPickingFile by mutableStateOf(false)
@@ -217,10 +218,11 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
         val lastVersion = prefs.getInt("last_seen_version", 0)
         if (currentVersion > lastVersion) {
             keyChanges = """
-                - Multi-Account Entry: Now you can add multiple accounts for a single income/expense entry! 🚀
-                - Auto-Record for recurring items: Enable auto-record for subscriptions and recurring transfers to save time. 🔄
-                - Enhanced Financial Insights: New patterns for Net Worth, Category Overspending, and Savings Rate. 📈
-                - CSV Import fix: Handles comma-separated values in quoted amounts correctly. 📊
+                - Added performance view in side bar to compare results across months, quarters, years.
+                - Added total interest and repayment amount in add loan screen.
+                - Accommodated salary receipt at month end - to provide more accurate financial insights.
+                - Added pause option to financial insights to avoid repetition of same alert.
+                - Added persistence of draft data when adding new categories and accounts from add transaction screen.
             """.trimIndent()
             showWhatIsNew = true
             prefs.edit().putInt("last_seen_version", currentVersion).apply()
@@ -272,7 +274,11 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
     fun updateWebdavUrl(u: String) { webdavUrl = u; EncryptedPrefsHelper.putString("webdav_url", u) }
     fun updateWebdavUsername(u: String) { webdavUsername = u; EncryptedPrefsHelper.putString("webdav_user", u) }
     fun updateWebdavPassword(p: String) { webdavPassword = p; EncryptedPrefsHelper.putString("webdav_pass", p) }
-    fun updateRemoteMasterPassword(p: String) { remoteMasterPassword = p; EncryptedPrefsHelper.putString("remote_master_password", p) }
+    fun updateRemoteMasterPassword(p: String) { 
+        remoteMasterPassword.fill('\u0000')
+        remoteMasterPassword = p.toCharArray()
+        EncryptedPrefsHelper.putString("remote_master_password", p) 
+    }
     fun updateEncryptRemote(e: Boolean) { encryptRemoteEnabled = e; prefs.edit().putBoolean("encrypt_remote_enabled", e).apply() }
     fun updateTemplateField(f: String, e: Boolean) { val n = templateFields.toMutableSet(); if(e) n.add(f) else n.remove(f); templateFields = n; prefs.edit().putStringSet("template_fields", n).apply() }
     fun updateDisableScreenshots(e: Boolean) { disableScreenshots = e; prefs.edit().putBoolean("disable_screenshots", e).apply() }
@@ -280,6 +286,7 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
     fun updateNegotiationTrackerEnabled(e: Boolean) { negotiationTrackerEnabled = e; prefs.edit().putBoolean("negotiation_tracker_enabled", e).apply() }
     fun updateMerchantTrackerEnabled(e: Boolean) { merchantTrackerEnabled = e; prefs.edit().putBoolean("merchant_tracker_enabled", e).apply() }
     fun updateDiscretionarySpendingTrackerEnabled(e: Boolean) { discretionarySpendingTrackerEnabled = e; prefs.edit().putBoolean("discretionary_spending_tracker_enabled", e).apply() }
+    fun updateIncomeAtMonthEnd(enabled: Boolean) { incomeAtMonthEnd = enabled; prefs.edit().putBoolean("income_at_month_end", enabled).apply(); triggerRefresh() }
 
     fun scheduleBackup(context: Context) {
         try {
@@ -387,14 +394,19 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
     }
     
     fun encryptDatabaseAtRest() {
-        val passToUse = if (remoteMasterPassword.isNotBlank()) remoteMasterPassword 
-                        else EncryptedPrefsHelper.getString("remote_master_password", "") ?: ""
+        val storedPass = EncryptedPrefsHelper.getString("remote_master_password", "")
+        val passToUse: CharArray = if (remoteMasterPassword.isNotEmpty()) remoteMasterPassword 
+                        else (storedPass?.toCharArray() ?: charArrayOf())
                         
-        if (!secureModeEnabled || passToUse.isBlank() || serverManager.isRunning.value) return
+        if (!secureModeEnabled || passToUse.isEmpty() || serverManager.isRunning.value) {
+            if (remoteMasterPassword.isEmpty() && storedPass != null) passToUse.fill('\u0000')
+            return
+        }
         
-        // Critical: Only encrypt if we are sure the current DB is the actual data (not a worker-created empty shell)
+        // Only encrypt if we are sure the current DB is the actual data (not a worker-created empty shell)
         if (!isDatabaseDecrypted) {
             Log.w("SecureMode", "Database is not currently decrypted. Skipping encryption to prevent data loss.")
+            if (remoteMasterPassword.isEmpty() && storedPass != null) passToUse.fill('\u0000')
             return
         }
 
@@ -425,7 +437,8 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
                         File(df.path + "-journal").delete() 
                         
                         withContext(Dispatchers.Main) {
-                            remoteMasterPassword = ""
+                            remoteMasterPassword.fill('\u0000')
+                            remoteMasterPassword = charArrayOf()
                         }
                         Log.d("SecureMode", "Database is now encrypted at rest.")
                     } else {
@@ -459,7 +472,8 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
                     return@withLock true 
                 }
                 
-                val result = EncryptionService.decryptFile(ef, df, p) { progress ->
+                val pChars = p.toCharArray()
+                val result = EncryptionService.decryptFile(ef, df, pChars) { progress ->
                     onProgress(progress)
                 }
                 if (result.isSuccess) { 
@@ -467,11 +481,13 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
                     withContext(Dispatchers.Main) {
                         isDatabaseDecrypted = true
                         prefs.edit().putBoolean("db_encrypted_at_rest", false).apply()
-                        remoteMasterPassword = p
+                        remoteMasterPassword.fill('\u0000')
+                        remoteMasterPassword = pChars
                         refreshDatabase() 
                     }
                     return@withLock true 
                 } else {
+                    pChars.fill('\u0000')
                     val error = result.exceptionOrNull()?.message ?: "Incorrect Password"
                     withContext(Dispatchers.Main) {
                         Toast.makeText(getApplication(), "Decryption Failed: $error", Toast.LENGTH_LONG).show()
@@ -529,11 +545,16 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
                 FileInputStream(df).use { i -> FileOutputStream(ts).use { o -> i.copyTo(o) } }
                 if (me) {
                     withContext(Dispatchers.Main) { syncMessage = "Encrypting" }
-                    val passToUse = if (remoteMasterPassword.isNotBlank()) remoteMasterPassword else EncryptedPrefsHelper.getString("remote_master_password", "") ?: ""
+                    val storedPass = EncryptedPrefsHelper.getString("remote_master_password", "")
+                    val passToUse: CharArray = if (remoteMasterPassword.isNotEmpty()) remoteMasterPassword 
+                                    else (storedPass?.toCharArray() ?: charArrayOf())
                     
                     val result = EncryptionService.encryptFile(ts, tf, passToUse) { progress ->
                         viewModelScope.launch(Dispatchers.Main) { syncProgress = progress * 0.3f }
                     }
+                    
+                    if (remoteMasterPassword.isEmpty() && storedPass != null) passToUse.fill('\u0000')
+
                     if (result.isFailure) throw Exception("Encryption failed: ${result.exceptionOrNull()?.message}")
                 } else {
                     ts.copyTo(tf, true)
@@ -1316,7 +1337,14 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
                 _dao = null
             }
             
-            val result = EncryptionService.encryptFile(df, tempEnc, remoteMasterPassword)
+            val storedPass = EncryptedPrefsHelper.getString("remote_master_password", "")
+            val passToUse: CharArray = if (remoteMasterPassword.isNotEmpty()) remoteMasterPassword 
+                            else (storedPass?.toCharArray() ?: charArrayOf())
+            
+            val result = EncryptionService.encryptFile(df, tempEnc, passToUse)
+            
+            if (remoteMasterPassword.isEmpty() && storedPass != null) passToUse.fill('\u0000')
+
             if (result.isSuccess) {
                 context.contentResolver.openOutputStream(destUri)?.use { output ->
                     tempEnc.inputStream().use { input -> input.copyTo(output) }
@@ -1486,7 +1514,8 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
                 val majorHeads = dao.getAllMajorHeads().first()
                 val minorHeads = dao.getAllMinorHeads().first()
 
-                val insights = insightEngine.generateInsights(txns, balances, budgets, loans, majorHeads, minorHeads, merchantTrackerEnabled)
+                val rawInsights = insightEngine.generateInsights(txns, balances, budgets, loans, majorHeads, minorHeads, merchantTrackerEnabled, incomeAtMonthEnd)
+                val insights = rawInsights.filter { !isInsightPaused(it.id) }
 
                 withContext(Dispatchers.Main) {
                     financialInsights.addAll(insights)
@@ -1502,12 +1531,219 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
     fun dismissInsight(insight: FinancialInsight) {
         financialInsights.remove(insight)
     }
+
+    fun pauseInsight(insightId: String) {
+        val resumeDate = LocalDate.now().plusDays(7).format(DateTimeFormatter.ISO_DATE)
+        prefs.edit().putString("paused_insight_$insightId", resumeDate).apply()
+        financialInsights.removeIf { it.id == insightId }
+    }
+
+    private fun isInsightPaused(insightId: String): Boolean {
+        val resumeDateStr = prefs.getString("paused_insight_$insightId", null) ?: return false
+        return try {
+            val resumeDate = LocalDate.parse(resumeDateStr)
+            LocalDate.now().isBefore(resumeDate)
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    fun getPerformanceData(startDate: String, endDate: String): Flow<PerformanceDashboardData> = combine(
+        dao.getAllTransactionsWithDetails(),
+        dao.getAllAccounts(),
+        dao.getAllMinorHeads(),
+        dao.getAllBudgets(),
+        dao.getEnabledCategories()
+    ) { txns, accounts, minorHeads, budgets, categories ->
+        val start = LocalDate.parse(startDate)
+        val end = LocalDate.parse(endDate)
+        val months = mutableListOf<String>()
+        var curr = start.withDayOfMonth(1)
+        while (!curr.isAfter(end)) {
+            months.add(curr.toString().substring(0, 7))
+            curr = curr.plusMonths(1)
+        }
+
+        // 1. Calculate Monthly Metrics
+        val monthlyInc = txns.filter { it.categoryType == "income" }
+            .groupBy { it.transaction.date.substring(0, 7) }
+            .mapValues { it.value.sumOf { t -> t.transaction.amount } }
+        
+        val monthlyExp = txns.filter { it.categoryType == "expense" }
+            .groupBy { it.transaction.date.substring(0, 7) }
+            .mapValues { it.value.sumOf { t -> t.transaction.amount } }
+
+        val savingsRateMap = months.associateWith { m ->
+            val inc = monthlyInc[m] ?: 0.0
+            val exp = monthlyExp[m] ?: 0.0
+            if (inc > 0) (inc - exp) / inc * 100 else 0.0
+        }
+
+        val investmentMajorId = dao.getAllMajorHeads().first().find { it.name.contains("Investment", true) }?.id
+        val monthlyInvest = txns.filter { t ->
+            t.transaction.categoryId == null && t.transaction.toAccountId != null &&
+            minorHeads.find { it.id == accounts.find { acc -> acc.id == t.transaction.toAccountId }?.minorHeadId }?.majorHeadId == investmentMajorId
+        }.groupBy { it.transaction.date.substring(0, 7) }
+        .mapValues { it.value.sumOf { t -> t.transaction.amount } }
+
+        val investRateMap = months.associateWith { m ->
+            val inc = monthlyInc[m] ?: 0.0
+            val inv = monthlyInvest[m] ?: 0.0
+            if (inc > 0) (inv / inc) * 100 else 0.0
+        }
+
+        val monthlyDebt = txns.filter { it.transaction.subName?.startsWith("LOAN:") == true }
+            .groupBy { it.transaction.date.substring(0, 7) }
+            .mapValues { it.value.sumOf { t -> t.transaction.amount } }
+
+        val debtToIncomeMap = months.associateWith { m ->
+            val inc = monthlyInc[m] ?: 0.0
+            val debt = monthlyDebt[m] ?: 0.0
+            if (inc > 0) (debt / inc) * 100 else 0.0
+        }
+
+        val metrics = listOf(
+            PerformanceMetricData("Income", months.associateWith { monthlyInc[it] ?: 0.0 }),
+            PerformanceMetricData("Expense", months.associateWith { monthlyExp[it] ?: 0.0 }),
+            PerformanceMetricData("Savings Rate", savingsRateMap, "%"),
+            PerformanceMetricData("Investment Rate", investRateMap, "%"),
+            PerformanceMetricData("Debt-to-Income", debtToIncomeMap, "%")
+        )
+
+        // 2. Budget Performance (Summarized)
+        val budgetPerf = budgets.map { b ->
+            val catIds = b.categoryIds.split(",").mapNotNull { it.toIntOrNull() }.toSet()
+            val actual = txns.filter { it.transaction.date in startDate..endDate && it.transaction.categoryId in catIds }
+                .sumOf { it.transaction.amount }
+            
+            val variance = b.amount - actual
+            val varPct = if (b.amount > 0) (variance / b.amount) * 100 else 0.0
+            
+            BudgetPerformanceData(
+                name = b.name ?: "Budget",
+                duration = b.duration,
+                budget = b.amount,
+                actual = actual,
+                variance = variance,
+                variancePercent = varPct,
+                budgetId = b.id
+            )
+        }
+
+        // 3. Monthly Budget Trends
+        val budgetTrends = budgets.map { b ->
+            val catIds = b.categoryIds.split(",").mapNotNull { it.toIntOrNull() }.toSet()
+            val monthData = months.associateWith { m ->
+                val actual = txns.filter { it.transaction.date.startsWith(m) && it.transaction.categoryId in catIds }
+                    .sumOf { it.transaction.amount }
+                val variance = b.amount - actual
+                val varPct = if (b.amount > 0) (variance / b.amount) * 100 else 0.0
+                BudgetPerformanceData(
+                    name = b.name ?: "Budget",
+                    duration = b.duration,
+                    budget = b.amount,
+                    actual = actual,
+                    variance = variance,
+                    variancePercent = varPct,
+                    budgetId = b.id
+                )
+            }
+            BudgetTrendData(b.id, b.name ?: "Budget ${b.id}", monthData)
+        }
+
+        // 4. Category Performance Trends
+        val categoryTrends = categories.map { cat ->
+            val monthData = months.associateWith { m ->
+                val currMonthDate = LocalDate.parse("$m-01")
+                val prevMonthStr = currMonthDate.minusMonths(1).toString().substring(0, 7)
+                val prevYearStr = currMonthDate.minusYears(1).toString().substring(0, 7)
+
+                val amount = txns.filter { it.transaction.date.startsWith(m) && it.transaction.categoryId == cat.id }.sumOf { it.transaction.amount }
+                val prevAmount = txns.filter { it.transaction.date.startsWith(prevMonthStr) && it.transaction.categoryId == cat.id }.sumOf { it.transaction.amount }
+                val yoyAmount = txns.filter { it.transaction.date.startsWith(prevYearStr) && it.transaction.categoryId == cat.id }.sumOf { it.transaction.amount }
+
+                val momChange = amount - prevAmount
+                val momPct = if (prevAmount > 0) (momChange / prevAmount) * 100 else 0.0
+                val yoyChange = amount - yoyAmount
+
+                CategoryMetricData(amount, momChange, momPct, yoyAmount, yoyChange)
+            }
+            CategoryPerformanceData(cat.id, cat.name, monthData)
+        }
+
+        PerformanceDashboardData(metrics, budgetPerf, budgetTrends, categoryTrends)
+    }
 }
 
 data class BudgetVsActual(val categoryName: String, val categoryType: String, val budgetAmount: Double, val actualAmount: Double, val duration: String, val higherIsBetter: Boolean = false, val categoryIds: List<Int> = emptyList(), val accountIds: List<Int> = emptyList(), val startDate: String = "", val endDate: String = "")
-data class DraftTransaction(val type: String, val amount: String, val note: String, val date: String, val time: String, val accountId: Int?, val toAccountId: Int?, val categoryId: Int?, val selectedTagIds: List<Int>, val isMultiEntry: Boolean = false, val multiEntryRows: List<DraftMultiEntryRow> = emptyList(), val multiEntryType: String = "Category")
+data class DraftTransaction(
+    val type: String,
+    val amount: String,
+    val note: String,
+    val date: String,
+    val time: String,
+    val accountId: Int?,
+    val toAccountId: Int?,
+    val categoryId: Int?,
+    val selectedTagIds: List<Int>,
+    val isMultiEntry: Boolean = false,
+    val multiEntryRows: List<DraftMultiEntryRow> = emptyList(),
+    val multiEntryType: String = "Category",
+    val selectedPartyId: Int? = null,
+    val selectedToPartyId: Int? = null,
+    val foreignCurrency: String? = null,
+    val isNegotiated: Boolean = false,
+    val negotiationAmountOriginal: String = "",
+    val merchantName: String = "",
+    val isDiscretionary: Boolean = false,
+    val subName: String = "",
+    val subFrequency: String = ""
+)
 data class DraftMultiEntryRow(val categoryId: Int?, val accountId: Int?, val amount: String, val note: String? = null, val currencyCode: String? = null)
 data class MultiEntryRowData(val categoryId: Int?, val accountId: Int?, val amount: Double, val note: String?, val currencyCode: String)
 data class DraftAccount(val name: String, val type: String, val description: String, val openingBalance: String, val isEnabled: Boolean, val selectedMajorHeadId: Int?, val selectedMinorHeadId: Int?, val creditLimit: String, val billingCycleStart: String, val billingCycleEnd: String, val paymentDueDate: String, val icon: String? = null, val isEmergencyFund: Boolean = false)
 data class CcAlert(val accountId: Int, val accountName: String, val amount: Double, val dueDate: LocalDate)
 data class SubscriptionAlert(val subName: String, val amount: Double, val dueDate: LocalDate, val isTransfer: Boolean = false)
+
+data class PerformanceDashboardData(
+    val metrics: List<PerformanceMetricData>,
+    val budgetSummaries: List<BudgetPerformanceData>,
+    val budgetTrends: List<BudgetTrendData>,
+    val categoryTrends: List<CategoryPerformanceData>
+)
+
+data class PerformanceMetricData(
+    val name: String,
+    val monthValues: Map<String, Double>, // month -> value
+    val unit: String = ""
+)
+
+data class BudgetPerformanceData(
+    val name: String,
+    val duration: String,
+    val budget: Double,
+    val actual: Double,
+    val variance: Double,
+    val variancePercent: Double,
+    val budgetId: Int = 0
+)
+
+data class BudgetTrendData(
+    val budgetId: Int,
+    val budgetName: String,
+    val monthData: Map<String, BudgetPerformanceData>
+)
+
+data class CategoryPerformanceData(
+    val categoryId: Int,
+    val categoryName: String,
+    val monthData: Map<String, CategoryMetricData>
+)
+
+data class CategoryMetricData(
+    val amount: Double,
+    val momChange: Double,
+    val momChangePct: Double,
+    val yoyAmount: Double,
+    val yoyChange: Double
+)

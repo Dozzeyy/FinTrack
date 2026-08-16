@@ -21,15 +21,12 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.TextStyle
 import kotlin.math.abs
 import kotlin.math.roundToInt
-import kotlin.math.abs
-import kotlin.math.roundToInt
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -40,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
@@ -55,13 +53,25 @@ import com.openapps.fintrack.data.TransactionWithDetails
 import com.openapps.fintrack.data.PartyBalance
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+
 import java.io.File
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.temporal.TemporalAdjusters
 
+data class TransactionWithRunningBalance(
+    val detail: TransactionWithDetails,
+    val runningBalance: Double?
+)
+
 @Composable
-fun TransactionRow(detail: TransactionWithDetails, viewModel: ExpenseViewModel, showTxnNumber: Boolean = false) {
+fun TransactionRow(
+    detail: TransactionWithDetails, 
+    viewModel: ExpenseViewModel, 
+    showTxnNumber: Boolean = false,
+    runningBalance: Double? = null,
+    hideAccountName: Boolean = false
+) {
     val transaction = detail.transaction
     val typeColor = when (detail.categoryType) {
         "income" -> Color(0xFF4CAF50)
@@ -118,32 +128,35 @@ fun TransactionRow(detail: TransactionWithDetails, viewModel: ExpenseViewModel, 
                         style = MaterialTheme.typography.bodySmall,
                         color = Color.Gray
                     )
-                    Text(" | ", color = Color.LightGray)
                     
-                    Surface(
-                        color = MaterialTheme.colorScheme.secondaryContainer,
-                        shape = RoundedCornerShape(4.dp)
-                    ) {
-                        Text(
-                            text = detail.accountName,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer
-                        )
-                    }
-                    
-                    if (detail.toAccountName != null && detail.categoryType != null) {
-                        Text(" → ", color = Color.Gray, fontSize = 10.sp)
+                    if (!hideAccountName) {
+                        Text(" | ", color = Color.LightGray)
+                        
                         Surface(
-                            color = MaterialTheme.colorScheme.tertiaryContainer,
+                            color = MaterialTheme.colorScheme.secondaryContainer,
                             shape = RoundedCornerShape(4.dp)
                         ) {
                             Text(
-                                text = detail.toAccountName,
+                                text = detail.accountName,
                                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
                             )
+                        }
+                        
+                        if (detail.toAccountName != null && detail.categoryType != null) {
+                            Text(" → ", color = Color.Gray, fontSize = 10.sp)
+                            Surface(
+                                color = MaterialTheme.colorScheme.tertiaryContainer,
+                                shape = RoundedCornerShape(4.dp)
+                            ) {
+                                Text(
+                                    text = detail.toAccountName,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer
+                                )
+                            }
                         }
                     }
                 }
@@ -166,6 +179,16 @@ fun TransactionRow(detail: TransactionWithDetails, viewModel: ExpenseViewModel, 
                     fontWeight = FontWeight.ExtraBold,
                     color = typeColor
                 )
+                
+                if (runningBalance != null) {
+                    Text(
+                        text = "Bal: ${viewModel.formatAmount(runningBalance)}",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Gray
+                    )
+                }
+
                 if (showTxnNumber && transaction.transactionNumber != null) {
                     Text(
                         text = transaction.transactionNumber,
@@ -417,7 +440,8 @@ fun LineChart(
     labels: List<String>,
     modifier: Modifier = Modifier.fillMaxWidth().height(200.dp),
     lineColor: Color = MaterialTheme.colorScheme.primary,
-    pointColor: Color = MaterialTheme.colorScheme.secondary
+    pointColor: Color = MaterialTheme.colorScheme.secondary,
+    showValuesAbovePoints: Boolean = false
 ) {
     if (data.isEmpty()) return
 
@@ -430,64 +454,98 @@ fun LineChart(
     
     val textMeasurer = rememberTextMeasurer()
     val onSurfaceColor = MaterialTheme.colorScheme.onSurface
-    val labelStyle = MaterialTheme.typography.labelSmall.copy(color = onSurfaceColor)
+    val labelStyle = MaterialTheme.typography.labelSmall.copy(color = onSurfaceColor, fontSize = 10.sp)
 
-    Canvas(modifier = modifier.padding(16.dp).padding(top = 24.dp, start = 48.dp)) {
-        val width = size.width
-        val height = size.height
-        val spacing = width / (data.size - 1).coerceAtLeast(1)
+    // Calculate needed width to maintain gap
+    val minGap = 60.dp
+    val scrollState = rememberScrollState()
+    
+    Box(modifier.horizontalScroll(scrollState)) {
+        Canvas(modifier = Modifier
+            .widthIn(min = 300.dp)
+            .width(maxOf(300.dp, (data.size * 60).dp))
+            .fillMaxHeight()
+            .padding(horizontal = 32.dp, vertical = 32.dp)
+        ) {
+            val width = size.width
+            val height = size.height
+            val spacing = width / (data.size - 1).coerceAtLeast(1)
 
-        val points = data.mapIndexed { index, value ->
-            val x = index * spacing
-            val y = height - ((value - minVal) / range * height).toFloat()
-            androidx.compose.ui.geometry.Offset(x, y)
-        }
+            val points = data.mapIndexed { index, value ->
+                val x = index * spacing
+                val y = height - ((value - minVal) / range * height).toFloat()
+                androidx.compose.ui.geometry.Offset(x, y)
+            }
 
-        // Draw line
-        for (i in 0 until points.size - 1) {
-            drawLine(
-                color = lineColor,
-                start = points[i],
-                end = points[i + 1],
-                strokeWidth = 3.dp.toPx(),
-                cap = androidx.compose.ui.graphics.StrokeCap.Round
-            )
-        }
+            // Draw line
+            for (i in 0 until points.size - 1) {
+                drawLine(
+                    color = lineColor,
+                    start = points[i],
+                    end = points[i + 1],
+                    strokeWidth = 2.dp.toPx(),
+                    cap = androidx.compose.ui.graphics.StrokeCap.Round
+                )
+            }
 
-        // Draw points and values
-        points.forEachIndexed { index, point ->
-            drawCircle(
-                color = pointColor,
-                radius = 4.dp.toPx(),
-                center = point
-            )
-            
-            // Draw value text on the left edge
-            val valueText = if (abs(data[index]) >= 1000000) {
-                String.format(java.util.Locale.US, "%.1fM", data[index] / 1000000)
-            } else if (abs(data[index]) >= 1000) {
-                String.format(java.util.Locale.US, "%.1fk", data[index] / 1000)
-            } else {
-                data[index].roundToInt().toString()
+            // Draw points, values and labels
+            points.forEachIndexed { index, point ->
+                drawCircle(
+                    color = pointColor,
+                    radius = 3.dp.toPx(),
+                    center = point
+                )
+                
+                val valueText = if (abs(data[index]) >= 1000000) {
+                    String.format(java.util.Locale.US, "%.1fM", data[index] / 1000000)
+                } else if (abs(data[index]) >= 1000) {
+                    String.format(java.util.Locale.US, "%.1fk", data[index] / 1000)
+                } else {
+                    data[index].roundToInt().toString()
+                }
+                
+                if (showValuesAbovePoints) {
+                    val valLayout = textMeasurer.measure(valueText, style = labelStyle)
+                    drawText(
+                        textLayoutResult = valLayout,
+                        topLeft = androidx.compose.ui.geometry.Offset(
+                            point.x - valLayout.size.width / 2,
+                            point.y - valLayout.size.height - 4.dp.toPx()
+                        )
+                    )
+                } else if (index == 0 || index == data.size - 1 || data.size < 10) {
+                    // Default behavior for other charts if not showing all values
+                    val valLayout = textMeasurer.measure(valueText, style = labelStyle)
+                    drawText(
+                        textLayoutResult = valLayout,
+                        topLeft = androidx.compose.ui.geometry.Offset(
+                            -24.dp.toPx(),
+                            point.y - valLayout.size.height / 2
+                        )
+                    )
+                }
+
+                // X-axis label
+                if (labels.size > index) {
+                    val labelLayout = textMeasurer.measure(labels[index], style = labelStyle)
+                    drawText(
+                        textLayoutResult = labelLayout,
+                        topLeft = androidx.compose.ui.geometry.Offset(
+                            point.x - labelLayout.size.width / 2,
+                            height + 8.dp.toPx()
+                        )
+                    )
+                }
             }
             
-            val textLayoutResult = textMeasurer.measure(valueText, style = labelStyle)
-            drawText(
-                textLayoutResult = textLayoutResult,
-                topLeft = androidx.compose.ui.geometry.Offset(
-                    -48.dp.toPx(),
-                    point.y - textLayoutResult.size.height / 2
-                )
+            // Draw baseline
+            drawLine(
+                color = Color.Gray.copy(alpha = 0.3f),
+                start = androidx.compose.ui.geometry.Offset(0f, height),
+                end = androidx.compose.ui.geometry.Offset(width, height),
+                strokeWidth = 1.dp.toPx()
             )
         }
-        
-        // Optional: Draw baseline
-        drawLine(
-            color = Color.Gray.copy(alpha = 0.5f),
-            start = androidx.compose.ui.geometry.Offset(0f, height),
-            end = androidx.compose.ui.geometry.Offset(width, height),
-            strokeWidth = 1.dp.toPx()
-        )
     }
 }
 
@@ -638,11 +696,75 @@ fun TransactionHistoryView(viewModel: ExpenseViewModel, onOpenDrawer: (() -> Uni
                     trailingIcon = { Icon(Icons.Default.ArrowDropDown, null) }
                 )
             }
+
+            val singleAccountId = if (selectedAccountIds.size == 1) selectedAccountIds.first() else null
+            
+            // Calculate summary and running balance if single account is selected
+            val prevDate = try { LocalDate.parse(startDate).minusDays(1).format(DateTimeFormatter.ISO_DATE) } catch(e: Exception) { startDate }
+            val openingBalances by if (singleAccountId != null) viewModel.getAccountBalances(prevDate).collectAsState(initial = emptyList()) else remember { mutableStateOf(emptyList<AccountBalance>()) }.let { it }
+            val openingBalance = remember(openingBalances, singleAccountId) { openingBalances.find { it.id == singleAccountId }?.balance ?: 0.0 }
+
+            val transactionsWithRunningBalance = remember(filteredTransactions, openingBalance, singleAccountId) {
+                if (singleAccountId == null) {
+                    filteredTransactions.map { TransactionWithRunningBalance(it, null) }
+                } else {
+                    val sorted = filteredTransactions.sortedWith(compareBy({ it.transaction.date }, { it.transaction.time }, { it.transaction.id }))
+                    var currentBal = openingBalance
+                    sorted.map { detail ->
+                        val amount = detail.transaction.amount
+                        val isIncoming = detail.transaction.toAccountId == singleAccountId || (detail.transaction.accountId == singleAccountId && detail.categoryType == "income")
+                        val isOutgoing = detail.transaction.accountId == singleAccountId && detail.categoryType != "income"
+                        
+                        if (isIncoming) currentBal += amount
+                        else if (isOutgoing) currentBal -= amount
+                        
+                        TransactionWithRunningBalance(detail, currentBal)
+                    }.reversed()
+                }
+            }
+
+            if (singleAccountId != null) {
+                val additions = transactionsWithRunningBalance.sumOf { item -> 
+                    if (item.detail.transaction.toAccountId == singleAccountId || (item.detail.transaction.accountId == singleAccountId && item.detail.categoryType == "income")) item.detail.transaction.amount else 0.0 
+                }
+                val deletions = transactionsWithRunningBalance.sumOf { item -> 
+                    if (item.detail.transaction.accountId == singleAccountId && item.detail.categoryType != "income") item.detail.transaction.amount else 0.0 
+                }
+                val closingBalance = openingBalance + additions - deletions
+
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Opening", style = MaterialTheme.typography.labelSmall)
+                            Text("Additions (+)", style = MaterialTheme.typography.labelSmall)
+                            Text("Deletions (-)", style = MaterialTheme.typography.labelSmall)
+                            Text("Closing", style = MaterialTheme.typography.labelSmall)
+                        }
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(viewModel.formatAmount(openingBalance), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                            Text(viewModel.formatAmount(additions), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = Color(0xFF4CAF50))
+                            Text(viewModel.formatAmount(deletions), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = Color.Red)
+                            Text(viewModel.formatAmount(closingBalance), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
             
             LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp).padding(top = 0.dp)) {
-                items(filteredTransactions) { detail ->
-                    Box(modifier = Modifier.clickable { viewModel.selectedTransactionDetail = detail }) {
-                        TransactionRow(detail = detail, viewModel = viewModel, showTxnNumber = false)
+                transactionsWithRunningBalance.forEach { entry ->
+                    item {
+                        Box(modifier = Modifier.clickable { viewModel.selectedTransactionDetail = entry.detail }) {
+                            TransactionRow(
+                                detail = entry.detail, 
+                                viewModel = viewModel, 
+                                showTxnNumber = false,
+                                runningBalance = entry.runningBalance,
+                                hideAccountName = singleAccountId != null
+                            )
+                        }
                     }
                 }
             }
@@ -801,7 +923,31 @@ fun AssetsLiabilitiesView(viewModel: ExpenseViewModel) {
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        Row(modifier = Modifier.fillMaxWidth().padding(8.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+        val totalAssets = microBalances.filter { it.balance > 0 }.sumOf { it.balance }
+        val totalLiabilities = microBalances.filter { it.balance < 0 }.sumOf { kotlin.math.abs(it.balance) }
+
+        Row(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Card(
+                modifier = Modifier.weight(1f),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF4CAF50).copy(alpha = 0.1f))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Available Balance", style = MaterialTheme.typography.labelSmall, color = Color(0xFF4CAF50))
+                    Text(viewModel.formatAmount(totalAssets), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color(0xFF4CAF50))
+                }
+            }
+            Card(
+                modifier = Modifier.weight(1f),
+                colors = CardDefaults.cardColors(containerColor = Color.Red.copy(alpha = 0.1f))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Payable", style = MaterialTheme.typography.labelSmall, color = Color.Red)
+                    Text(viewModel.formatAmount(totalLiabilities), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.Red)
+                }
+            }
+        }
+
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { viewMode = (viewMode + 1) % 5 }) {
                 Icon(Icons.Default.Layers, "Toggle Mode")
             }
@@ -1109,7 +1255,6 @@ fun OnAccountPartyBalancesView(viewModel: ExpenseViewModel, asOfDate: String, on
             val inc = partyTxnsIn.sumOf { it.transaction.amount }
             val exp = partyTxnsOut.sumOf { it.transaction.amount }
             
-            // Opening balance is only included if no categorical/tag filters are active
             val opening = if (selectedTagIds.isEmpty() && selectedCategoryIds.isEmpty()) p.openingBalance else 0.0
             val currentFilteredBalance = opening + inc - exp
             
@@ -1196,7 +1341,7 @@ fun OnAccountPartyBalancesView(viewModel: ExpenseViewModel, asOfDate: String, on
             }
             LazyColumn(modifier = Modifier.weight(1f).padding(horizontal = 16.dp)) {
                 items(displayParties) { p ->
-                    Row(modifier = Modifier.fillMaxWidth().clickable { selectedPartyForHistory = p.id to p.name }.padding(vertical = 12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Row(modifier = Modifier.fillMaxWidth().clickable { selectedPartyForHistory = Pair(p.id, p.name) }.padding(vertical = 12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(p.name); Text(viewModel.formatAmount(p.balance), color = if (p.balance >= 0) Color(0xFF4CAF50) else Color.Red)
                     }
                     Divider()
@@ -1313,14 +1458,43 @@ fun AccountDetailView(viewModel: ExpenseViewModel, account: AccountBalance, onBa
     val context = LocalContext.current
     val rawTransactions by viewModel.getAccountTransactions(account.id, startDate, endDate).collectAsState(initial = emptyList())
     
-    val transactions = remember(rawTransactions, filterTagIds.toList(), filterAccountIds.toList()) {
-        rawTransactions.filter { t ->
+    // Get opening balance
+    val prevDate = try { LocalDate.parse(startDate).minusDays(1).format(DateTimeFormatter.ISO_DATE) } catch(e: Exception) { startDate }
+    val openingBalances by viewModel.getAccountBalances(prevDate).collectAsState(initial = emptyList())
+    val openingBalance = remember(openingBalances, account.id) { openingBalances.find { it.id == account.id }?.balance ?: 0.0 }
+
+    val transactionsWithRunningBalance = remember(rawTransactions, openingBalance, filterTagIds.toList(), filterAccountIds.toList()) {
+        val filtered = rawTransactions.filter { t ->
             (filterTagIds.isEmpty() || t.transaction.tags?.split(",")?.mapNotNull { it.toIntOrNull() }?.any { it in filterTagIds } == true) &&
             (filterAccountIds.isEmpty() || t.transaction.accountId in filterAccountIds || t.transaction.toAccountId in filterAccountIds)
-        }
+        }.sortedWith(compareBy({ it.transaction.date }, { it.transaction.time }, { it.transaction.id }))
+
+        var currentBal = openingBalance
+        filtered.map { detail ->
+            val amount = detail.transaction.amount
+            val isIncoming = detail.transaction.toAccountId == account.id || (detail.transaction.accountId == account.id && detail.categoryType == "income")
+            val isOutgoing = detail.transaction.accountId == account.id && detail.categoryType != "income"
+            
+            if (isIncoming) currentBal += amount
+            else if (isOutgoing) currentBal -= amount
+            
+            TransactionWithRunningBalance(detail, currentBal)
+        }.reversed()
     }
 
-    val exportLauncher = rememberLauncherForActivityResult(contract = ActivityResultContracts.CreateDocument("text/csv"), onResult = { uri -> uri?.let { exportToUri(context, transactions, "CSV", it) } })
+    val additions = remember(transactionsWithRunningBalance) { 
+        transactionsWithRunningBalance.sumOf { item -> 
+            if (item.detail.transaction.toAccountId == account.id || (item.detail.transaction.accountId == account.id && item.detail.categoryType == "income")) item.detail.transaction.amount else 0.0 
+        } 
+    }
+    val deletions = remember(transactionsWithRunningBalance) { 
+        transactionsWithRunningBalance.sumOf { item -> 
+            if (item.detail.transaction.accountId == account.id && item.detail.categoryType != "income") item.detail.transaction.amount else 0.0
+        } 
+    }
+    val closingBalance = openingBalance + additions - deletions
+
+    val exportLauncher = rememberLauncherForActivityResult(contract = ActivityResultContracts.CreateDocument("text/csv"), onResult = { uri -> uri?.let { exportToUri(context, transactionsWithRunningBalance.map { it.detail }, "CSV", it) } })
     Column(modifier = Modifier.fillMaxSize()) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "") }
@@ -1348,9 +1522,40 @@ fun AccountDetailView(viewModel: ExpenseViewModel, account: AccountBalance, onBa
             IconButton(onClick = { showFilterDialog = true }) { Icon(Icons.Default.DateRange, contentDescription = "Filter") }
             IconButton(onClick = { exportLauncher.launch("${account.name.replace(" ", "_")}_${month.format(DateTimeFormatter.ofPattern("MMM_yyyy"))}.csv") }) { Icon(Icons.Default.FileDownload, contentDescription = "Export") }
         }
+
+        Card(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+        ) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Opening", style = MaterialTheme.typography.labelSmall)
+                    Text("Additions (+)", style = MaterialTheme.typography.labelSmall)
+                    Text("Deletions (-)", style = MaterialTheme.typography.labelSmall)
+                    Text("Closing", style = MaterialTheme.typography.labelSmall)
+                }
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(viewModel.formatAmount(openingBalance), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                    Text(viewModel.formatAmount(additions), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = Color(0xFF4CAF50))
+                    Text(viewModel.formatAmount(deletions), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = Color.Red)
+                    Text(viewModel.formatAmount(closingBalance), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
         LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp).padding(top = 0.dp)) {
-            items(transactions) { detail ->
-                Box(modifier = Modifier.clickable { viewModel.selectedTransactionDetail = detail }) { TransactionRow(detail = detail, viewModel = viewModel, showTxnNumber = true) }
+            transactionsWithRunningBalance.forEach { entry ->
+                item {
+                    Box(modifier = Modifier.clickable { viewModel.selectedTransactionDetail = entry.detail }) { 
+                        TransactionRow(
+                            detail = entry.detail, 
+                            viewModel = viewModel, 
+                            showTxnNumber = true, 
+                            runningBalance = entry.runningBalance,
+                            hideAccountName = true
+                        )
+                    }
+                }
             }
         }
     }
@@ -1406,16 +1611,91 @@ fun exportToUri(context: Context, data: List<TransactionWithDetails>, format: St
 fun exportScheduleToUri(context: Context, data: List<AmortizationRow>, uri: Uri) {
     try {
         context.contentResolver.openOutputStream(uri)?.use { outputStream ->
-            outputStream.bufferedWriter().use { out ->
-                out.write("Period,Due Date,Installment,Interest Portion,Principal Portion,Closing Balance\n")
+            outputStream.bufferedWriter(Charsets.UTF_8).use { out ->
+                out.write("Period,Due Date,Opening Balance,Installment,Interest,Principal,Closing Balance\n")
                 data.forEach { row ->
-                    out.write("${row.period},${row.dueDate},${row.installment},${row.interestPortion},${row.principalPortion},${row.closingBalance}\n")
+                    out.write("${row.period},${row.dueDate},${row.openingBalance},${row.installment},${row.interestPortion},${row.principalPortion},${row.closingBalance}\n")
                 }
             }
         }
         Toast.makeText(context, "Export Successful!", Toast.LENGTH_SHORT).show()
     } catch (e: Exception) {
         Toast.makeText(context, "Export Failed: ${e.message}", Toast.LENGTH_SHORT).show()
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AmortizationScheduleOverlay(
+    title: String,
+    schedule: List<AmortizationRow>,
+    viewModel: ExpenseViewModel,
+    onBack: () -> Unit
+) {
+    val context = LocalContext.current
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/csv"),
+        onResult = { uri -> uri?.let { exportScheduleToUri(context, schedule, it) } }
+    )
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(title, maxLines = 1) },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null) } },
+                actions = {
+                    IconButton(onClick = { exportLauncher.launch("Schedule_${title.replace(" ", "_")}.csv") }) {
+                        Icon(Icons.Default.FileDownload, "Export")
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        Column(Modifier.padding(padding).fillMaxSize()) {
+            Row(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant).padding(8.dp)) {
+                Text("#", modifier = Modifier.width(30.dp), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
+                Text("Date", modifier = Modifier.weight(1.2f), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
+                Text("Installment", modifier = Modifier.weight(1.5f), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
+                Text("Interest", modifier = Modifier.weight(1.5f), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
+                Text("Balance", modifier = Modifier.weight(1.5f), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
+            }
+            Box(modifier = Modifier.weight(1f)) {
+                LazyColumn(Modifier.fillMaxSize()) {
+                    items(schedule) { row ->
+                        Row(
+                            Modifier.fillMaxWidth().padding(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("${row.period}", modifier = Modifier.width(30.dp), style = MaterialTheme.typography.bodySmall)
+                            Text(row.dueDate.format(DateTimeFormatter.ofPattern("dd/MM/yy")), modifier = Modifier.weight(1.2f), style = MaterialTheme.typography.bodySmall)
+                            Text(viewModel.formatAmountWhole(row.installment), modifier = Modifier.weight(1.5f), style = MaterialTheme.typography.bodySmall)
+                            Text(viewModel.formatAmountWhole(row.interestPortion), modifier = Modifier.weight(1.5f), style = MaterialTheme.typography.bodySmall)
+                            Text(viewModel.formatAmountWhole(row.closingBalance), modifier = Modifier.weight(1.5f), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                        }
+                        HorizontalDivider(modifier = Modifier.alpha(0.3f))
+                    }
+                }
+            }
+            
+            val totalInstallment = schedule.sumOf { it.installment }
+            val totalInterest = schedule.sumOf { it.interestPortion }
+            
+            Surface(tonalElevation = 8.dp, shadowElevation = 8.dp, modifier = Modifier.fillMaxWidth()) {
+                Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Total", modifier = Modifier.width(60.dp), fontWeight = FontWeight.ExtraBold)
+                    Spacer(Modifier.weight(0.1f))
+                    Column(Modifier.weight(1.5f)) {
+                        Text("Installments", style = MaterialTheme.typography.labelSmall)
+                        Text(viewModel.formatAmountWhole(totalInstallment), fontWeight = FontWeight.Bold)
+                    }
+                    Column(Modifier.weight(1.5f)) {
+                        Text("Interest", style = MaterialTheme.typography.labelSmall)
+                        Text(viewModel.formatAmountWhole(totalInterest), fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(Modifier.weight(1.5f))
+                }
+            }
+        }
     }
 }
 

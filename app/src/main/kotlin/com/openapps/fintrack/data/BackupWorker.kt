@@ -62,7 +62,9 @@ class BackupWorker(context: Context, params: WorkerParameters) : CoroutineWorker
                         }
 
                         if ((encryptBackup || secureMode) && masterPassword.isNotEmpty()) {
-                            val result = EncryptionService.encryptFile(tempSnapshot, finalFile, masterPassword)
+                            val passChars = masterPassword.toCharArray()
+                            val result = EncryptionService.encryptFile(tempSnapshot, finalFile, passChars)
+                            passChars.fill('\u0000')
                             if (result.isFailure) throw Exception("Encryption failed")
                         } else if (encryptBackup || secureMode) {
                             

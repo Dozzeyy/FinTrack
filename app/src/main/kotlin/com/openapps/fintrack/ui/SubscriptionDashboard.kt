@@ -119,7 +119,6 @@ fun SubscriptionDashboard(viewModel: ExpenseViewModel, onBack: () -> Unit, onNav
     val tabTitles = listOf("Subscriptions", "Recurring Transfers", "Loans")
 
     var selectedSubscriptionTxns by remember { mutableStateOf<List<TransactionWithDetails>?>(null) }
-    var selectedSchedule by remember { mutableStateOf<List<AmortizationRow>?>(null) }
     var selectedLoanRepayments by remember { mutableStateOf<Long?>(null) }
     var detailTitle by remember { mutableStateOf("") }
     val context = LocalContext.current
@@ -148,17 +147,6 @@ fun SubscriptionDashboard(viewModel: ExpenseViewModel, onBack: () -> Unit, onNav
         }
     )
 
-    val exportScheduleLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.CreateDocument("text/csv"),
-        onResult = { uri ->
-            uri?.let { uriVal ->
-                selectedSchedule?.let { data ->
-                    exportScheduleToUri(context, data, uriVal)
-                }
-            }
-        }
-    )
-
     if (selectedLoanForSchedule != null) {
         val loan = selectedLoanForSchedule!!
         val schedule = remember(loan) {
@@ -181,84 +169,14 @@ fun SubscriptionDashboard(viewModel: ExpenseViewModel, onBack: () -> Unit, onNav
                 frequency = loan.frequency
             )
         }
-        val upcomingPeriod = loan.periodsPassed + 1
         
-        BackHandler { selectedLoanForSchedule = null; selectedSchedule = null }
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = { Text("Schedule: ${loan.name}") },
-                    navigationIcon = { IconButton(onClick = { selectedLoanForSchedule = null; selectedSchedule = null }) { Icon(Icons.Default.ArrowBack, null) } },
-                    actions = {
-                        IconButton(onClick = { 
-                            selectedSchedule = schedule
-                            exportScheduleLauncher.launch("Schedule_${loan.name.replace(" ", "_")}.csv")
-                        }) {
-                            Icon(Icons.Default.FileDownload, "Export")
-                        }
-                    }
-                )
-            }
-        ) { padding ->
-            Column(Modifier.padding(padding).fillMaxSize()) {
-                // Header Row
-                Row(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant).padding(8.dp)) {
-                    Text("#", modifier = Modifier.width(30.dp), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
-                    Text("Date", modifier = Modifier.weight(1.2f), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
-                    Text("Installment", modifier = Modifier.weight(1.5f), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
-                    Text("Interest", modifier = Modifier.weight(1.5f), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
-                    Text("Balance", modifier = Modifier.weight(1.5f), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
-                }
-                LazyColumn(Modifier.weight(1f)) {
-                    items(schedule) { row ->
-                        val isUpcoming = row.period == upcomingPeriod
-                        val isPaid = row.period <= loan.periodsPassed
-                        
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .background(if (isUpcoming) MaterialTheme.colorScheme.primaryContainer else if (isPaid) Color.Transparent.copy(alpha = 0.05f) else Color.Transparent)
-                                .padding(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("${row.period}", modifier = Modifier.width(30.dp), style = MaterialTheme.typography.bodySmall, color = if (isPaid) Color.Gray else Color.Unspecified)
-                            Text(row.dueDate.format(DateTimeFormatter.ofPattern("dd/MM/yy")), modifier = Modifier.weight(1.2f), style = MaterialTheme.typography.bodySmall, color = if (isPaid) Color.Gray else Color.Unspecified)
-                            Text(viewModel.formatAmountWhole(row.installment), modifier = Modifier.weight(1.5f), style = MaterialTheme.typography.bodySmall, color = if (isPaid) Color.Gray else Color.Unspecified)
-                            Text(viewModel.formatAmountWhole(row.interestPortion), modifier = Modifier.weight(1.5f), style = MaterialTheme.typography.bodySmall, color = if (isPaid) Color.Gray else Color.Unspecified)
-                            Text(viewModel.formatAmountWhole(row.closingBalance), modifier = Modifier.weight(1.5f), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = if (isPaid) Color.Gray else Color.Unspecified)
-                        }
-                        Divider(modifier = Modifier.alpha(0.3f))
-                    }
-                }
-                
-                // Footer Totals
-                val totalInstallment = schedule.sumOf { it.installment }
-                val totalInterest = schedule.sumOf { it.interestPortion }
-                
-                Surface(
-                    tonalElevation = 8.dp,
-                    shadowElevation = 8.dp,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        Modifier.padding(horizontal = 16.dp, vertical = 12.dp).fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Total", modifier = Modifier.width(30.dp + 70.dp), fontWeight = FontWeight.ExtraBold) 
-                        Spacer(Modifier.weight(0.1f))
-                        Column(Modifier.weight(1.5f)) {
-                            Text("Installments", style = MaterialTheme.typography.labelSmall)
-                            Text(viewModel.formatAmountWhole(totalInstallment), fontWeight = FontWeight.Bold)
-                        }
-                        Column(Modifier.weight(1.5f)) {
-                            Text("Interest", style = MaterialTheme.typography.labelSmall)
-                            Text(viewModel.formatAmountWhole(totalInterest), fontWeight = FontWeight.Bold)
-                        }
-                        Spacer(Modifier.weight(1.5f))
-                    }
-                }
-            }
-        }
+        BackHandler { selectedLoanForSchedule = null }
+        AmortizationScheduleOverlay(
+            title = "Schedule: ${loan.name}",
+            schedule = schedule,
+            viewModel = viewModel,
+            onBack = { selectedLoanForSchedule = null }
+        )
         return
     }
 
