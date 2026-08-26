@@ -22,6 +22,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.openapps.fintrack.R
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -48,17 +50,17 @@ fun TagSummaryScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Summary by Tags") },
+                title = { Text(stringResource(R.string.btn_summary_by_tags)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.btn_back))
                     }
                 }
             )
         }
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
-            Text("Select Tags:", modifier = Modifier.padding(16.dp), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.label_select_tags_colon), modifier = Modifier.padding(16.dp), style = MaterialTheme.typography.titleMedium)
             
             FlowRow(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
                 allTags.forEach { tag ->
@@ -77,15 +79,15 @@ fun TagSummaryScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
             Divider(modifier = Modifier.padding(vertical = 8.dp))
             
             Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("${transactions.size} Transactions", style = MaterialTheme.typography.labelLarge)
+                Text(stringResource(R.string.label_num_transactions, transactions.size), style = MaterialTheme.typography.labelLarge)
                 Row {
                     IconButton(onClick = { showFilterDialog = true }) {
-                        Icon(Icons.Default.FilterList, contentDescription = "Filter")
+                        Icon(Icons.Default.FilterList, contentDescription = stringResource(R.string.label_filter))
                     }
                     IconButton(onClick = { 
                         exportLauncher.launch("tags_summary_${LocalDate.now()}.csv")
                     }) {
-                        Icon(Icons.Default.Share, contentDescription = "Export")
+                        Icon(Icons.Default.Share, contentDescription = stringResource(R.string.label_export))
                     }
                 }
             }

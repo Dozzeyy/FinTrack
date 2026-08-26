@@ -13,6 +13,8 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import com.openapps.fintrack.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,10 +38,10 @@ fun SummaryScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text("Summary") },
+                    title = { Text(stringResource(R.string.menu_summary)) },
                     navigationIcon = {
                         IconButton(onClick = onBack) {
-                            Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                            Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.btn_back))
                         }
                     }
                 )
@@ -48,8 +50,10 @@ fun SummaryScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
         ) { padding ->
             Column(modifier = Modifier.padding(padding).fillMaxSize()) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    FilterChip(selected = currentSubView == "Transactions", onClick = { currentSubView = "Transactions" }, label = { Text("Transactions") })
-                    FilterChip(selected = currentSubView == "Assets", onClick = { currentSubView = "Assets" }, label = { Text("Assets/Liabilities") })
+                    val transactionsTab = stringResource(R.string.menu_transactions)
+                    val assetsTab = stringResource(R.string.menu_assets)
+                    FilterChip(selected = currentSubView == "Transactions" || currentSubView == transactionsTab, onClick = { currentSubView = "Transactions" }, label = { Text(transactionsTab) })
+                    FilterChip(selected = currentSubView == "Assets" || currentSubView == assetsTab, onClick = { currentSubView = "Assets" }, label = { Text(assetsTab) })
                 }
                 
                 AnimatedContent(

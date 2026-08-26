@@ -28,9 +28,12 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import com.openapps.fintrack.R
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -115,6 +118,10 @@ class AddTransactionState(
     var showCalculator by mutableStateOf(false)
     var showMismatchDialog by mutableStateOf(false)
     var mismatchTotals by mutableStateOf(Pair(0.0, 0.0))
+
+    var invoiceNumber by mutableStateOf("")
+    var dueDays by mutableStateOf("")
+    val selectedInvoiceIds = mutableStateListOf<Int>()
 }
 
 @Composable
@@ -170,7 +177,17 @@ fun rememberAddTransactionState(
             initialForeignCurrency = txnDetail?.transaction?.currencyCode,
             initialAmountLocal = txnDetail?.transaction?.amountBase?.toString()?.takeIf { it != "null" },
             initialIsManual = (txnDetail != null)
-        )
+        ).apply {
+            if (draft != null) {
+                invoiceNumber = draft.invoiceNumber
+                dueDays = draft.dueDays
+                selectedInvoiceIds.clear()
+                selectedInvoiceIds.addAll(draft.selectedInvoiceIds)
+            } else if (txnDetail != null) {
+                invoiceNumber = txnDetail.transaction.invoiceNumber ?: ""
+                dueDays = txnDetail.transaction.dueDays?.toString() ?: ""
+            }
+        }
     }
 
     LaunchedEffect(txnDetail) {
@@ -238,7 +255,7 @@ fun CurrencyPickerField(state: AddTransactionState, viewModel: ExpenseViewModel,
         OutlinedTextField(
             value = state.foreignCurrency,
             onValueChange = {},
-            label = { Text("Currency") },
+            label = { Text(stringResource(R.string.label_currency)) },
             readOnly = true,
             enabled = false,
             modifier = Modifier.fillMaxWidth(),
@@ -301,14 +318,14 @@ fun AddTransactionScreen(
                 showSavedDialog = false
                 onBack() 
             },
-            title = { Text("Success") },
-            text = { Text("Transaction saved successfully!") },
+            title = { Text(stringResource(R.string.title_success)) },
+            text = { Text(stringResource(R.string.msg_saved_success)) },
             confirmButton = {
                 Button(onClick = { 
                     showSavedDialog = false
                     onBack() 
                 }) {
-                    Text("OK")
+                    Text(stringResource(R.string.btn_ok))
                 }
             }
         )
@@ -350,8 +367,8 @@ fun AddTransactionScreen(
     var isFromOnAccountSelected by remember(isFromOnAccount) { mutableStateOf(isFromOnAccount) }
     var isToOnAccountSelected by remember(isToOnAccount) { mutableStateOf(isToOnAccount) }
 
-    val displayPartyName = txnDetail?.partyName ?: accountsRaw.find { it.id == state.selectedAccountId }?.name ?: "Select"
-    val displayToPartyName = txnDetail?.toPartyName ?: accountsRaw.find { it.id == state.selectedToAccountId }?.name ?: "Select"
+    val displayPartyName = txnDetail?.partyName ?: accountsRaw.find { it.id == state.selectedAccountId }?.name ?: stringResource(R.string.label_select)
+    val displayToPartyName = txnDetail?.toPartyName ?: accountsRaw.find { it.id == state.selectedToAccountId }?.name ?: stringResource(R.string.label_select)
     
     val selectedTagIds = remember { 
         val list = mutableStateListOf<Int>()
@@ -421,7 +438,10 @@ fun AddTransactionScreen(
                 merchantName = state.merchantName,
                 isDiscretionary = state.isDiscretionary,
                 subName = state.subName,
-                subFrequency = state.subFrequency
+                subFrequency = state.subFrequency,
+                invoiceNumber = state.invoiceNumber,
+                dueDays = state.dueDays,
+                selectedInvoiceIds = state.selectedInvoiceIds.toList()
             )
         }
     }
@@ -440,10 +460,10 @@ fun AddTransactionScreen(
         modifier = Modifier.imePadding(),
         topBar = {
             TopAppBar(
-                title = { Text(if (isTemplateMode) "Add Template" else if (isActuallyReadOnly) "Transaction Details" else "Add Transaction") },
+                title = { Text(if (isTemplateMode) stringResource(R.string.btn_add_template) else if (isActuallyReadOnly) stringResource(R.string.title_transaction_details) else stringResource(R.string.btn_add_transaction)) },
                 navigationIcon = {
                     IconButton(onClick = { saveAsDraft(); onBack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.btn_back))
                     }
                 }
             )
@@ -452,8 +472,8 @@ fun AddTransactionScreen(
         if (state.showMismatchDialog) {
             AlertDialog(
                 onDismissRequest = { state.showMismatchDialog = false },
-                title = { Text("Total Mismatch") },
-                text = { Text("The total amount (${state.mismatchTotals.first}) does not match the sum of row amounts (${state.mismatchTotals.second}). Total amount will be updated to match the rows.") },
+                title = { Text(stringResource(R.string.title_total_mismatch)) },
+                text = { Text(stringResource(R.string.msg_total_mismatch_desc, state.mismatchTotals.first, state.mismatchTotals.second)) },
                 confirmButton = {
                     TextButton(onClick = { 
                         val newTotal = state.mismatchTotals.second.toString()
@@ -463,7 +483,7 @@ fun AddTransactionScreen(
                             state.isManualLocalAmount = false
                         }
                         state.showMismatchDialog = false
-                    }) { Text("Update Total") }
+                    }) { Text(stringResource(R.string.btn_update_total)) }
                 }
             )
         }
@@ -493,11 +513,11 @@ fun AddTransactionScreen(
                     
                     scope.launch {
                         if (viewModel.saveTemplate(newTemplate)) {
-                            Toast.makeText(context, "Template Saved", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, context.getString(R.string.msg_template_saved), Toast.LENGTH_SHORT).show()
                             showNameDialog = false
                             if (isTemplateMode) onBack()
                         } else {
-                            Toast.makeText(context, "Template with this name already exists", Toast.LENGTH_LONG).show()
+                            Toast.makeText(context, context.getString(R.string.msg_template_exists), Toast.LENGTH_LONG).show()
                         }
                     }
                 }
@@ -558,7 +578,7 @@ fun AddTransactionScreen(
                 OutlinedTextField(
                     value = templateName,
                     onValueChange = { templateName = it },
-                    label = { Text("Template Name") },
+                    label = { Text(stringResource(R.string.label_template_name)) },
                     modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
                     shape = CircleShape
                 )
@@ -568,7 +588,7 @@ fun AddTransactionScreen(
                 OutlinedTextField(
                     value = txnDetail.transaction.transactionNumber,
                     onValueChange = {},
-                    label = { Text("Transaction Number") },
+                    label = { Text(stringResource(R.string.label_txn_no_colon)) },
                     readOnly = true,
                     enabled = false,
                     modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
@@ -612,6 +632,17 @@ fun AddTransactionScreen(
                 onToOnAccountChange = { isToOnAccountSelected = it }
             )
 
+            if (viewModel.invoiceAgeTrackingEnabled && (isFromOnAccountSelected || isToOnAccountSelected)) {
+                if (state.type == "transfer") {
+                    val partyId = if (isFromOnAccountSelected) state.selectedAccountId else state.selectedToAccountId
+                    if (partyId != null) {
+                        InvoiceSelectionSection(state, viewModel, partyId, isActuallyReadOnly)
+                    }
+                } else {
+                    InvoiceInfoSection(state, isActuallyReadOnly)
+                }
+            }
+
             if (!isActuallyReadOnly && state.type == "expense" && state.selectedAccountId != null) {
                 val selectedAcc = accountsRaw.find { it.id == state.selectedAccountId }
                 val selectedMinor = allMinorHeads.find { it.id == selectedAcc?.minorHeadId }
@@ -644,7 +675,7 @@ fun AddTransactionScreen(
                                     Icon(Icons.Default.Lightbulb, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                                     Spacer(Modifier.width(8.dp))
                                     Text(
-                                        "Tip: Use '${betterCard.name}' instead to delay your payment further.",
+                                        stringResource(R.string.msg_credit_card_tip, betterCard.name),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onPrimaryContainer
                                     )
@@ -670,13 +701,13 @@ fun AddTransactionScreen(
             if (state.type != "transfer" && viewModel.negotiationTrackerEnabled && !isActuallyReadOnly) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
                     Checkbox(checked = state.isNegotiated, onCheckedChange = { state.isNegotiated = it })
-                    Text("I negotiated in this", modifier = Modifier.clickable { state.isNegotiated = !state.isNegotiated })
+                    Text(stringResource(R.string.label_i_negotiated), modifier = Modifier.clickable { state.isNegotiated = !state.isNegotiated })
                 }
                 if (state.isNegotiated) {
                     OutlinedTextField(
                         value = state.negotiationAmountOriginal,
                         onValueChange = { state.negotiationAmountOriginal = it },
-                        label = { Text("Amount Before Negotiation") },
+                        label = { Text(stringResource(R.string.label_amt_before_negotiation)) },
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                         shape = CircleShape,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
@@ -702,7 +733,7 @@ fun AddTransactionScreen(
                                 merchantExpanded = true
                             }
                         },
-                        label = { Text("Merchant Name") },
+                        label = { Text(stringResource(R.string.label_merchant_name)) },
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                         readOnly = isActuallyReadOnly,
                         shape = CircleShape
@@ -731,7 +762,7 @@ fun AddTransactionScreen(
             if (state.type != "transfer" && viewModel.discretionarySpendingTrackerEnabled && !isActuallyReadOnly) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
                     Checkbox(checked = state.isDiscretionary, onCheckedChange = { state.isDiscretionary = it })
-                    Text("Discretionary spend", modifier = Modifier.clickable { state.isDiscretionary = !state.isDiscretionary })
+                    Text(stringResource(R.string.label_discretionary_spend), modifier = Modifier.clickable { state.isDiscretionary = !state.isDiscretionary })
                 }
             }
 
@@ -761,7 +792,7 @@ fun AddTransactionScreen(
                 OutlinedTextField(
                     value = state.note,
                     onValueChange = { if (!isActuallyReadOnly) state.note = it },
-                    label = { Text("Note") },
+                    label = { Text(stringResource(R.string.label_note)) },
                     readOnly = isActuallyReadOnly,
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                     minLines = 3,
@@ -800,7 +831,7 @@ fun AddTransactionScreen(
                     ) {
                         Icon(Icons.Default.ContentCopy, null)
                         Spacer(Modifier.width(4.dp))
-                        Text("Duplicate")
+                        Text(stringResource(R.string.btn_duplicate))
                     }
                     Button(
                         onClick = { isLocalEditMode = true },
@@ -808,14 +839,14 @@ fun AddTransactionScreen(
                     ) {
                         Icon(Icons.Default.Edit, null)
                         Spacer(Modifier.width(4.dp))
-                        Text("Edit")
+                        Text(stringResource(R.string.btn_edit))
                     }
                 }
                 
                 txnDetail?.transaction?.editedAt?.let { editedAt ->
                     val d = Instant.ofEpochMilli(editedAt).atZone(ZoneId.systemDefault())
                     Text(
-                        text = "Edited on ${d.format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm"))}",
+                        text = stringResource(R.string.msg_edited_on, d.format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm"))),
                         style = MaterialTheme.typography.labelSmall,
                         color = Color.Gray,
                         modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp)
@@ -823,7 +854,7 @@ fun AddTransactionScreen(
                 }
 
                 Spacer(Modifier.height(24.dp))
-                Text("Viewing archived transaction data.", style = MaterialTheme.typography.bodySmall, color = Color.Gray, modifier = Modifier.align(Alignment.CenterHorizontally))
+                Text(stringResource(R.string.msg_viewing_archived_data), style = MaterialTheme.typography.bodySmall, color = Color.Gray, modifier = Modifier.align(Alignment.CenterHorizontally))
             }
         }
     }
@@ -840,19 +871,19 @@ fun TransactionTypeRow(state: AddTransactionState, readOnly: Boolean, isTemplate
             FilterChip(
                 selected = state.type == "income", 
                 onClick = { if (!readOnly) { state.type = "income"; state.selectedCategoryId = null } }, 
-                label = { Text("Income") },
+                label = { Text(stringResource(R.string.label_income)) },
                 enabled = !readOnly || state.type == "income"
             )
             FilterChip(
                 selected = state.type == "expense", 
                 onClick = { if (!readOnly) { state.type = "expense"; state.selectedCategoryId = null } }, 
-                label = { Text("Expense") },
+                label = { Text(stringResource(R.string.label_expense)) },
                 enabled = !readOnly || state.type == "expense"
             )
             FilterChip(
                 selected = state.type == "transfer", 
                 onClick = { if (!readOnly) { state.type = "transfer"; state.selectedAccountId = null; state.selectedToAccountId = null; state.selectedCategoryId = null; state.isMultiEntry = false } },
-                label = { Text("Transfer") },
+                label = { Text(stringResource(R.string.label_transfer)) },
                 enabled = !readOnly || state.type == "transfer"
             )
             
@@ -890,7 +921,7 @@ fun TransactionTypeRow(state: AddTransactionState, readOnly: Boolean, isTemplate
                 }
             } else if (readOnly && state.type != "transfer") {
                 Text(
-                    text = if (state.isMultiEntry) "Multi (${state.multiEntryType})" else "Single",
+                    text = if (state.isMultiEntry) stringResource(R.string.label_multi_val, state.multiEntryType) else stringResource(R.string.label_single_val),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(start = 8.dp)
@@ -910,7 +941,7 @@ fun DateTimeSection(state: AddTransactionState, readOnly: Boolean, context: andr
                     state.date = current.minusDays(1).format(DateTimeFormatter.ISO_DATE)
                 } catch (e: Exception) {}
             }, modifier = Modifier.size(24.dp)) {
-                Icon(Icons.Default.ChevronLeft, "Previous Day", tint = MaterialTheme.colorScheme.primary)
+                Icon(Icons.Default.ChevronLeft, stringResource(R.string.label_prev_day), tint = MaterialTheme.colorScheme.primary)
             }
         }
 
@@ -923,7 +954,7 @@ fun DateTimeSection(state: AddTransactionState, readOnly: Boolean, context: andr
             OutlinedTextField(
                 value = state.date,
                 onValueChange = { },
-                label = { Text("Date") },
+                label = { Text(stringResource(R.string.label_date)) },
                 readOnly = true,
                 enabled = false,
                 modifier = Modifier.fillMaxWidth(),
@@ -943,7 +974,7 @@ fun DateTimeSection(state: AddTransactionState, readOnly: Boolean, context: andr
                     state.date = current.plusDays(1).format(DateTimeFormatter.ISO_DATE)
                 } catch (e: Exception) {}
             }, modifier = Modifier.size(24.dp)) {
-                Icon(Icons.Default.ChevronRight, "Next Day", tint = MaterialTheme.colorScheme.primary)
+                Icon(Icons.Default.ChevronRight, stringResource(R.string.label_next_day), tint = MaterialTheme.colorScheme.primary)
             }
         }
 
@@ -956,7 +987,7 @@ fun DateTimeSection(state: AddTransactionState, readOnly: Boolean, context: andr
             OutlinedTextField(
                 value = state.time,
                 onValueChange = { },
-                label = { Text("Time") },
+                label = { Text(stringResource(R.string.label_time)) },
                 readOnly = true,
                 enabled = false,
                 modifier = Modifier.fillMaxWidth(),
@@ -968,6 +999,97 @@ fun DateTimeSection(state: AddTransactionState, readOnly: Boolean, context: andr
                 )
             )
         }
+    }
+}
+
+@Composable
+fun InvoiceInfoSection(state: AddTransactionState, readOnly: Boolean) {
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+        OutlinedTextField(
+            value = state.invoiceNumber,
+            onValueChange = { if (!readOnly) state.invoiceNumber = it },
+            label = { Text(stringResource(R.string.label_invoice_no)) },
+            modifier = Modifier.fillMaxWidth(),
+            readOnly = readOnly,
+            shape = CircleShape
+        )
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(
+            value = state.dueDays,
+            onValueChange = { if (!readOnly) state.dueDays = it },
+            label = { Text(stringResource(R.string.label_due_day_x)) },
+            modifier = Modifier.fillMaxWidth(),
+            readOnly = readOnly,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            shape = CircleShape
+        )
+    }
+}
+
+@Composable
+fun InvoiceSelectionSection(state: AddTransactionState, viewModel: ExpenseViewModel, partyId: Int, readOnly: Boolean) {
+    var showDialog by remember { mutableStateOf(false) }
+    val pendingInvoices by viewModel.getInvoicesForPartyFlow(partyId, "9999-12-31").collectAsState(initial = emptyList())
+    
+    val selectedInvoicesText = if (state.selectedInvoiceIds.isEmpty()) {
+        if (pendingInvoices.isEmpty()) stringResource(R.string.msg_no_pending_invoices) else stringResource(R.string.label_select_invoices_clear)
+    } else stringResource(R.string.label_invoices_selected, state.selectedInvoiceIds.size)
+
+    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable(enabled = !readOnly && pendingInvoices.isNotEmpty()) { showDialog = true }) {
+        OutlinedTextField(
+            value = selectedInvoicesText,
+            onValueChange = {},
+            label = { Text(stringResource(R.string.label_clear_invoices)) },
+            readOnly = true,
+            modifier = Modifier.fillMaxWidth(),
+            enabled = false,
+            shape = CircleShape,
+            colors = OutlinedTextFieldDefaults.colors(
+                disabledTextColor = if (pendingInvoices.isEmpty()) Color.Gray else MaterialTheme.colorScheme.onSurface,
+                disabledBorderColor = MaterialTheme.colorScheme.outline
+            ),
+            trailingIcon = { if (!readOnly && pendingInvoices.isNotEmpty()) Icon(Icons.Default.ArrowDropDown, "") }
+        )
+    }
+
+    if (showDialog && !readOnly) {
+        AlertDialog(
+            onDismissRequest = { showDialog = false },
+            title = { Text(stringResource(R.string.title_select_invoices)) },
+            text = {
+                Box(Modifier.height(400.dp)) {
+                    LazyColumn {
+                        items(pendingInvoices) { inv ->
+                            val outstanding = inv.detail.transaction.amount - inv.totalCleared
+                            Row(
+                                modifier = Modifier.fillMaxWidth().clickable {
+                                    if (state.selectedInvoiceIds.contains(inv.detail.transaction.id)) {
+                                        state.selectedInvoiceIds.remove(inv.detail.transaction.id)
+                                    } else {
+                                        state.selectedInvoiceIds.add(inv.detail.transaction.id)
+                                    }
+                                }.padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(
+                                    checked = state.selectedInvoiceIds.contains(inv.detail.transaction.id),
+                                    onCheckedChange = {
+                                        if (it) state.selectedInvoiceIds.add(inv.detail.transaction.id)
+                                        else state.selectedInvoiceIds.remove(inv.detail.transaction.id)
+                                    }
+                                )
+                                Column {
+                                    Text(stringResource(R.string.label_inv_item, inv.detail.transaction.invoiceNumber ?: stringResource(R.string.label_not_applicable), viewModel.formatAmount(outstanding)), style = MaterialTheme.typography.bodySmall)
+                                    Text(stringResource(R.string.label_date_colon) + inv.detail.transaction.date, style = MaterialTheme.typography.labelSmall)
+                                }
+                            }
+                            HorizontalDivider(modifier = Modifier.alpha(0.3f))
+                        }
+                    }
+                }
+            },
+            confirmButton = { Button(onClick = { showDialog = false }) { Text(stringResource(R.string.btn_done)) } }
+        )
     }
 }
 
@@ -993,7 +1115,7 @@ fun AccountSection(
     if (state.isMultiEntry && state.multiEntryType == "Account" && state.type != "transfer") {
 
         CategorySelectionDialog(
-            label = "Category",
+            label = stringResource(R.string.label_category),
             categories = categories,
             selectedId = state.selectedCategoryId,
             onSelected = { state.selectedCategoryId = it; state.categoryError = null },
@@ -1007,7 +1129,7 @@ fun AccountSection(
 
     if (state.type == "transfer") {
         AccountSelectionDialog(
-            label = "From Account",
+            label = stringResource(R.string.label_from_account),
             accounts = accounts,
             balances = balances,
             majorHeads = majorHeads,
@@ -1033,7 +1155,7 @@ fun AccountSection(
         state.accountError?.let { Text(it, color = Color.Red, style = MaterialTheme.typography.labelSmall) }
         
         AccountSelectionDialog(
-            label = "To Account",
+            label = stringResource(R.string.label_to_account),
             accounts = accounts,
             balances = balances,
             majorHeads = majorHeads,
@@ -1059,7 +1181,7 @@ fun AccountSection(
         state.toAccountError?.let { Text(it, color = Color.Red, style = MaterialTheme.typography.labelSmall) }
     } else {
         AccountSelectionDialog(
-            label = "Account",
+            label = stringResource(R.string.label_account),
             accounts = accounts,
             balances = balances,
             majorHeads = majorHeads,
@@ -1088,10 +1210,17 @@ fun AccountSection(
     if (isFromOnAccountSelected) {
         Spacer(Modifier.height(8.dp))
         PartySelectionDialog(
-            label = if (state.type == "transfer") "From Party" else if (state.type == "income") "Payer" else "Party Name",
+            label = if (state.type == "transfer") stringResource(R.string.label_from_party) else if (state.type == "income") stringResource(R.string.label_payer) else stringResource(R.string.label_party_name),
             parties = onAccountMicroAccounts.map { Party(it.id, it.name, it.openingBalance) },
             selectedId = state.selectedAccountId,
-            onSelected = { state.selectedAccountId = it },
+            onSelected = { id -> 
+                state.selectedAccountId = id
+                state.selectedPartyId = id
+                if (viewModel.invoiceAgeTrackingEnabled) {
+                    val acc = onAccountMicroAccounts.find { it.id == id }
+                    acc?.defaultDueDays?.let { state.dueDays = it.toString() }
+                }
+            },
             enabled = !readOnly,
             onAdd = { onNavigate?.invoke("add_category") },
             displayValue = if (readOnly) displayPartyName else null
@@ -1101,10 +1230,17 @@ fun AccountSection(
     if (state.type == "transfer" && isToOnAccountSelected) {
         Spacer(Modifier.height(8.dp))
         PartySelectionDialog(
-            label = "To Party",
+            label = stringResource(R.string.label_to_party),
             parties = onAccountMicroAccounts.map { Party(it.id, it.name, it.openingBalance) },
             selectedId = state.selectedToAccountId,
-            onSelected = { state.selectedToAccountId = it },
+            onSelected = { id -> 
+                state.selectedToAccountId = id
+                state.selectedToPartyId = id
+                if (viewModel.invoiceAgeTrackingEnabled) {
+                    val acc = onAccountMicroAccounts.find { it.id == id }
+                    acc?.defaultDueDays?.let { state.dueDays = it.toString() }
+                }
+            },
             enabled = !readOnly,
             onAdd = { onNavigate?.invoke("add_category") },
             displayValue = if (readOnly) displayToPartyName else null
@@ -1130,7 +1266,7 @@ fun MultiEntrySection(
         exit = shrinkVertically() + fadeOut()
     ) {
         Column {
-            Text(if (state.multiEntryType == "Account") "Accounts & Amounts" else "Categories & Amounts", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(vertical = 8.dp))
+            Text(if (state.multiEntryType == "Account") stringResource(R.string.label_accounts_amounts) else stringResource(R.string.label_categories_amounts), style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(vertical = 8.dp))
             state.multiEntryRows.forEachIndexed { index, row ->
                 key(row.id) {
                     MultiEntryRowItem(state, index, row, categories, accounts, balances, majorHeads, minorHeads, readOnly, onNavigate, viewModel)
@@ -1141,7 +1277,7 @@ fun MultiEntrySection(
             if (!readOnly) {
                 TextButton(onClick = { state.multiEntryRows.add(MultiEntryRow(categoryId = if (state.multiEntryType == "Account") state.selectedCategoryId else null, accountId = if (state.multiEntryType == "Category") state.selectedAccountId else null, amount = "", currencyCode = viewModel.baseCurrency)) }, modifier = Modifier.align(Alignment.End)) {
                     Icon(Icons.Default.Add, null)
-                    Text("Add Row")
+                    Text(stringResource(R.string.btn_add_row))
                 }
             }
         }
@@ -1153,7 +1289,7 @@ fun MultiEntrySection(
         exit = shrinkVertically() + fadeOut()
     ) {
         CategorySelectionDialog(
-            label = "Category",
+            label = stringResource(R.string.label_category),
             categories = categories,
             selectedId = state.selectedCategoryId,
             onSelected = { state.selectedCategoryId = it; state.categoryError = null },
@@ -1184,7 +1320,7 @@ fun MultiEntryRowItem(
             Box(modifier = Modifier.weight(0.55f)) {
                 if (state.multiEntryType == "Account") {
                     AccountSelectionDialog(
-                        label = "Account",
+                        label = stringResource(R.string.label_account),
                         accounts = accounts,
                         balances = balances,
                         majorHeads = majorHeads,
@@ -1204,7 +1340,7 @@ fun MultiEntryRowItem(
                     )
                 } else {
                     CategorySelectionDialog(
-                        label = "Category",
+                        label = stringResource(R.string.label_category),
                         categories = categories,
                         selectedId = row.categoryId,
                         onSelected = { 
@@ -1231,7 +1367,7 @@ fun MultiEntryRowItem(
                     }
                     state.amountError = null
                 },
-                label = { Text("Amount") },
+                label = { Text(stringResource(R.string.label_amount)) },
                 modifier = Modifier.weight(0.35f),
                 readOnly = readOnly,
                 shape = CircleShape,
@@ -1251,7 +1387,7 @@ fun MultiEntryRowItem(
                         }
                     }
                 }, modifier = Modifier.size(24.dp).padding(start = 4.dp)) {
-                    Icon(Icons.Default.RemoveCircle, "Remove", tint = Color.Red, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.RemoveCircle, stringResource(R.string.btn_delete), tint = Color.Red, modifier = Modifier.size(16.dp))
                 }
             }
         }
@@ -1298,7 +1434,7 @@ fun AmountAndCurrencySection(state: AddTransactionState, viewModel: ExpenseViewM
         OutlinedTextField(
             value = state.amount,
             onValueChange = { if (!readOnly) { state.amount = it; state.amountError = null } },
-            label = { Text("Total Amount") },
+            label = { Text(stringResource(R.string.label_total_amount)) },
             readOnly = readOnly,
             isError = state.amountError != null,
             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f), RoundedCornerShape(16.dp)),
@@ -1312,7 +1448,7 @@ fun AmountAndCurrencySection(state: AddTransactionState, viewModel: ExpenseViewM
             trailingIcon = {
                 if (!readOnly) {
                     IconButton(onClick = { state.showCalculator = !state.showCalculator }) {
-                        Icon(Icons.Default.Calculate, "Calculator")
+                        Icon(Icons.Default.Calculate, stringResource(R.string.btn_calculator))
                     }
                 }
             }
@@ -1331,7 +1467,7 @@ fun SubscriptionSection(state: AddTransactionState, viewModel: ExpenseViewModel,
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
         Checkbox(checked = state.isSubscription, onCheckedChange = { if(!readOnly) state.isSubscription = it }, enabled = !readOnly)
         Text(
-            if (state.type == "transfer") "Recurring transfer - E.g: SIP Investment" else "This is a subscription", 
+            if (state.type == "transfer") stringResource(R.string.label_recurring_sip_tip) else stringResource(R.string.label_is_subscription), 
             style = MaterialTheme.typography.bodyMedium, 
             modifier = Modifier.clickable { if(!readOnly) state.isSubscription = !state.isSubscription }
         )
@@ -1357,7 +1493,7 @@ fun SubscriptionSection(state: AddTransactionState, viewModel: ExpenseViewModel,
             OutlinedTextField(
                 value = displaySubName,
                 onValueChange = { if(!readOnly) { state.subName = it; state.isExistingSubscription = false } },
-                label = { Text(if (state.type == "transfer") "Select Recurring Transfer / Loan" else "Select Subscription") },
+                label = { Text(if (state.type == "transfer") stringResource(R.string.label_select_recurring_loan) else stringResource(R.string.label_select_subscription)) },
                 readOnly = false,
                 modifier = Modifier.fillMaxWidth(),
                 enabled = true,
@@ -1369,7 +1505,7 @@ fun SubscriptionSection(state: AddTransactionState, viewModel: ExpenseViewModel,
             )
             DropdownMenu(expanded = subExpanded, onDismissRequest = { subExpanded = false }, modifier = Modifier.fillMaxWidth(0.9f) ) {
                 if (existingNames.isEmpty() && activeLoans.isEmpty()) {
-                    DropdownMenuItem(text = { Text("No items found") }, onClick = { subExpanded = false }, enabled = false)
+                    DropdownMenuItem(text = { Text(stringResource(R.string.msg_no_items_found)) }, onClick = { subExpanded = false }, enabled = false)
                 }
                 existingNames.forEach { name ->
                     DropdownMenuItem(text = { Text(name) }, onClick = {
@@ -1447,7 +1583,7 @@ fun SubscriptionSection(state: AddTransactionState, viewModel: ExpenseViewModel,
              OutlinedTextField(
                 value = state.subFrequency, 
                 onValueChange = { if(!readOnly) state.subFrequency = it }, 
-                label = { Text("Frequency (months)") }, 
+                label = { Text(stringResource(R.string.label_frequency_months)) }, 
                 modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), 
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), 
                 readOnly = readOnly,
@@ -1497,23 +1633,23 @@ fun ActionButtons(
                 if (templateName.isNotBlank()) {
                     scope.launch {
                         if (viewModel.saveTemplate(templateToSave)) {
-                            Toast.makeText(context, "Template Saved", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, context.getString(R.string.msg_template_saved), Toast.LENGTH_SHORT).show()
                             onBack()
                         } else {
-                            Toast.makeText(context, "Template with this name already exists", Toast.LENGTH_LONG).show()
+                            Toast.makeText(context, context.getString(R.string.msg_template_exists), Toast.LENGTH_LONG).show()
                         }
                     }
                 }
-            }, modifier = Modifier.fillMaxWidth()) { Text("Save Template") }
+            }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.btn_save_template)) }
         } else {
-            OutlinedButton(onClick = onShowNameDialog, modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) { Text("Save as Template") }
+            OutlinedButton(onClick = onShowNameDialog, modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) { Text(stringResource(R.string.btn_save_as_template)) }
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = onShowTemplateSelection, modifier = Modifier.weight(1f)) { Text("Use Template") }
+                OutlinedButton(onClick = onShowTemplateSelection, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.btn_use_template)) }
                 Button(onClick = {
                     if (validateAndSave(state, viewModel, selectedTagIds, allTransactions, onTransactionSaved, context, updateId, isTemplateMode)) {
                         
                     }
-                }, modifier = Modifier.weight(1f)) { Text("Save") }
+                }, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.btn_save)) }
             }
         }
     }
@@ -1534,28 +1670,28 @@ fun validateAndSave(
     val isMultiEntryToUse = state.isMultiEntry && state.type != "transfer"
     val isMultiAccount = isMultiEntryToUse && state.multiEntryType == "Account"
 
-    if (evaluateExpression(amtToCheck) <= 0.0) { state.amountError = "Total amount required"; hasError = true }
-    if (state.selectedAccountId == null && !isMultiAccount) { state.accountError = "Primary account required"; hasError = true }
-    if (state.type == "transfer" && state.selectedToAccountId == null) { state.toAccountError = "Destination account required"; hasError = true }
+    if (evaluateExpression(amtToCheck) <= 0.0) { state.amountError = context.getString(R.string.err_total_amount_required); hasError = true }
+    if (state.selectedAccountId == null && !isMultiAccount) { state.accountError = context.getString(R.string.err_primary_account_required); hasError = true }
+    if (state.type == "transfer" && state.selectedToAccountId == null) { state.toAccountError = context.getString(R.string.err_destination_account_required); hasError = true }
     
-    if (!isMultiEntryToUse && state.type != "transfer" && state.selectedCategoryId == null) { state.categoryError = "Category required"; hasError = true }
-    if (isMultiEntryToUse && state.multiEntryType == "Category" && state.multiEntryRows.any { it.categoryId == null || evaluateExpression(it.amount) <= 0.0 }) { state.categoryError = "Each row needs a category and amount"; hasError = true }
-    if (isMultiAccount && state.multiEntryRows.any { it.accountId == null || evaluateExpression(it.amount) <= 0.0 }) { state.accountError = "Each row needs an account and amount"; hasError = true }
-    if (isMultiAccount && state.selectedCategoryId == null) { state.categoryError = "Category required at top"; hasError = true }
+    if (!isMultiEntryToUse && state.type != "transfer" && state.selectedCategoryId == null) { state.categoryError = context.getString(R.string.err_category_required); hasError = true }
+    if (isMultiEntryToUse && state.multiEntryType == "Category" && state.multiEntryRows.any { it.categoryId == null || evaluateExpression(it.amount) <= 0.0 }) { state.categoryError = context.getString(R.string.err_row_category_amount); hasError = true }
+    if (isMultiAccount && state.multiEntryRows.any { it.accountId == null || evaluateExpression(it.amount) <= 0.0 }) { state.accountError = context.getString(R.string.err_row_account_amount); hasError = true }
+    if (isMultiAccount && state.selectedCategoryId == null) { state.categoryError = context.getString(R.string.err_category_required_top); hasError = true }
 
     if (state.isSubscription && state.subName.isBlank()) {
-        Toast.makeText(context, "Please enter a name for the subscription/transfer", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, context.getString(R.string.msg_enter_sub_name), Toast.LENGTH_SHORT).show()
         return false
     }
 
     if (hasError) {
-        Toast.makeText(context, "Please fill all required fields", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, context.getString(R.string.msg_fill_required), Toast.LENGTH_SHORT).show()
         return false
     }
 
     if (isTemplateMode) {
         // This shouldn't be reached if UI logic is correct, but added as safety
-        Toast.makeText(context, "Cannot save transaction in template mode", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, context.getString(R.string.msg_cannot_save_template_mode), Toast.LENGTH_SHORT).show()
         return false
     }
 
@@ -1618,13 +1754,13 @@ fun validateAndSave(
                 (state.type == "transfer") == (it.transaction.categoryId == null && it.transaction.toAccountId != null)
             }
             if (exists) {
-                Toast.makeText(context, "Subscription name already exists", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, context.getString(R.string.msg_sub_name_exists), Toast.LENGTH_LONG).show()
                 return false
             }
         }
 
         if (state.type == "transfer") {
-            viewModel.addTransaction(state.date, state.time, state.selectedAccountId!!, null, amtBase, state.note, state.selectedToAccountId, tagsString, state.type, state.selectedPartyId, state.selectedToPartyId, subNameVal, subFreqVal, updateId = updateId, isNegotiated = state.isNegotiated, negotiationAmountOriginal = state.negotiationAmountOriginal.toDoubleOrNull(), merchantName = state.merchantName, isDiscretionary = state.isDiscretionary)
+            viewModel.addTransaction(state.date, state.time, state.selectedAccountId!!, null, amtBase, state.note, state.selectedToAccountId, tagsString, state.type, state.selectedPartyId, state.selectedToPartyId, subNameVal, subFreqVal, updateId = updateId, isNegotiated = state.isNegotiated, negotiationAmountOriginal = state.negotiationAmountOriginal.toDoubleOrNull(), merchantName = state.merchantName, isDiscretionary = state.isDiscretionary, clearInvoiceIds = state.selectedInvoiceIds.toList())
             
             if (subNameVal?.startsWith("LOAN:") == true && updateId == null) {
                 val loanId = subNameVal.removePrefix("LOAN:").toLongOrNull()
@@ -1633,7 +1769,7 @@ fun validateAndSave(
                 }
             }
         } else {
-            viewModel.addTransaction(state.date, state.time, state.selectedAccountId!!, state.selectedCategoryId, amtBase, state.note, null, tagsString, state.type, state.selectedPartyId, null, subNameVal, subFreqVal, amtOriginal, state.foreignCurrency, amtBase, updateId = updateId, isNegotiated = state.isNegotiated, negotiationAmountOriginal = state.negotiationAmountOriginal.toDoubleOrNull(), merchantName = state.merchantName, isDiscretionary = state.isDiscretionary)
+            viewModel.addTransaction(state.date, state.time, state.selectedAccountId!!, state.selectedCategoryId, amtBase, state.note, null, tagsString, state.type, state.selectedPartyId, null, subNameVal, subFreqVal, amtOriginal, state.foreignCurrency, amtBase, updateId = updateId, isNegotiated = state.isNegotiated, negotiationAmountOriginal = state.negotiationAmountOriginal.toDoubleOrNull(), merchantName = state.merchantName, isDiscretionary = state.isDiscretionary, invoiceNumber = if (viewModel.invoiceAgeTrackingEnabled) state.invoiceNumber else null, dueDays = if (viewModel.invoiceAgeTrackingEnabled) state.dueDays.toIntOrNull() else null)
         }
 
         // Remove from pending import if applicable
@@ -1655,10 +1791,10 @@ fun TemplateNameDialog(onDismiss: () -> Unit, onSave: (String) -> Unit) {
     var inputName by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Template Name") },
-        text = { OutlinedTextField(value = inputName, onValueChange = { inputName = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth()) },
-        confirmButton = { Button(onClick = { if (inputName.isNotBlank()) onSave(inputName) }) { Text("Save") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        title = { Text(stringResource(R.string.label_template_name)) },
+        text = { OutlinedTextField(value = inputName, onValueChange = { inputName = it }, label = { Text(stringResource(R.string.label_name)) }, modifier = Modifier.fillMaxWidth()) },
+        confirmButton = { Button(onClick = { if (inputName.isNotBlank()) onSave(inputName) }) { Text(stringResource(R.string.btn_save)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.btn_cancel)) } }
     )
 }
 
@@ -1666,9 +1802,9 @@ fun TemplateNameDialog(onDismiss: () -> Unit, onSave: (String) -> Unit) {
 fun TemplateSelectionDialog(templates: List<Template>, onDismiss: () -> Unit, onNavigate: ((String) -> Unit)?, onSelected: (Template) -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Select Template") },
+        title = { Text(stringResource(R.string.title_templates)) },
         text = {
-            if (templates.isEmpty()) Text("No templates found.")
+            if (templates.isEmpty()) Text(stringResource(R.string.msg_no_templates))
             else Box(modifier = Modifier.height(300.dp)) {
                 LazyColumn {
                     items(templates) { t ->
@@ -1678,8 +1814,8 @@ fun TemplateSelectionDialog(templates: List<Template>, onDismiss: () -> Unit, on
                 }
             }
         },
-        confirmButton = { if (templates.isEmpty()) Button(onClick = { onDismiss(); onNavigate?.invoke("templates") }) { Text("Go to Templates") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        confirmButton = { if (templates.isEmpty()) Button(onClick = { onDismiss(); onNavigate?.invoke("templates") }) { Text(stringResource(R.string.menu_templates)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.btn_cancel)) } }
     )
 }
 
@@ -1718,12 +1854,12 @@ fun MultiEntrySummaryCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f))
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text("Multi-Entry Summary", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.label_multi_entry_summary), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(8.dp))
             
             totalsByCurrency.forEach { (code, amount) ->
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Total $code:", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.label_total_code_colon, code), style = MaterialTheme.typography.bodyMedium)
                     Text(String.format(Locale.US, "%.2f", amount), fontWeight = FontWeight.Bold)
                 }
             }
@@ -1733,11 +1869,11 @@ fun MultiEntrySummaryCard(
             OutlinedTextField(
                 value = amountLocal,
                 onValueChange = { if (!readOnly) onAmountLocalChange(it) },
-                label = { Text("Total Amount (${viewModel.baseCurrency})") },
+                label = { Text(stringResource(R.string.label_total_amount_code, viewModel.baseCurrency)) },
                 readOnly = readOnly,
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                supportingText = { Text("Sum of rows (converted): ${String.format(Locale.US, "%.2f", computedTotalBase)}") },
+                supportingText = { Text(stringResource(R.string.label_sum_converted_colon, String.format(Locale.US, "%.2f", computedTotalBase))) },
                 trailingIcon = { Icon(Icons.Default.Edit, null, modifier = Modifier.size(16.dp)) }
             )
         }
@@ -1773,7 +1909,7 @@ fun MultiCurrencyAmountSection(
                     OutlinedTextField(
                         value = foreignCurrency,
                         onValueChange = {},
-                        label = { Text("Curr") },
+                        label = { Text(stringResource(R.string.label_curr)) },
                         readOnly = true,
                         enabled = false,
                         modifier = Modifier.fillMaxWidth(),
@@ -1790,7 +1926,7 @@ fun MultiCurrencyAmountSection(
             OutlinedTextField(
                 value = amountForeign,
                 onValueChange = { if (!readOnly) onAmountForeignChange(it) },
-                label = { Text(if (hideCurrencyPicker) "Total Amount ($foreignCurrency)" else "Amount (Foreign)") },
+                label = { Text(if (hideCurrencyPicker) stringResource(R.string.label_total_amount_code, foreignCurrency) else stringResource(R.string.label_amount_foreign)) },
                 readOnly = readOnly,
                 modifier = Modifier.weight(if (hideCurrencyPicker) 1f else 0.7f).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f), RoundedCornerShape(16.dp)),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -1803,7 +1939,7 @@ fun MultiCurrencyAmountSection(
                 trailingIcon = {
                     if (!readOnly) {
                         IconButton(onClick = onToggleCalculator) {
-                            Icon(Icons.Default.Calculate, "Calculator")
+                            Icon(Icons.Default.Calculate, stringResource(R.string.btn_calculator))
                         }
                     }
                 }
@@ -1816,7 +1952,7 @@ fun MultiCurrencyAmountSection(
         OutlinedTextField(
             value = manualRateInput,
             onValueChange = { if (!readOnly) onManualRateChange(it) },
-            label = { Text("Conversion Rate (1 $foreignCurrency = ? ${viewModel.baseCurrency})") },
+            label = { Text(stringResource(R.string.label_conversion_rate_tip, foreignCurrency, viewModel.baseCurrency)) },
             readOnly = readOnly,
             modifier = Modifier.fillMaxWidth(),
             shape = CircleShape,
@@ -1825,8 +1961,8 @@ fun MultiCurrencyAmountSection(
             supportingText = {
                 if (isStale) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Warning, "Stale Rate", tint = Color.Red, modifier = Modifier.size(12.dp))
-                        Text(" Rate is stale (> 7 days old)", style = MaterialTheme.typography.labelSmall, color = Color.Red)
+                        Icon(Icons.Default.Warning, stringResource(R.string.label_stale_rate), tint = Color.Red, modifier = Modifier.size(12.dp))
+                        Text(stringResource(R.string.msg_rate_stale_desc), style = MaterialTheme.typography.labelSmall, color = Color.Red)
                     }
                 }
             }
@@ -1837,7 +1973,7 @@ fun MultiCurrencyAmountSection(
         OutlinedTextField(
             value = amountLocal,
             onValueChange = { if (!readOnly) onAmountLocalChange(it) },
-            label = { Text("Amount (Local / ${viewModel.baseCurrency})") },
+            label = { Text(stringResource(R.string.label_amount_local_code, viewModel.baseCurrency)) },
             readOnly = readOnly,
             modifier = Modifier.fillMaxWidth(),
             shape = CircleShape,
@@ -1872,13 +2008,13 @@ fun CurrencySelectionDialog(onDismiss: () -> Unit, onSelected: (String) -> Unit)
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Select Currency") },
+        title = { Text(stringResource(R.string.title_select_currency)) },
         text = {
             Column {
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
-                    label = { Text("Search") },
+                    label = { Text(stringResource(R.string.label_search)) },
                     modifier = Modifier.fillMaxWidth(),
                     shape = CircleShape
                 )
@@ -1898,7 +2034,7 @@ fun CurrencySelectionDialog(onDismiss: () -> Unit, onSelected: (String) -> Unit)
             }
         },
         confirmButton = {},
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.btn_cancel)) } }
     )
 }
 
@@ -1920,9 +2056,10 @@ fun AccountSelectionDialog(
     isError: Boolean = false
 ) {
     var showDialog by remember { mutableStateOf(false) }
-    val selectedName = if (isOnAccountSelected) "👤 On Account (Loan)" else {
+    val selectAccountLabel = stringResource(R.string.label_select_account_analysis)
+    val selectedName = if (isOnAccountSelected) "👤 " + stringResource(R.string.label_on_account_loan) else {
         val acc = accounts.find { it.id == selectedId }
-        if (acc != null) (acc.icon ?: "🏦") + " " + acc.name else "Select Account"
+        if (acc != null) (acc.icon ?: "🏦") + " " + acc.name else selectAccountLabel
     }
 
     Box(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f), RoundedCornerShape(16.dp)).clickable(enabled = enabled) { showDialog = true }) {
@@ -1960,7 +2097,7 @@ fun AccountSelectionDialog(
                     OutlinedTextField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
-                        placeholder = { Text("Search") },
+                        placeholder = { Text(stringResource(R.string.label_search)) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         leadingIcon = { Icon(Icons.Default.Search, null) },
@@ -1980,7 +2117,7 @@ fun AccountSelectionDialog(
                         if (hasOnAccountOption && searchQuery.isBlank()) {
                             item {
                                 ListItem(
-                                    headlineContent = { Text("On Account (Loan)") },
+                                    headlineContent = { Text(stringResource(R.string.label_on_account_loan)) },
                                     modifier = Modifier.clickable {
                                         onOnAccountSelected()
                                         showDialog = false
@@ -1997,7 +2134,7 @@ fun AccountSelectionDialog(
                             ListItem(
                                 headlineContent = { Text((account.icon ?: "🏦") + " " + account.name) },
                                 supportingContent = { 
-                                    Text("${major?.name ?: "Others"} | ${viewModel.formatAmount(bal)}", color = if (bal >= 0) Color(0xFF4CAF50) else Color.Red)
+                                    Text("${major?.name ?: stringResource(R.string.label_other)} | ${viewModel.formatAmount(bal)}", color = if (bal >= 0) Color(0xFF4CAF50) else Color.Red)
                                 },
                                 modifier = Modifier.clickable {
                                     onSelected(account.id)
@@ -2013,10 +2150,10 @@ fun AccountSelectionDialog(
                 Row {
                     Button(onClick = onAdd) {
                         Icon(Icons.Default.Add, null)
-                        Text("Add")
+                        Text(stringResource(R.string.btn_add))
                     }
                     Spacer(Modifier.width(8.dp))
-                    TextButton(onClick = { showDialog = false }) { Text("Cancel") }
+                    TextButton(onClick = { showDialog = false }) { Text(stringResource(R.string.btn_cancel)) }
                 }
             }
         )
@@ -2026,7 +2163,8 @@ fun AccountSelectionDialog(
 @Composable
 fun PartySelectionDialog(label: String, parties: List<Party>, selectedId: Int?, onSelected: (Int) -> Unit, enabled: Boolean = true, onAdd: () -> Unit, displayValue: String? = null) {
     var showDialog by remember { mutableStateOf(false) }
-    val selectedName = displayValue ?: parties.find { it.id == selectedId }?.name ?: "Select $label"
+    val selectLabel = stringResource(R.string.label_select_label, label)
+    val selectedName = displayValue ?: parties.find { it.id == selectedId }?.name ?: selectLabel
 
     Box(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable(enabled = enabled) { showDialog = true }) {
         OutlinedTextField(
@@ -2073,10 +2211,10 @@ fun PartySelectionDialog(label: String, parties: List<Party>, selectedId: Int?, 
                         onAdd()
                     }) {
                         Icon(Icons.Default.Add, null)
-                        Text("Add New")
+                        Text(stringResource(R.string.btn_add_new))
                     }
                     Spacer(Modifier.width(8.dp))
-                    TextButton(onClick = { showDialog = false }) { Text("Cancel") }
+                    TextButton(onClick = { showDialog = false }) { Text(stringResource(R.string.btn_cancel)) }
                 }
             }
         )
@@ -2086,7 +2224,7 @@ fun PartySelectionDialog(label: String, parties: List<Party>, selectedId: Int?, 
 @Composable
 fun CategorySelectionDialog(label: String, categories: List<com.openapps.fintrack.data.Category>, selectedId: Int?, onSelected: (Int) -> Unit, enabled: Boolean = true, onAdd: () -> Unit, isError: Boolean = false) {
     var showDialog by remember { mutableStateOf(false) }
-    val selectedName = categories.find { it.id == selectedId }?.let { (it.icon ?: "📁") + " " + it.name } ?: "Select"
+    val selectedName = categories.find { it.id == selectedId }?.let { (it.icon ?: "📁") + " " + it.name } ?: stringResource(R.string.label_select)
 
     Box(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f), RoundedCornerShape(16.dp)).clickable(enabled = enabled) { showDialog = true }) {
         OutlinedTextField(
@@ -2123,7 +2261,7 @@ fun CategorySelectionDialog(label: String, categories: List<com.openapps.fintrac
                     OutlinedTextField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
-                        placeholder = { Text("Search") },
+                        placeholder = { Text(stringResource(R.string.label_search)) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         leadingIcon = { Icon(Icons.Default.Search, null) },
@@ -2143,7 +2281,7 @@ fun CategorySelectionDialog(label: String, categories: List<com.openapps.fintrac
                         items(filteredCategories) { category ->
                             ListItem(
                                 headlineContent = { Text((category.icon ?: "📁") + " " + category.name) },
-                                supportingContent = { Text(category.type.title()) },
+                                supportingContent = { Text(category.type.replaceFirstChar { it.uppercase() }) },
                                 modifier = Modifier.clickable {
                                     onSelected(category.id)
                                     showDialog = false
@@ -2158,10 +2296,10 @@ fun CategorySelectionDialog(label: String, categories: List<com.openapps.fintrac
                 Row {
                     Button(onClick = onAdd) {
                         Icon(Icons.Default.Add, null)
-                        Text("Add")
+                        Text(stringResource(R.string.btn_add))
                     }
                     Spacer(Modifier.width(8.dp))
-                    TextButton(onClick = { showDialog = false }) { Text("Cancel") }
+                    TextButton(onClick = { showDialog = false }) { Text(stringResource(R.string.btn_cancel)) }
                 }
             }
         )
@@ -2178,13 +2316,13 @@ fun TagSelectionPopup(
 ) {
     var showDialog by remember { mutableStateOf(false) }
     val selectedNames = allTags.filter { it.id in selectedIds }.map { it.name }.joinToString(", ")
-    val displayText = if (selectedNames.isEmpty()) "Select Tags" else selectedNames
+    val displayText = if (selectedNames.isEmpty()) stringResource(R.string.label_select_tags) else selectedNames
 
     Box(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable(enabled = enabled) { showDialog = true }) {
         OutlinedTextField(
             value = displayText,
             onValueChange = {},
-            label = { Text("Tags") },
+            label = { Text(stringResource(R.string.label_tags)) },
             readOnly = true,
             modifier = Modifier.fillMaxWidth(),
             enabled = false,
@@ -2201,7 +2339,7 @@ fun TagSelectionPopup(
     if (showDialog && enabled) {
         AlertDialog(
             onDismissRequest = { showDialog = false },
-            title = { Text("Select Tags") },
+            title = { Text(stringResource(R.string.label_select_tags)) },
             text = {
                 Box(Modifier.height(300.dp)) {
                     LazyColumn {
@@ -2242,17 +2380,17 @@ fun TagSelectionPopup(
                         onAdd()
                     }) {
                         Icon(Icons.Default.Add, null)
-                        Text("Add")
+                        Text(stringResource(R.string.btn_add))
                     }
                     if (multiSelect) {
                         Spacer(Modifier.width(8.dp))
-                        Button(onClick = { showDialog = false }) { Text("Done") }
+                        Button(onClick = { showDialog = false }) { Text(stringResource(R.string.btn_done)) }
                     }
                 }
             },
             dismissButton = {
                 if (!multiSelect) {
-                    TextButton(onClick = { showDialog = false }) { Text("Cancel") }
+                    TextButton(onClick = { showDialog = false }) { Text(stringResource(R.string.btn_cancel)) }
                 }
             }
         )

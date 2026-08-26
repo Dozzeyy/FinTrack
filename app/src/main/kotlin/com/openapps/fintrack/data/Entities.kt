@@ -23,7 +23,8 @@ data class Account(
     val billingCycleEnd: String? = null,
     val paymentDueDate: String? = null,
     val icon: String? = null,
-    val isEmergencyFund: Boolean = false
+    val isEmergencyFund: Boolean = false,
+    val defaultDueDays: Int? = null
 )
 
 @Entity(tableName = "major_heads", indices = [androidx.room.Index(value = ["name"], unique = true)])
@@ -131,7 +132,23 @@ data class Transaction(
     val isNegotiated: Boolean = false,
     val negotiationAmountOriginal: Double? = null,
     val merchantName: String? = null,
-    val isDiscretionary: Boolean = false
+    val isDiscretionary: Boolean = false,
+    val invoiceNumber: String? = null,
+    val dueDays: Int? = null
+)
+
+@Entity(
+    tableName = "invoice_clearances",
+    foreignKeys = [
+        ForeignKey(entity = Transaction::class, parentColumns = ["id"], childColumns = ["transferTransactionId"], onDelete = ForeignKey.CASCADE),
+        ForeignKey(entity = Transaction::class, parentColumns = ["id"], childColumns = ["invoiceTransactionId"], onDelete = ForeignKey.CASCADE)
+    ]
+)
+data class InvoiceClearance(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val transferTransactionId: Int,
+    val invoiceTransactionId: Int,
+    val amountCleared: Double
 )
 
 @Entity(tableName = "exchange_rates")

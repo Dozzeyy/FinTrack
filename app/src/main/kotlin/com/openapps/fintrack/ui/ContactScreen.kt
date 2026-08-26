@@ -37,6 +37,8 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.compose.ui.res.stringResource
+import com.openapps.fintrack.R
 import java.io.File
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -46,6 +48,8 @@ import java.time.format.DateTimeFormatter
 fun ContactScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val logsExportedMsg = stringResource(R.string.msg_logs_exported)
+    val logExportFailedMsg = stringResource(R.string.msg_log_export_failed)
 
     val logExportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("text/plain"),
@@ -54,8 +58,8 @@ fun ContactScreen(onBack: () -> Unit) {
                 scope.launch {
                     val success = exportLogs(context, it)
                     withContext(Dispatchers.Main) {
-                        if (success) Toast.makeText(context, "Logs exported successfully", Toast.LENGTH_SHORT).show()
-                        else Toast.makeText(context, "Log export failed", Toast.LENGTH_SHORT).show()
+                        if (success) Toast.makeText(context, logsExportedMsg, Toast.LENGTH_SHORT).show()
+                        else Toast.makeText(context, logExportFailedMsg, Toast.LENGTH_SHORT).show()
                     }
                 }
             }
@@ -65,10 +69,10 @@ fun ContactScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Contact Us") },
+                title = { Text(stringResource(R.string.title_contact_us)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.btn_back))
                     }
                 }
             )
@@ -83,7 +87,7 @@ fun ContactScreen(onBack: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                "Developer Contact",
+                stringResource(R.string.label_developer_contact),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold
             )
@@ -92,7 +96,7 @@ fun ContactScreen(onBack: () -> Unit) {
             
             ContactRow(
                 icon = Icons.Default.Email,
-                label = "Email",
+                label = stringResource(R.string.label_email),
                 value = "app.upstream242@passmail.com",
                 onClick = {
                     val intent = Intent(Intent.ACTION_SENDTO).apply {
@@ -107,7 +111,7 @@ fun ContactScreen(onBack: () -> Unit) {
             
             ContactRow(
                 icon = Icons.Default.Language,
-                label = "GitHub Issues",
+                label = stringResource(R.string.label_github_issues),
                 value = "https://github.com/Dozzeyy/FinTrack/issues",
                 isLink = true,
                 onClick = {
@@ -120,7 +124,7 @@ fun ContactScreen(onBack: () -> Unit) {
 
             ContactRow(
                 icon = Icons.Default.Language,
-                label = "Website",
+                label = stringResource(R.string.label_website),
                 value = "vahak.org",
                 isLink = true,
                 onClick = {
@@ -133,7 +137,7 @@ fun ContactScreen(onBack: () -> Unit) {
 
             ContactRow(
                 icon = Icons.Default.Language,
-                label = "Youtube",
+                label = stringResource(R.string.label_youtube),
                 value = "@StoptheStalk",
                 isLink = true,
                 onClick = {
@@ -150,13 +154,13 @@ fun ContactScreen(onBack: () -> Unit) {
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        "facing any app issues?",
+                        stringResource(R.string.msg_facing_issues),
                         fontWeight = FontWeight.Bold,
                         style = MaterialTheme.typography.bodyLarge
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "Send the log by clicking on the button below to help us debug and fix the problem.",
+                        stringResource(R.string.msg_send_logs_desc),
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
@@ -168,7 +172,7 @@ fun ContactScreen(onBack: () -> Unit) {
                 onClick = { logExportLauncher.launch("fintrack_logs_${System.currentTimeMillis()}.txt") },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Export Logs")
+                Text(stringResource(R.string.btn_export_logs))
             }
 
             Spacer(Modifier.weight(1f))
@@ -186,7 +190,7 @@ fun ContactScreen(onBack: () -> Unit) {
                     color = Color.Gray
                 )
                 Text(
-                    "Version 1.0.17",
+                    "Version 1.0.18",
                     style = MaterialTheme.typography.labelSmall,
                     color = Color.Gray,
                     modifier = Modifier.padding(top = 4.dp)

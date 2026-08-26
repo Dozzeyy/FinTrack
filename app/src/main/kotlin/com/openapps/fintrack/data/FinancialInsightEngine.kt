@@ -102,7 +102,7 @@ class FinancialInsightEngine {
             insights.add(FinancialInsight(
                 "windfall_alloc",
                 "Windfall Recommendation",
-                "You received a windfall this month. Suggested allocation: ${ (windfall * 0.5).toInt() } invest, ${ (windfall * 0.3).toInt() } debt prepayment, ${ (windfall * 0.2).toInt() } discretionary.",
+                "It seems you received a windfall of ${latestIncome} this or last month. Suggested allocation: ${ (windfall * 0.5).toInt() } invest, ${ (windfall * 0.3).toInt() } essentials, ${ (windfall * 0.2).toInt() } discretionary.",
                 InsightType.OPPORTUNITY
             ))
         }
@@ -134,7 +134,7 @@ class FinancialInsightEngine {
                     insights.add(FinancialInsight(
                         "vendor_risk_$vendor",
                         "Vendor Concentration Risk",
-                        "${concentration.toInt()}% of your spending is with $vendor. Consider diversifying vendors to reduce dependency.",
+                        "${concentration.toInt()}% of your spending is with $vendor. Consider diversifying vendors to reduce dependency or check if they have any loyalty programs",
                         InsightType.WARNING
                     ))
                 }
@@ -352,7 +352,7 @@ class FinancialInsightEngine {
         val avg3MonthExp = if (last3MonthExpsList.isNotEmpty()) last3MonthExpsList.average() else 0.0
         
         if (avg3MonthExp > 0 && trueBankBalance > avg3MonthExp * 0.25) {
-             insights.add(FinancialInsight("idle_cash", "Investment Opportunity", "Your net bank balance (after credit card liabilities) of ${trueBankBalance} exceeds 25% of your 3-month average expenses. Consider investing the surplus to earn better returns.", InsightType.OPPORTUNITY))
+             insights.add(FinancialInsight("idle_cash", "Investment Opportunity", "Your net bank balance (after credit card liabilities) of ${trueBankBalance} exceeds 25% of your 3-month average expenses(which is ${avg3MonthExp}). Consider investing the surplus to earn better returns.", InsightType.OPPORTUNITY))
         }
 
         // 18. Emergency Fund Adequacy Score
@@ -407,8 +407,15 @@ class FinancialInsightEngine {
                 val txnsAfter = transactions.filter { it.transaction.date > endOfMonth && (it.transaction.accountId == acc.id || it.transaction.toAccountId == acc.id) }
                 var historicalBal = currentBal
                 txnsAfter.forEach { t ->
-                    if (t.transaction.toAccountId == acc.id) historicalBal -= t.transaction.amount
-                    if (t.transaction.accountId == acc.id) historicalBal += t.transaction.amount
+                    if (t.transaction.toAccountId == acc.id) {
+                        historicalBal -= t.transaction.amount
+                    } else if (t.transaction.accountId == acc.id) {
+                        if (t.categoryType == "income") {
+                            historicalBal -= t.transaction.amount
+                        } else {
+                            historicalBal += t.transaction.amount
+                        }
+                    }
                 }
                 historicalBal
             }
@@ -417,8 +424,15 @@ class FinancialInsightEngine {
                 val txnsAfter = transactions.filter { it.transaction.date > endOfMonth && (it.transaction.accountId == acc.id || it.transaction.toAccountId == acc.id) }
                 var historicalBal = currentBal
                 txnsAfter.forEach { t ->
-                    if (t.transaction.toAccountId == acc.id) historicalBal -= t.transaction.amount
-                    if (t.transaction.accountId == acc.id) historicalBal += t.transaction.amount
+                    if (t.transaction.toAccountId == acc.id) {
+                        historicalBal -= t.transaction.amount
+                    } else if (t.transaction.accountId == acc.id) {
+                        if (t.categoryType == "income") {
+                            historicalBal -= t.transaction.amount
+                        } else {
+                            historicalBal += t.transaction.amount
+                        }
+                    }
                 }
                 historicalBal
             }

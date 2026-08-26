@@ -19,6 +19,7 @@ FinTrack is a robust, privacy-focused Android expense tracker designed to help y
 - **Fetch and use exchange rates:** Multi currency support. Set one currency as your home currency and record any entry in other currencies. App will take care of exchange rate conversions.
 - **Negotiation tracker:** Lets user fill in original amount and negotiated amount. Track savings through negotiation for a transaction.
 - **CSV Import:** Import bank statements using CSV files in any format, app lets to assign input fields for each of csv columns letting user decide what to import. (Use Amount if csv columns are negative and positive values to indicate deposit and withdrawals and use combination of Amount and DR_CR if deposit and withdrawals are in one single column with an additional single column to indicate deposit and withdrawal). Apps also takes care of de-duplication so that any transaction already recorded will not be repeated again.
+- **Invoice age tracking:** For On Account (Loan), record invoice numbers and track aging of those invoices.
 
 ## Other Features
 - **Multi Category:** In same Add transaction screen, pick more than one expense/ income categories to save your time by avoiding creation of multiple entries for the same shopping transaction.

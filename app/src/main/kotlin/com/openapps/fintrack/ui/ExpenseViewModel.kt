@@ -31,6 +31,8 @@ import okhttp3.*
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
 import com.openapps.fintrack.data.*
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.os.LocaleListCompat
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -40,6 +42,25 @@ import java.time.temporal.TemporalAdjusters
 import java.time.temporal.ChronoUnit
 import java.util.*
 import java.util.concurrent.TimeUnit
+
+data class InvoiceCrossReference(
+    val invoiceId: Int,
+    val invoiceTxnNumber: String?,
+    val invoiceDate: String,
+    val invoiceAmount: Double,
+    val invoiceNumber: String?,
+    val totalCleared: Double,
+    val pendingAmount: Double,
+    val clearingTransfers: List<ClearingTransferDetails>
+)
+
+data class ClearingTransferDetails(
+    val transferTxnId: Int,
+    val transferTxnNumber: String?,
+    val transferDate: String,
+    val amountApplied: Double,
+    val otherAccountName: String?
+)
 
 data class ExtractedTransaction(
     val date: LocalDate,
@@ -157,6 +178,20 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
     var merchantTrackerEnabled by mutableStateOf(prefs.getBoolean("merchant_tracker_enabled", false))
     var discretionarySpendingTrackerEnabled by mutableStateOf(prefs.getBoolean("discretionary_spending_tracker_enabled", false))
     var incomeAtMonthEnd by mutableStateOf(prefs.getBoolean("income_at_month_end", false))
+    var invoiceAgeTrackingEnabled by mutableStateOf(prefs.getBoolean("invoice_age_tracking_enabled", false))
+    var disableTransactionDeletion by mutableStateOf(prefs.getBoolean("disable_transaction_deletion", false))
+    var appLanguage by mutableStateOf(prefs.getString("app_language", "en") ?: "en")
+
+    fun updateLanguage(langCode: String) {
+        appLanguage = langCode
+        prefs.edit().putString("app_language", langCode).apply()
+        AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(langCode))
+    }
+
+    fun updateDisableTransactionDeletion(enabled: Boolean) {
+        disableTransactionDeletion = enabled
+        prefs.edit().putBoolean("disable_transaction_deletion", enabled).apply()
+    }
 
     // WebDAV
     var remoteSyncEnabled by mutableStateOf(prefs.getBoolean("remote_sync_enabled", false))
@@ -218,11 +253,10 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
         val lastVersion = prefs.getInt("last_seen_version", 0)
         if (currentVersion > lastVersion) {
             keyChanges = """
-                - Added performance view in side bar to compare results across months, quarters, years.
-                - Added total interest and repayment amount in add loan screen.
-                - Accommodated salary receipt at month end - to provide more accurate financial insights.
-                - Added pause option to financial insights to avoid repetition of same alert.
-                - Added persistence of draft data when adding new categories and accounts from add transaction screen.
+                - Added transaction deletion (long press an entry and delete).
+                - Added language support for Chinese, Spanish, German and Russian (Beta).
+                - Invoice age tracking: Record an invoice for On Account entries and track their due date.
+                - Other bug fixes.
             """.trimIndent()
             showWhatIsNew = true
             prefs.edit().putInt("last_seen_version", currentVersion).apply()
@@ -287,6 +321,7 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
     fun updateMerchantTrackerEnabled(e: Boolean) { merchantTrackerEnabled = e; prefs.edit().putBoolean("merchant_tracker_enabled", e).apply() }
     fun updateDiscretionarySpendingTrackerEnabled(e: Boolean) { discretionarySpendingTrackerEnabled = e; prefs.edit().putBoolean("discretionary_spending_tracker_enabled", e).apply() }
     fun updateIncomeAtMonthEnd(enabled: Boolean) { incomeAtMonthEnd = enabled; prefs.edit().putBoolean("income_at_month_end", enabled).apply(); triggerRefresh() }
+    fun updateInvoiceAgeTrackingEnabled(enabled: Boolean) { invoiceAgeTrackingEnabled = enabled; prefs.edit().putBoolean("invoice_age_tracking_enabled", enabled).apply(); triggerRefresh() }
 
     fun scheduleBackup(context: Context) {
         try {
@@ -787,11 +822,20 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
     fun getAllSubscriptionsMaster() = _refreshTrigger.flatMapLatest { dao.getAllSubscriptionsMaster() }
     fun getExchangeRates(): Flow<List<ExchangeRate>> = dao.getAllExchangeRates()
     fun getAllRules() = _refreshTrigger.flatMapLatest { dao.getAllRules() }
+    fun getInvoicesForPartyFlow(partyId: Int, asOfDate: String) = _refreshTrigger.flatMapLatest { dao.getInvoicesForParty(partyId, asOfDate) }
+    fun getInvoicesForParties(partyIds: List<Int>, asOfDate: String) = _refreshTrigger.flatMapLatest {
+        if (partyIds.isEmpty()) return@flatMapLatest flowOf(emptyList<TransactionWithInvoiceDetails>())
+        val flows = partyIds.map { dao.getInvoicesForParty(it, asOfDate) }
+        combine(flows) { arrays -> 
+            arrays.flatMap { it.toList() }
+                .sortedWith(compareBy({ it.detail.transaction.date }, { it.detail.transaction.time }))
+        }
+    }
     suspend fun getLastTransactionForSubscription(name: String) = dao.getAllTransactionsWithDetails().first().find { it.transaction.subName == name }
 
     // Actions
-    fun saveAccount(name: String, openingBalance: Double, description: String?, isEnabled: Boolean, minorHeadId: Int?, creditLimit: Double?, billingCycleStart: String?, billingCycleEnd: String?, paymentDueDate: String?, icon: String?, isEmergencyFund: Boolean) {
-        viewModelScope.launch { dao.upsertAccount(editingAccount?.copy(name=name, openingBalance=openingBalance, description=description, isEnabled=isEnabled, minorHeadId=minorHeadId, creditLimit=creditLimit, billingCycleStart=billingCycleStart, billingCycleEnd=billingCycleEnd, paymentDueDate=paymentDueDate, icon=icon, isEmergencyFund=isEmergencyFund) ?: Account(name=name, type="asset", openingBalance=openingBalance, description=description, isEnabled=isEnabled, minorHeadId=minorHeadId, creditLimit=creditLimit, billingCycleStart=billingCycleStart, billingCycleEnd=billingCycleEnd, paymentDueDate=paymentDueDate, icon=icon, isEmergencyFund=isEmergencyFund)); editingAccount=null; triggerRefresh() }
+    fun saveAccount(name: String, openingBalance: Double, description: String?, isEnabled: Boolean, minorHeadId: Int?, creditLimit: Double?, billingCycleStart: String?, billingCycleEnd: String?, paymentDueDate: String?, icon: String?, isEmergencyFund: Boolean, defaultDueDays: Int? = null) {
+        viewModelScope.launch { dao.upsertAccount(editingAccount?.copy(name=name, openingBalance=openingBalance, description=description, isEnabled=isEnabled, minorHeadId=minorHeadId, creditLimit=creditLimit, billingCycleStart=billingCycleStart, billingCycleEnd=billingCycleEnd, paymentDueDate=paymentDueDate, icon=icon, isEmergencyFund=isEmergencyFund, defaultDueDays=defaultDueDays) ?: Account(name=name, type="asset", openingBalance=openingBalance, description=description, isEnabled=isEnabled, minorHeadId=minorHeadId, creditLimit=creditLimit, billingCycleStart=billingCycleStart, billingCycleEnd=billingCycleEnd, paymentDueDate=paymentDueDate, icon=icon, isEmergencyFund=isEmergencyFund, defaultDueDays=defaultDueDays)); editingAccount=null; triggerRefresh() }
     }
     fun saveCategory(name: String, type: String, description: String?, isEnabled: Boolean, icon: String?) {
         viewModelScope.launch { dao.upsertCategory(editingCategory?.copy(name=name, type=type, description=description, isEnabled=isEnabled, icon=icon) ?: Category(name=name, type=type, description=description, isEnabled=isEnabled, icon=icon)); editingCategory=null; triggerRefresh() }
@@ -871,7 +915,7 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
 
     // Transaction Management
     private val txnNumberMutex = Mutex()
-    private suspend fun executeAddTransaction(date: String, time: String, accId: Int, catId: Int?, amount: Double, note: String?, toAccId: Int?, tags: String?, type: String, pId: Int? = null, toPId: Int? = null, subN: String? = null, subF: Int? = null, amtO: Double? = null, cur: String? = null, amtB: Double? = null, updId: Int? = null, isNeg: Boolean = false, negOrig: Double? = null, merch: String? = null, isDisc: Boolean = false) {
+    private suspend fun executeAddTransaction(date: String, time: String, accId: Int, catId: Int?, amount: Double, note: String?, toAccId: Int?, tags: String?, type: String, pId: Int? = null, toPId: Int? = null, subN: String? = null, subF: Int? = null, amtO: Double? = null, cur: String? = null, amtB: Double? = null, updId: Int? = null, isNeg: Boolean = false, negOrig: Double? = null, merch: String? = null, isDisc: Boolean = false, invNo: String? = null, dueD: Int? = null, clearInvIds: List<Int> = emptyList()) {
         txnNumberMutex.withLock {
             val prefix = when(type) { "income"->"INC"; "expense"->"EXP"; "transfer"->"TNF"; else->"TXN" }
             
@@ -879,6 +923,7 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
             if (updId != null && updId != 0) {
                 val existing = dao.getAllTransactionsWithDetails().first().find { it.transaction.id == updId }
                 finalTxnNumber = existing?.transaction?.transactionNumber
+                dao.deleteClearancesByTransfer(updId)
             }
             
             if (finalTxnNumber == null) {
@@ -909,23 +954,68 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
                 isNegotiated = isNeg,
                 negotiationAmountOriginal = negOrig,
                 merchantName = merch,
-                isDiscretionary = isDisc
+                isDiscretionary = isDisc,
+                invoiceNumber = invNo,
+                dueDays = dueD
             )
 
-            if (updId != null && updId != 0) {
+            val txnId = if (updId != null && updId != 0) {
                 dao.updateTransaction(transaction)
+                updId
             } else {
-                dao.insertTransaction(transaction)
+                dao.insertTransaction(transaction).toInt()
+            }
+
+            // Handle Invoice Clearances for Transfers
+            if (type == "transfer" && clearInvIds.isNotEmpty()) {
+                var remainingToClear = amtB ?: amount
+                
+                // Fetch current clearing status for all selected invoices
+                val allTxns = dao.getAllTransactionsWithDetails().first()
+                val selectedInvoices = allTxns.filter { it.transaction.id in clearInvIds }
+                    .sortedWith(compareBy({ it.transaction.date }, { it.transaction.time }))
+
+                for (invDetail in selectedInvoices) {
+                    if (remainingToClear <= 0) break
+                    
+                    val invTxn = invDetail.transaction
+                    // Get what was already cleared by OTHER transfers
+                    val alreadyCleared = dao.getInvoicesForParty(invTxn.partyId ?: 0, "9999-12-31").first()
+                        .find { it.detail.transaction.id == invTxn.id }?.totalCleared ?: 0.0
+
+                    val outstanding = invTxn.amount - alreadyCleared
+                    if (outstanding <= 0) continue
+
+                    val toClearNow = minOf(remainingToClear, outstanding)
+                    dao.insertInvoiceClearance(InvoiceClearance(
+                        transferTransactionId = txnId,
+                        invoiceTransactionId = invTxn.id,
+                        amountCleared = toClearNow
+                    ))
+                    remainingToClear -= toClearNow
+                }
             }
         }
     }
-    fun addTransaction(date: String, time: String, accountId: Int, categoryId: Int?, amount: Double, note: String?, toAccountId: Int?, tags: String?, type: String, partyId: Int? = null, toPartyId: Int? = null, subName: String? = null, subFrequency: Int? = null, amountOriginal: Double? = null, currencyCode: String? = null, amountBase: Double? = null, updateId: Int? = null, isNegotiated: Boolean = false, negotiationAmountOriginal: Double? = null, merchantName: String? = null, isDiscretionary: Boolean = false) {
+    fun addTransaction(date: String, time: String, accountId: Int, categoryId: Int?, amount: Double, note: String?, toAccountId: Int?, tags: String?, type: String, partyId: Int? = null, toPartyId: Int? = null, subName: String? = null, subFrequency: Int? = null, amountOriginal: Double? = null, currencyCode: String? = null, amountBase: Double? = null, updateId: Int? = null, isNegotiated: Boolean = false, negotiationAmountOriginal: Double? = null, merchantName: String? = null, isDiscretionary: Boolean = false, invoiceNumber: String? = null, dueDays: Int? = null, clearInvoiceIds: List<Int> = emptyList()) {
         viewModelScope.launch { 
-            executeAddTransaction(date, time, accountId, categoryId, amount, note, toAccountId, tags, type, partyId, toPartyId, subName, subFrequency, amountOriginal, currencyCode, amountBase, updateId, isNegotiated, negotiationAmountOriginal, merchantName, isDiscretionary)
+            executeAddTransaction(date, time, accountId, categoryId, amount, note, toAccountId, tags, type, partyId, toPartyId, subName, subFrequency, amountOriginal, currencyCode, amountBase, updateId, isNegotiated, negotiationAmountOriginal, merchantName, isDiscretionary, invoiceNumber, dueDays, clearInvoiceIds)
             triggerRefresh()
             triggerSyncOnNewRecord()
         }
     }
+
+    fun deleteTransactions(ids: List<Int>) {
+        viewModelScope.launch {
+            ids.forEach {
+                dao.deleteClearancesByTransfer(it)
+                dao.deleteTransaction(it)
+            }
+            triggerRefresh()
+            triggerSyncOnNewRecord()
+        }
+    }
+
     fun addMultiEntryTransactionExtended(date: String, time: String, accountId: Int, entries: List<MultiEntryRowData>, tags: String?, type: String, partyId: Int?, subName: String?, subFrequency: Int?, updateId: Int? = null) {
         viewModelScope.launch {
             if (updateId != null && updateId != 0) {
@@ -1040,6 +1130,85 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
                 database.checkpoint(); triggerRefresh()
             } catch (e: Exception) { Log.e("ExpenseViewModel", "Failed to save loan history", e) }
         }
+    }
+
+    var crossReferenceDetails by mutableStateOf<List<InvoiceCrossReference>>(emptyList())
+    var isLoadingCrossReference by mutableStateOf(false)
+
+    fun loadCrossReference(transactionId: Int) {
+        viewModelScope.launch {
+            isLoadingCrossReference = true
+            try {
+                val results = mutableListOf<InvoiceCrossReference>()
+                
+                // First check if it's a transfer clearing invoices
+                val clearedInvoices = dao.getInvoicesClearedByTransfer(transactionId)
+                if (clearedInvoices.isNotEmpty()) {
+                    for (clearing in clearedInvoices) {
+                        val invoiceId = clearing.clearance.invoiceTransactionId
+                        try {
+                            results.add(fetchSingleInvoiceReference(invoiceId))
+                        } catch (e: Exception) {
+                            Log.e("ExpenseViewModel", "Error fetching invoice ref for id $invoiceId", e)
+                        }
+                    }
+                } else {
+                    // Check if it's an invoice itself (being cleared)
+                    val clearings = dao.getClearingsForInvoice(transactionId)
+                    if (clearings.isNotEmpty()) {
+                        try {
+                            results.add(fetchSingleInvoiceReference(transactionId))
+                        } catch (e: Exception) {
+                            Log.e("ExpenseViewModel", "Error fetching invoice ref for id $transactionId", e)
+                        }
+                    } else {
+                        // Check if it's an invoice that hasn't been cleared yet but has an invoice number
+                        val txn = dao.getTransactionWithDetails(transactionId)
+                        if (txn?.transaction?.invoiceNumber != null) {
+                            try {
+                                results.add(fetchSingleInvoiceReference(transactionId))
+                            } catch (e: Exception) {
+                                Log.e("ExpenseViewModel", "Error fetching invoice ref for id $transactionId", e)
+                            }
+                        }
+                    }
+                }
+                crossReferenceDetails = results
+            } catch (e: Exception) {
+                Log.e("ExpenseViewModel", "Error loading cross reference", e)
+                crossReferenceDetails = emptyList()
+            } finally {
+                isLoadingCrossReference = false
+            }
+        }
+    }
+
+    private suspend fun fetchSingleInvoiceReference(invoiceId: Int): InvoiceCrossReference {
+        val invDetail = dao.getTransactionWithDetails(invoiceId) ?: throw Exception("Invoice not found")
+        
+        val clearings = dao.getClearingsForInvoice(invoiceId)
+        val transfers = clearings.map { c ->
+            ClearingTransferDetails(
+                transferTxnId = c.clearance.transferTransactionId,
+                transferTxnNumber = c.otherTxnNumber,
+                transferDate = c.otherDate,
+                amountApplied = c.clearance.amountCleared,
+                otherAccountName = if (c.accountName == invDetail.accountName) c.toAccountName else c.accountName
+            )
+        }
+        
+        val totalCleared = transfers.sumOf { it.amountApplied }
+        
+        return InvoiceCrossReference(
+            invoiceId = invoiceId,
+            invoiceTxnNumber = invDetail.transaction.transactionNumber,
+            invoiceDate = invDetail.transaction.date,
+            invoiceAmount = invDetail.transaction.amount,
+            invoiceNumber = invDetail.transaction.invoiceNumber,
+            totalCleared = totalCleared,
+            pendingAmount = invDetail.transaction.amount - totalCleared,
+            clearingTransfers = transfers
+        )
     }
     private suspend fun getSuspenseAccountId(): Int { val e = dao.getSuspenseAccountInternal(); if(e!=null) return e.id; dao.upsertAccount(Account(name="Suspense", type="asset", openingBalance=0.0, isEnabled=true)); return dao.getSuspenseAccountInternal()?.id ?: 0 }
     fun ensureLoanHeadsExist() {
@@ -1271,11 +1440,30 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
 
     private fun getRangeForDuration(date: LocalDate, duration: String): Pair<String, String> {
         val formatter = DateTimeFormatter.ISO_DATE
-        return when (duration) {
-            "Weekly" -> Pair(date.with(java.time.DayOfWeek.MONDAY).format(formatter), date.with(java.time.DayOfWeek.SUNDAY).format(formatter))
-            "Monthly" -> Pair(date.with(TemporalAdjusters.firstDayOfMonth()).format(formatter), date.with(TemporalAdjusters.lastDayOfMonth()).format(formatter))
-            "Yearly" -> Pair(date.with(TemporalAdjusters.firstDayOfYear()).format(formatter), date.with(TemporalAdjusters.lastDayOfYear()).format(formatter))
-            else -> Pair(date.format(formatter), date.format(formatter))
+        return when (duration.uppercase()) {
+            "WEEKLY" -> Pair(date.with(java.time.DayOfWeek.MONDAY).format(formatter), date.with(java.time.DayOfWeek.SUNDAY).format(formatter))
+            "MONTHLY" -> Pair(date.with(TemporalAdjusters.firstDayOfMonth()).format(formatter), date.with(TemporalAdjusters.lastDayOfMonth()).format(formatter))
+            "YEARLY" -> Pair(date.with(TemporalAdjusters.firstDayOfYear()).format(formatter), date.with(TemporalAdjusters.lastDayOfYear()).format(formatter))
+            "HALF YEARLY" -> {
+                val start = if (date.monthValue <= 6) date.withMonth(1).withDayOfMonth(1) else date.withMonth(7).withDayOfMonth(1)
+                val end = start.plusMonths(5).with(TemporalAdjusters.lastDayOfMonth())
+                Pair(start.format(formatter), end.format(formatter))
+            }
+            "DAILY" -> Pair(date.format(formatter), date.format(formatter))
+            else -> {
+                // Fallback for cases where the string might be translated (legacy)
+                when (duration) {
+                    "Weekly" -> Pair(date.with(java.time.DayOfWeek.MONDAY).format(formatter), date.with(java.time.DayOfWeek.SUNDAY).format(formatter))
+                    "Monthly" -> Pair(date.with(TemporalAdjusters.firstDayOfMonth()).format(formatter), date.with(TemporalAdjusters.lastDayOfMonth()).format(formatter))
+                    "Yearly" -> Pair(date.with(TemporalAdjusters.firstDayOfYear()).format(formatter), date.with(TemporalAdjusters.lastDayOfYear()).format(formatter))
+                    "Half Yearly" -> {
+                        val start = if (date.monthValue <= 6) date.withMonth(1).withDayOfMonth(1) else date.withMonth(7).withDayOfMonth(1)
+                        val end = start.plusMonths(5).with(TemporalAdjusters.lastDayOfMonth())
+                        Pair(start.format(formatter), end.format(formatter))
+                    }
+                    else -> Pair(date.format(formatter), date.format(formatter))
+                }
+            }
         }
     }
 
@@ -1697,11 +1885,14 @@ data class DraftTransaction(
     val merchantName: String = "",
     val isDiscretionary: Boolean = false,
     val subName: String = "",
-    val subFrequency: String = ""
+    val subFrequency: String = "",
+    val invoiceNumber: String = "",
+    val dueDays: String = "",
+    val selectedInvoiceIds: List<Int> = emptyList()
 )
 data class DraftMultiEntryRow(val categoryId: Int?, val accountId: Int?, val amount: String, val note: String? = null, val currencyCode: String? = null)
 data class MultiEntryRowData(val categoryId: Int?, val accountId: Int?, val amount: Double, val note: String?, val currencyCode: String)
-data class DraftAccount(val name: String, val type: String, val description: String, val openingBalance: String, val isEnabled: Boolean, val selectedMajorHeadId: Int?, val selectedMinorHeadId: Int?, val creditLimit: String, val billingCycleStart: String, val billingCycleEnd: String, val paymentDueDate: String, val icon: String? = null, val isEmergencyFund: Boolean = false)
+data class DraftAccount(val name: String, val type: String, val description: String, val openingBalance: String, val isEnabled: Boolean, val selectedMajorHeadId: Int?, val selectedMinorHeadId: Int?, val creditLimit: String, val billingCycleStart: String, val billingCycleEnd: String, val paymentDueDate: String, val icon: String? = null, val isEmergencyFund: Boolean = false, val defaultDueDays: String = "")
 data class CcAlert(val accountId: Int, val accountName: String, val amount: Double, val dueDate: LocalDate)
 data class SubscriptionAlert(val subName: String, val amount: Double, val dueDate: LocalDate, val isTransfer: Boolean = false)
 

@@ -29,6 +29,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.openapps.fintrack.R
 import com.openapps.fintrack.data.Account
 import com.openapps.fintrack.data.TransactionWithDetails
 import java.time.LocalDate
@@ -82,14 +84,14 @@ fun CreditCardDashboard(viewModel: ExpenseViewModel, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Credit Cards") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null) } }
+                title = { Text(stringResource(R.string.menu_credit_cards)) },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.btn_back)) } }
             )
         }
     ) { padding ->
         if (ccAccounts.isEmpty()) {
             Box(Modifier.padding(padding).fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("No credit card accounts found.")
+                Text(stringResource(R.string.msg_no_cc_accounts))
             }
         } else {
             Column(modifier = Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState())) {
@@ -134,6 +136,9 @@ fun CCSummaryCard(
     onShowUnbilled: (List<TransactionWithDetails>, String) -> Unit
 ) {
     val today = LocalDate.now()
+    val transactionsLabel = stringResource(R.string.menu_transactions)
+    val billedLabel = stringResource(R.string.title_billed_transactions)
+    val unbilledLabel = stringResource(R.string.title_unbilled_transactions)
     
     // 1. Total Due (Current Balance)
     val currentBalance = run {
@@ -216,7 +221,7 @@ fun CCSummaryCard(
         modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
     ) {
-        Column(modifier = Modifier.padding(16.dp).clickable { onShowBilled(billedTransactions + unbilledTransactions, "${account.name} History") }) {
+        Column(modifier = Modifier.padding(16.dp).clickable { onShowBilled(billedTransactions + unbilledTransactions, account.name + " " + transactionsLabel) }) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text(account.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                 Text("${cycleStart.format(DateTimeFormatter.ofPattern("dd MMM"))} - ${cycleEnd.format(DateTimeFormatter.ofPattern("dd MMM"))}", 
@@ -226,16 +231,16 @@ fun CCSummaryCard(
             
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column {
-                    Text("Total Due", style = MaterialTheme.typography.labelSmall)
+                    Text(stringResource(R.string.label_total_due), style = MaterialTheme.typography.labelSmall)
                     Text(viewModel.formatAmount(currentBalance), style = MaterialTheme.typography.titleMedium, color = if (currentBalance < 0) Color.Red else Color.Unspecified)
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Next Due", style = MaterialTheme.typography.labelSmall)
+                        Text(stringResource(R.string.label_next_due), style = MaterialTheme.typography.labelSmall)
                         Spacer(Modifier.width(4.dp))
                         Icon(
                             imageVector = if (isPaid) Icons.Default.CheckCircle else Icons.Outlined.CheckCircle, 
-                            contentDescription = "Mark as Paid",
+                            contentDescription = stringResource(R.string.label_mark_as_paid),
                             tint = if (isPaid) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(20.dp).clickable {
                                 if (isPaid) {
@@ -252,7 +257,7 @@ fun CCSummaryCard(
 
             if (lastPaidAmount > 0) {
                 Spacer(Modifier.height(8.dp))
-                Text("Last Paid: ${viewModel.formatAmount(lastPaidAmount)} (${lastPaidDate ?: ""})", 
+                Text(stringResource(R.string.label_last_paid_colon, viewModel.formatAmount(lastPaidAmount)) + " (${lastPaidDate ?: ""})", 
                      style = MaterialTheme.typography.labelSmall, color = Color(0xFF4CAF50))
             }
             
@@ -261,27 +266,27 @@ fun CCSummaryCard(
             Spacer(Modifier.height(12.dp))
 
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Column(Modifier.clickable { onShowBilled(billedTransactions, "Billed Transactions") }) {
-                    Text("Billed", style = MaterialTheme.typography.labelSmall)
+                Column(Modifier.clickable { onShowBilled(billedTransactions, billedLabel) }) {
+                    Text(stringResource(R.string.label_billed), style = MaterialTheme.typography.labelSmall)
                     Text(viewModel.formatAmount(billedAmount), style = MaterialTheme.typography.bodyLarge, color = if (billedAmount < 0) Color.Red else Color.Unspecified)
                 }
-                Column(horizontalAlignment = Alignment.End, modifier = Modifier.clickable { onShowUnbilled(unbilledTransactions, "Unbilled Transactions") }) {
-                    Text("Unbilled", style = MaterialTheme.typography.labelSmall)
+                Column(horizontalAlignment = Alignment.End, modifier = Modifier.clickable { onShowUnbilled(unbilledTransactions, unbilledLabel) }) {
+                    Text(stringResource(R.string.label_unbilled), style = MaterialTheme.typography.labelSmall)
                     Text(viewModel.formatAmount(unbilledAmount), style = MaterialTheme.typography.bodyLarge, color = if (unbilledAmount < 0) Color.Red else Color.Unspecified)
                 }
             }
 
             Spacer(Modifier.height(12.dp))
             
-            Text("Credit Limit", style = MaterialTheme.typography.labelSmall)
+            Text(stringResource(R.string.label_credit_limit), style = MaterialTheme.typography.labelSmall)
             LinearProgressIndicator(
                 progress = if (totalLimit > 0) (availableLimit / totalLimit).toFloat().coerceIn(0f, 1f) else 0f,
                 modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                 color = if (availableLimit < totalLimit * 0.2) Color.Red else MaterialTheme.colorScheme.primary
             )
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Available: ${viewModel.formatAmount(availableLimit)}", style = MaterialTheme.typography.bodySmall)
-                Text("Total: ${viewModel.formatAmount(totalLimit)}", style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.label_available_colon, viewModel.formatAmount(availableLimit)), style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.label_total_colon, viewModel.formatAmount(totalLimit)), style = MaterialTheme.typography.bodySmall)
             }
         }
     }
@@ -294,7 +299,12 @@ fun CCExpenseAnalysis(
     allTransactions: List<TransactionWithDetails>,
     onCategoryClick: (List<TransactionWithDetails>, String) -> Unit
 ) {
-    var analysisMode by remember(account.id) { mutableStateOf("Last Billed") }
+    val lastBilledLabel = stringResource(R.string.label_last_billed)
+    val unbilledLabel = stringResource(R.string.label_unbilled)
+    val bothLabel = stringResource(R.string.label_both)
+    val expenseLabel = stringResource(R.string.label_expense)
+    val uncategorizedLabel = stringResource(R.string.label_uncategorized)
+    var analysisMode by remember(account.id) { mutableStateOf(lastBilledLabel) }
     var menuExpanded by remember { mutableStateOf(false) }
 
     val today = LocalDate.now()
@@ -324,16 +334,16 @@ fun CCExpenseAnalysis(
             val todayStr = today.format(DateTimeFormatter.ISO_DATE)
 
             when (analysisMode) {
-                "Last Billed" -> date >= startStr && date <= endStr
-                "Unbilled" -> date > endStr && date <= todayStr
-                "Both" -> date >= startStr && date <= todayStr
+                lastBilledLabel -> date >= startStr && date <= endStr
+                unbilledLabel -> date > endStr && date <= todayStr
+                bothLabel -> date >= startStr && date <= todayStr
                 else -> false
             }
         }
     }
 
     val categorySummary = filteredTransactions
-        .groupBy { it.categoryName ?: "Uncategorized" }
+        .groupBy { it.categoryName ?: uncategorizedLabel }
         .mapValues { it.value.sumOf { t -> t.transaction.amount } }
         .toList()
         .sortedByDescending { it.second }
@@ -344,7 +354,7 @@ fun CCExpenseAnalysis(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Expense Analysis", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.title_expense_analysis), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             
             Box {
                 TextButton(onClick = { menuExpanded = true }) {
@@ -352,7 +362,7 @@ fun CCExpenseAnalysis(
                     Icon(Icons.Default.ArrowDropDown, null)
                 }
                 DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
-                    listOf("Last Billed", "Unbilled", "Both").forEach { mode ->
+                    listOf(lastBilledLabel, unbilledLabel, bothLabel).forEach { mode ->
                         DropdownMenuItem(
                             text = { Text(mode) },
                             onClick = {
@@ -389,7 +399,7 @@ fun CCExpenseAnalysis(
                 Row(
                     modifier = Modifier.fillMaxWidth().clickable { 
                         val filtered = filteredTransactions.filter { it.categoryName == cat }
-                        onCategoryClick(filtered, "$cat Expenses ($analysisMode)")
+                        onCategoryClick(filtered, "$cat $expenseLabel ($analysisMode)")
                     }.padding(vertical = 8.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
@@ -407,7 +417,7 @@ fun CCExpenseAnalysis(
                 Divider(modifier = Modifier.alpha(0.5f))
             }
         } else {
-            Text("No expenses recorded for $analysisMode.", modifier = Modifier.padding(vertical = 16.dp), style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
+            Text(stringResource(R.string.msg_no_expenses_recorded, analysisMode), modifier = Modifier.padding(vertical = 16.dp), style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
         }
     }
 }

@@ -5,6 +5,8 @@
 
 package com.openapps.fintrack.ui
 
+import androidx.compose.ui.res.stringResource
+import com.openapps.fintrack.R
 import android.Manifest
 import android.content.Context
 import android.content.Intent
@@ -60,10 +62,10 @@ fun PermissionsScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("App Permissions") },
+                title = { Text(stringResource(R.string.title_app_permissions)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.btn_back))
                     }
                 }
             )
@@ -80,7 +82,7 @@ fun PermissionsScreen(onBack: () -> Unit) {
                     Icon(Icons.Default.Info, null, tint = MaterialTheme.colorScheme.primary)
                     Spacer(Modifier.width(12.dp))
                     Text(
-                        "If 'Allow' is disabled in system settings: Go to App Info -> tap (⋮) in corner -> 'Allow restricted settings'.",
+                        stringResource(R.string.msg_restricted_settings_note),
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
@@ -105,7 +107,7 @@ fun PermissionsScreen(onBack: () -> Unit) {
                         modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
                     ) {
-                        Text("Open System Settings")
+                        Text(stringResource(R.string.btn_open_system_settings))
                     }
                     
                     if (isSetupComplete) {
@@ -113,7 +115,7 @@ fun PermissionsScreen(onBack: () -> Unit) {
                             onClick = onBack,
                             modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
                         ) {
-                            Text("Skip / Continue to App")
+                            Text(stringResource(R.string.btn_skip_continue))
                         }
                     }
                 }
@@ -151,7 +153,7 @@ fun PermissionItem(info: PermissionInfo, context: Context, onResult: () -> Unit)
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(info.name, style = MaterialTheme.typography.titleMedium)
             Text(
-                if (isGranted) "Granted" else "Not Granted",
+                if (isGranted) stringResource(R.string.label_granted) else stringResource(R.string.label_not_granted),
                 color = if (isGranted) Color(0xFF4CAF50) else Color.Red,
                 style = MaterialTheme.typography.bodyMedium
             )
@@ -168,7 +170,7 @@ fun PermissionItem(info: PermissionInfo, context: Context, onResult: () -> Unit)
                     launcher.launch(info.permission)
                 }
             }, modifier = Modifier.padding(top = 8.dp)) {
-                Text("Enable")
+                Text(stringResource(R.string.btn_enable))
             }
         }
     }

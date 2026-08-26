@@ -5,6 +5,8 @@
 
 package com.openapps.fintrack.ui
 
+import androidx.compose.ui.res.stringResource
+import com.openapps.fintrack.R
 import android.app.DatePickerDialog
 import android.content.Context
 import android.widget.Toast
@@ -45,10 +47,10 @@ fun BudgetsMainScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Budgets") },
+                title = { Text(stringResource(R.string.menu_budgets)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.btn_back))
                     }
                 }
             )
@@ -59,14 +61,14 @@ fun BudgetsMainScreen(
                 onClick = { onNavigate("manage_budgets") },
                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
             ) {
-                Text("Set / Remove Budget")
+                Text(stringResource(R.string.btn_set_remove_budget))
             }
             
             Button(
                 onClick = { onNavigate("budget_vs_actual") },
                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
             ) {
-                Text("Budget vs Actual")
+                Text(stringResource(R.string.btn_budget_vs_actual))
             }
         }
     }
@@ -85,10 +87,10 @@ fun ManageBudgetsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Set / Remove Budget") },
+                title = { Text(stringResource(R.string.btn_set_remove_budget)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.btn_back))
                     }
                 }
             )
@@ -100,7 +102,7 @@ fun ManageBudgetsScreen(
                     onEditBudget() 
                 }
             ) {
-                Icon(Icons.Default.Add, "Add Budget")
+                Icon(Icons.Default.Add, stringResource(R.string.btn_add_budget))
             }
         }
     ) { padding ->
@@ -110,10 +112,19 @@ fun ManageBudgetsScreen(
                     .mapNotNull { id -> categories.find { it.id == id.toIntOrNull() }?.name }
                     .joinToString(", ")
                 
+                val durationLabel = when (budget.duration) {
+                    "Daily" -> stringResource(R.string.label_daily)
+                    "Weekly" -> stringResource(R.string.label_weekly)
+                    "Monthly" -> stringResource(R.string.label_monthly)
+                    "Half Yearly" -> stringResource(R.string.label_half_yearly)
+                    "Yearly" -> stringResource(R.string.label_yearly)
+                    else -> budget.duration
+                }
+                
                 ListItem(
                     headlineContent = { Text(budget.name ?: catNames) },
                     supportingContent = { 
-                        Text("${budget.duration} | ${viewModel.formatAmount(budget.amount)}") 
+                        Text("$durationLabel | ${viewModel.formatAmount(budget.amount)}") 
                     },
                     trailingContent = {
                         Row {
@@ -121,10 +132,10 @@ fun ManageBudgetsScreen(
                                 viewModel.editingBudgetRaw = budget
                                 onEditBudget() 
                             }) {
-                                Icon(Icons.Default.Edit, contentDescription = "Edit")
+                                Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.btn_edit))
                             }
                             IconButton(onClick = { viewModel.deleteBudget(budget) }) {
-                                Icon(Icons.Default.Delete, contentDescription = "Delete")
+                                Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.btn_delete))
                             }
                         }
                     }
@@ -162,10 +173,10 @@ fun AddBudgetScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (viewModel.editingBudgetRaw == null) "Add Budget" else "Edit Budget") },
+                title = { Text(if (viewModel.editingBudgetRaw == null) stringResource(R.string.btn_add_budget) else stringResource(R.string.btn_edit_budget)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.btn_back))
                     }
                 }
             )
@@ -175,7 +186,7 @@ fun AddBudgetScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
             OutlinedTextField(
                 value = budgetName,
                 onValueChange = { budgetName = it },
-                label = { Text("Budget Name (Optional for single category)") },
+                label = { Text(stringResource(R.string.label_budget_name_optional)) },
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -185,9 +196,9 @@ fun AddBudgetScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                                  ccAccounts.filter { it.id in selectedAccountIds }.map { it.name }).joinToString(", ")
             
             OutlinedTextField(
-                value = if (selectedNames.isEmpty()) "Select Categories / Cards" else selectedNames,
+                value = if (selectedNames.isEmpty()) stringResource(R.string.label_select_categories_cards) else selectedNames,
                 onValueChange = {},
-                label = { Text("Categories / Credit Cards") },
+                label = { Text(stringResource(R.string.label_categories_cc)) },
                 readOnly = true,
                 modifier = Modifier.fillMaxWidth().clickable { showCategoryDialog = true },
                 enabled = false,
@@ -204,18 +215,26 @@ fun AddBudgetScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
             OutlinedTextField(
                 value = amount,
                 onValueChange = { amount = it },
-                label = { Text("Amount") },
+                label = { Text(stringResource(R.string.label_amount)) },
                 modifier = Modifier.fillMaxWidth()
             )
             
             Spacer(Modifier.height(16.dp))
 
             var durationExpanded by remember { mutableStateOf(false) }
+            val durationOptions = listOf(
+                "Daily" to stringResource(R.string.label_daily),
+                "Weekly" to stringResource(R.string.label_weekly),
+                "Monthly" to stringResource(R.string.label_monthly),
+                "Half Yearly" to stringResource(R.string.label_half_yearly),
+                "Yearly" to stringResource(R.string.label_yearly)
+            )
+            
             Box(modifier = Modifier.fillMaxWidth()) {
                 OutlinedTextField(
-                    value = duration,
+                    value = durationOptions.find { it.first == duration }?.second ?: duration,
                     onValueChange = {},
-                    label = { Text("Duration") },
+                    label = { Text(stringResource(R.string.label_duration)) },
                     readOnly = true,
                     modifier = Modifier.fillMaxWidth().clickable { durationExpanded = true },
                     enabled = false,
@@ -227,8 +246,8 @@ fun AddBudgetScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                     trailingIcon = { Icon(Icons.Default.ArrowDropDown, "") }
                 )
                 DropdownMenu(expanded = durationExpanded, onDismissRequest = { durationExpanded = false }) {
-                    listOf("Daily", "Weekly", "Monthly", "Half Yearly", "Yearly").forEach { d ->
-                        DropdownMenuItem(text = { Text(d) }, onClick = { duration = d; durationExpanded = false })
+                    durationOptions.forEach { (key, display) ->
+                        DropdownMenuItem(text = { Text(display) }, onClick = { duration = key; durationExpanded = false })
                     }
                 }
             }
@@ -237,10 +256,10 @@ fun AddBudgetScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 RadioButton(selected = !higherIsBetter, onClick = { higherIsBetter = false })
-                Text("Lower the better", modifier = Modifier.clickable { higherIsBetter = false })
+                Text(stringResource(R.string.label_lower_better), modifier = Modifier.clickable { higherIsBetter = false })
                 Spacer(Modifier.width(16.dp))
                 RadioButton(selected = higherIsBetter, onClick = { higherIsBetter = true })
-                Text("Higher the better", modifier = Modifier.clickable { higherIsBetter = true })
+                Text(stringResource(R.string.label_higher_better), modifier = Modifier.clickable { higherIsBetter = true })
             }
 
             Spacer(Modifier.height(16.dp))
@@ -248,7 +267,7 @@ fun AddBudgetScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
             OutlinedTextField(
                 value = note,
                 onValueChange = { note = it },
-                label = { Text("Notes") },
+                label = { Text(stringResource(R.string.label_notes)) },
                 modifier = Modifier.fillMaxWidth(),
                 minLines = 2
             )
@@ -274,7 +293,7 @@ fun AddBudgetScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                 modifier = Modifier.fillMaxWidth(),
                 enabled = (selectedCategoryIds.isNotEmpty() || selectedAccountIds.isNotEmpty()) && amount.isNotEmpty()
             ) {
-                Text("Save Budget")
+                Text(stringResource(R.string.btn_save_budget))
             }
         }
     }
@@ -282,12 +301,12 @@ fun AddBudgetScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
     if (showCategoryDialog) {
         AlertDialog(
             onDismissRequest = { showCategoryDialog = false },
-            title = { Text("Select Categories / Cards") },
+            title = { Text(stringResource(R.string.label_select_categories_cards)) },
             text = {
                 Box(Modifier.height(400.dp)) {
                     LazyColumn {
                         item {
-                            Text("Categories", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(8.dp))
+                            Text(stringResource(R.string.menu_categories), style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(8.dp))
                         }
                         items(categories) { category ->
                             Row(
@@ -324,7 +343,7 @@ fun AddBudgetScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                         if (ccAccounts.isNotEmpty()) {
                             item {
                                 Spacer(Modifier.height(16.dp))
-                                Text("Credit Cards (Micro Heads)", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(8.dp))
+                                Text(stringResource(R.string.label_credit_cards_micro), style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(8.dp))
                             }
                             items(ccAccounts) { acc ->
                                 Row(
@@ -352,7 +371,7 @@ fun AddBudgetScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                                     )
                                     Column {
                                         Text(acc.name)
-                                        Text("Credit Card Expense Tracking", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                                        Text(stringResource(R.string.label_cc_expense_tracking), style = MaterialTheme.typography.labelSmall, color = Color.Gray)
                                     }
                                 }
                                 Divider()
@@ -361,7 +380,7 @@ fun AddBudgetScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                     }
                 }
             },
-            confirmButton = { Button(onClick = { showCategoryDialog = false }) { Text("Done") } }
+            confirmButton = { Button(onClick = { showCategoryDialog = false }) { Text(stringResource(R.string.btn_done)) } }
         )
     }
 }
@@ -402,7 +421,7 @@ fun BudgetComparisonScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, isTa
         val content: @Composable (PaddingValues) -> Unit = { padding ->
             Column(modifier = Modifier.padding(padding).fillMaxSize().padding(horizontal = 16.dp)) {
                 Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("As of: $asOfDate", style = MaterialTheme.typography.labelMedium)
+                    Text(stringResource(R.string.label_as_of_colon, asOfDate), style = MaterialTheme.typography.labelMedium)
                     if (isTab) {
                         Row {
                             IconButton(onClick = {
@@ -411,12 +430,12 @@ fun BudgetComparisonScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, isTa
                                     asOfDate = LocalDate.of(y, m + 1, d).format(DateTimeFormatter.ISO_DATE)
                                 }, date.year, date.monthValue - 1, date.dayOfMonth).show()
                             }) {
-                                Icon(Icons.Default.Event, "Change Date")
+                                Icon(Icons.Default.Event, stringResource(R.string.label_change_date))
                             }
                             IconButton(onClick = { 
                                 exportBudgetVsActual(context, budgetVsActual, asOfDate)
                             }) {
-                                Icon(Icons.Default.FileDownload, "Export")
+                                Icon(Icons.Default.FileDownload, stringResource(R.string.label_export))
                             }
                         }
                     }
@@ -454,10 +473,10 @@ fun BudgetComparisonScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, isTa
             Scaffold(
                 topBar = {
                     TopAppBar(
-                        title = { Text("Budget vs Actual") },
+                        title = { Text(stringResource(R.string.btn_budget_vs_actual)) },
                         navigationIcon = {
                             IconButton(onClick = onBack) {
-                                Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                                Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.btn_back))
                             }
                         },
                         actions = {
@@ -467,12 +486,12 @@ fun BudgetComparisonScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, isTa
                                     asOfDate = LocalDate.of(y, m + 1, d).format(DateTimeFormatter.ISO_DATE)
                                 }, date.year, date.monthValue - 1, date.dayOfMonth).show()
                             }) {
-                                Icon(Icons.Default.Event, "Change Date")
+                                Icon(Icons.Default.Event, stringResource(R.string.label_change_date))
                             }
                             IconButton(onClick = { 
                                 exportBudgetVsActual(context, budgetVsActual, asOfDate)
                             }) {
-                                Icon(Icons.Default.FileDownload, "Export")
+                                Icon(Icons.Default.FileDownload, stringResource(R.string.label_export))
                             }
                         }
                     )
@@ -493,6 +512,8 @@ fun BudgetComparisonRow(item: com.openapps.fintrack.ui.BudgetVsActual, viewModel
     }
     
     val statusColor = if (isGoalMet) Color(0xFF4CAF50) else Color.Red
+    val avgDailyLabel = stringResource(R.string.label_avg_daily_colon_val)
+    val avgMonthlyLabel = stringResource(R.string.label_avg_monthly_colon_val)
     
     val stats = remember(item) {
         val today = LocalDate.now()
@@ -503,22 +524,22 @@ fun BudgetComparisonRow(item: com.openapps.fintrack.ui.BudgetVsActual, viewModel
             val daysElapsed = java.time.temporal.ChronoUnit.DAYS.between(start, today).coerceAtLeast(1)
             
             val avgText = when (item.duration) {
-                "Daily" -> "Avg Daily: " + viewModel.formatAmount(item.actualAmount)
+                "Daily" -> avgDailyLabel.format(viewModel.formatAmount(item.actualAmount))
                 "Weekly" -> {
                     val dayOfWeek = today.dayOfWeek.value
-                    "Avg Daily: " + viewModel.formatAmount(item.actualAmount / dayOfWeek)
+                    avgDailyLabel.format(viewModel.formatAmount(item.actualAmount / dayOfWeek))
                 }
                 "Monthly" -> {
                     val dayOfMonth = today.dayOfMonth
-                    "Avg Daily: " + viewModel.formatAmount(item.actualAmount / dayOfMonth)
+                    avgDailyLabel.format(viewModel.formatAmount(item.actualAmount / dayOfMonth))
                 }
                 "Half Yearly" -> {
                     val monthOfHalfYear = if (today.monthValue <= 6) today.monthValue else today.monthValue - 6
-                    "Avg Monthly: " + viewModel.formatAmount(item.actualAmount / monthOfHalfYear)
+                    avgMonthlyLabel.format(viewModel.formatAmount(item.actualAmount / monthOfHalfYear))
                 }
                 "Yearly" -> {
                     val monthOfYear = today.monthValue
-                    "Avg Monthly: " + viewModel.formatAmount(item.actualAmount / monthOfYear)
+                    avgMonthlyLabel.format(viewModel.formatAmount(item.actualAmount / monthOfYear))
                 }
                 else -> ""
             }
@@ -555,7 +576,7 @@ fun BudgetComparisonRow(item: com.openapps.fintrack.ui.BudgetVsActual, viewModel
                 }
                 if (stats.second > 0) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Forecast: ", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                        Text(stringResource(R.string.label_forecast_colon_val, ""), style = MaterialTheme.typography.labelSmall, color = Color.Gray)
                         Text(
                             viewModel.formatAmount(stats.second), 
                             style = MaterialTheme.typography.labelSmall, 
@@ -569,11 +590,11 @@ fun BudgetComparisonRow(item: com.openapps.fintrack.ui.BudgetVsActual, viewModel
             Spacer(Modifier.height(4.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Column {
-                    Text("Budget", style = MaterialTheme.typography.labelSmall)
+                    Text(stringResource(R.string.label_budget), style = MaterialTheme.typography.labelSmall)
                     Text(viewModel.formatAmount(item.budgetAmount))
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Actual", style = MaterialTheme.typography.labelSmall)
+                    Text(stringResource(R.string.label_actual), style = MaterialTheme.typography.labelSmall)
                     Text(
                         viewModel.formatAmount(item.actualAmount),
                         color = statusColor
@@ -581,7 +602,7 @@ fun BudgetComparisonRow(item: com.openapps.fintrack.ui.BudgetVsActual, viewModel
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     val diff = item.actualAmount - item.budgetAmount
-                    Text("Diff", style = MaterialTheme.typography.labelSmall)
+                    Text(stringResource(R.string.label_diff), style = MaterialTheme.typography.labelSmall)
                     Text(viewModel.formatAmount(diff), color = statusColor)
                 }
             }
@@ -624,6 +645,15 @@ fun BudgetPeriodSummary(duration: String, budgets: List<com.openapps.fintrack.ui
     val totalActual = budgets.sumOf { it.actualAmount }
     val available = totalBudget - totalActual
     
+    val durationDisplay = when (duration) {
+        "Daily" -> stringResource(R.string.label_daily)
+        "Weekly" -> stringResource(R.string.label_weekly)
+        "Monthly" -> stringResource(R.string.label_monthly)
+        "Half Yearly" -> stringResource(R.string.label_half_yearly)
+        "Yearly" -> stringResource(R.string.label_yearly)
+        else -> duration
+    }
+
     val chartData = budgets.map { it.categoryName to it.budgetAmount }
     
     val chartColors = budgets.mapIndexed { i, b ->
@@ -643,7 +673,7 @@ fun BudgetPeriodSummary(duration: String, budgets: List<com.openapps.fintrack.ui
         modifier = Modifier.width(300.dp).padding(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(duration, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+        Text(durationDisplay, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
         Spacer(Modifier.height(12.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -655,7 +685,7 @@ fun BudgetPeriodSummary(duration: String, budgets: List<com.openapps.fintrack.ui
                     data = chartData,
                     colors = chartColors,
                     centerText = viewModel.formatAmountWhole(available),
-                    centerSubText = "Avail",
+                    centerSubText = stringResource(R.string.label_avail),
                     modifier = Modifier.size(120.dp)
                 )
             }

@@ -34,6 +34,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.openapps.fintrack.R
 import com.openapps.fintrack.data.AmortizationRow
 import com.openapps.fintrack.data.Loan
 import com.openapps.fintrack.data.LoanCalculator
@@ -116,7 +118,7 @@ fun SubscriptionDashboard(viewModel: ExpenseViewModel, onBack: () -> Unit, onNav
     }
 
     var selectedTabIndex by remember { mutableIntStateOf(0) }
-    val tabTitles = listOf("Subscriptions", "Recurring Transfers", "Loans")
+    val tabTitles = listOf(stringResource(R.string.menu_subscriptions), stringResource(R.string.label_recurring_transfers), stringResource(R.string.label_loans))
 
     var selectedSubscriptionTxns by remember { mutableStateOf<List<TransactionWithDetails>?>(null) }
     var selectedLoanRepayments by remember { mutableStateOf<Long?>(null) }
@@ -185,27 +187,27 @@ fun SubscriptionDashboard(viewModel: ExpenseViewModel, onBack: () -> Unit, onNav
         AlertDialog(
             onDismissRequest = { showLoanContextMenu = null },
             title = { Text(loan.name) },
-            text = { Text("Select an option for this loan:") },
+            text = { Text(stringResource(R.string.msg_select_option_loan)) },
             confirmButton = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = { selectedLoanForSchedule = loan; showLoanContextMenu = null }, modifier = Modifier.fillMaxWidth()) {
-                        Text("View Schedule")
+                        Text(stringResource(R.string.btn_see_schedule))
                     }
                     Button(onClick = { showCatchupDialog = loan; showLoanContextMenu = null }, modifier = Modifier.fillMaxWidth()) {
-                        Text("Catchup Entries")
+                        Text(stringResource(R.string.btn_catchup_entries))
                     }
                     Button(
                         onClick = { showLoanDeleteConfirm = loan; showLoanContextMenu = null },
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                     ) {
-                        Text("Delete Loan")
+                        Text(stringResource(R.string.btn_delete) + " " + stringResource(R.string.label_loan))
                     }
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showLoanContextMenu = null }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.btn_cancel))
                 }
             }
         )
@@ -215,23 +217,23 @@ fun SubscriptionDashboard(viewModel: ExpenseViewModel, onBack: () -> Unit, onNav
         val loan = showLoanDeleteConfirm!!
         AlertDialog(
             onDismissRequest = { showLoanDeleteConfirm = null },
-            title = { Text("Delete Loan?") },
-            text = { Text("This will delete the loan tracking data. Previously recorded entries and the account will be preserved. No further automated entries will be posted.") },
+            title = { Text(stringResource(R.string.title_delete_notebook)) }, // Using notebook delete title for consistency or add specific
+            text = { Text(stringResource(R.string.msg_delete_loan_desc)) },
             confirmButton = {
                 Button(
                     onClick = {
                         viewModel.deleteLoan(loan)
                         showLoanDeleteConfirm = null
-                        Toast.makeText(context, "Loan Deleted", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, context.getString(R.string.msg_loan_deleted), Toast.LENGTH_SHORT).show()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) {
-                    Text("Delete")
+                    Text(stringResource(R.string.btn_delete))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showLoanDeleteConfirm = null }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.btn_cancel))
                 }
             }
         )
@@ -243,13 +245,13 @@ fun SubscriptionDashboard(viewModel: ExpenseViewModel, onBack: () -> Unit, onNav
         
         AlertDialog(
             onDismissRequest = { showCatchupDialog = null },
-            title = { Text("Catchup Loan Entries") },
+            title = { Text(stringResource(R.string.title_catchup_loan_entries)) },
             text = {
                 Column {
                     if (pendingDates.isEmpty()) {
-                        Text("No pending entries found for this loan as of today.")
+                        Text(stringResource(R.string.msg_no_pending_loan_entries))
                     } else {
-                        Text("The following ${pendingDates.size} payment periods are pending to be recorded:")
+                        Text(stringResource(R.string.msg_pending_loan_periods, pendingDates.size))
                         Spacer(Modifier.height(8.dp))
                         Box(Modifier.height(150.dp).fillMaxWidth()) {
                             LazyColumn {
@@ -259,7 +261,7 @@ fun SubscriptionDashboard(viewModel: ExpenseViewModel, onBack: () -> Unit, onNav
                             }
                         }
                         Spacer(Modifier.height(8.dp))
-                        Text("Do you want to record these entries now?", style = MaterialTheme.typography.labelSmall)
+                        Text(stringResource(R.string.msg_record_entries_now), style = MaterialTheme.typography.labelSmall)
                     }
                 }
             },
@@ -268,15 +270,15 @@ fun SubscriptionDashboard(viewModel: ExpenseViewModel, onBack: () -> Unit, onNav
                     Button(onClick = {
                         viewModel.catchupLoanEntries(loan.id)
                         showCatchupDialog = null
-                        Toast.makeText(context, "Recorded ${pendingDates.size} entries", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, context.getString(R.string.msg_recorded_n_entries, pendingDates.size), Toast.LENGTH_SHORT).show()
                     }) {
-                        Text("Record")
+                        Text(stringResource(R.string.btn_record))
                     }
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showCatchupDialog = null }) {
-                    Text(if (pendingDates.isEmpty()) "OK" else "Cancel")
+                    Text(if (pendingDates.isEmpty()) stringResource(R.string.btn_ok) else stringResource(R.string.btn_cancel))
                 }
             }
         )
@@ -306,24 +308,24 @@ fun SubscriptionDashboard(viewModel: ExpenseViewModel, onBack: () -> Unit, onNav
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text("Loan Payments - $detailTitle") },
-                    navigationIcon = { IconButton(onClick = { selectedLoanRepayments = null }) { Icon(Icons.Default.ArrowBack, null) } }
+                    title = { Text(stringResource(R.string.title_loan_payments, detailTitle)) },
+                    navigationIcon = { IconButton(onClick = { selectedLoanRepayments = null }) { Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.btn_back)) } }
                 )
             }
         ) { padding ->
             if (repayments.isEmpty()) {
                 Box(Modifier.padding(padding).fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("No payments recorded yet.")
+                    Text(stringResource(R.string.msg_no_payments_recorded))
                 }
             } else {
                 LazyColumn(modifier = Modifier.padding(padding).fillMaxSize()) {
                     items(repayments) { item ->
                         ListItem(
-                            headlineContent = { Text("Payment of ${viewModel.formatAmount(item.amountPaid)}") },
+                            headlineContent = { Text(stringResource(R.string.label_payment_of, viewModel.formatAmount(item.amountPaid))) },
                             supportingContent = { 
-                                Text("Principal: ${viewModel.formatAmount(item.principalPortion)} | Interest: ${viewModel.formatAmount(item.interestPortion)}\nDate: ${Instant.ofEpochMilli(item.paymentDate).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("dd MMM yyyy"))}")
+                                Text(stringResource(R.string.label_principal) + ": ${viewModel.formatAmount(item.principalPortion)} | " + stringResource(R.string.label_interest_colon_val, viewModel.formatAmount(item.interestPortion)) + "\n" + stringResource(R.string.label_date_colon) + "${Instant.ofEpochMilli(item.paymentDate).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("dd MMM yyyy"))}")
                             },
-                            trailingContent = { if (item.isScheduled) Icon(Icons.Default.PauseCircle, "Scheduled") }
+                            trailingContent = { if (item.isScheduled) Icon(Icons.Default.PauseCircle, stringResource(R.string.label_scheduled)) }
                         )
                         Divider()
                     }
@@ -368,40 +370,42 @@ fun SubscriptionDashboard(viewModel: ExpenseViewModel, onBack: () -> Unit, onNav
     if (showLoanTypeDialog) {
         AlertDialog(
             onDismissRequest = { showLoanTypeDialog = false },
-            title = { Text("Add Loan") },
-            text = { Text("Is this a New Loan or are you tracking an Existing Loan?") },
+            title = { Text(stringResource(R.string.label_loan)) },
+            text = { Text(stringResource(R.string.msg_add_loan_ask)) },
             confirmButton = {
-                Button(onClick = { loanCreateMode = true; showLoanTypeDialog = false }) { Text("New Loan") }
+                Button(onClick = { loanCreateMode = true; showLoanTypeDialog = false }) { Text(stringResource(R.string.title_new_loan)) }
             },
             dismissButton = {
-                OutlinedButton(onClick = { loanCreateMode = false; showLoanTypeDialog = false }) { Text("Existing Loan") }
+                OutlinedButton(onClick = { loanCreateMode = false; showLoanTypeDialog = false }) { Text(stringResource(R.string.title_add_existing_loan)) }
             }
         )
     }
 
     if (showAddSubscriptionDialog) {
+        val subLabel = stringResource(R.string.label_subscription)
+        val recTransLabel = stringResource(R.string.label_recurring_transfers)
         AlertDialog(
             onDismissRequest = { showAddSubscriptionDialog = false },
-            title = { Text("Add ${if (selectedTabIndex == 0) "Subscription" else "Recurring Transfer"}") },
+            title = { Text(stringResource(R.string.btn_add) + " ${if (selectedTabIndex == 0) subLabel else recTransLabel}") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
                         value = newSubName,
                         onValueChange = { newSubName = it },
-                        label = { Text("Name") },
+                        label = { Text(stringResource(R.string.label_name)) },
                         modifier = Modifier.fillMaxWidth()
                     )
                     OutlinedTextField(
                         value = newSubFreq,
                         onValueChange = { newSubFreq = it },
-                        label = { Text("Frequency (Months)") },
+                        label = { Text(stringResource(R.string.label_freq_months)) },
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
                         modifier = Modifier.fillMaxWidth()
                     )
                     OutlinedTextField(
                         value = newSubNotes,
                         onValueChange = { newSubNotes = it },
-                        label = { Text("Notes") },
+                        label = { Text(stringResource(R.string.label_notes)) },
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -420,10 +424,10 @@ fun SubscriptionDashboard(viewModel: ExpenseViewModel, onBack: () -> Unit, onNav
                         newSubFreq = "1"
                         newSubNotes = ""
                     }
-                }) { Text("Save") }
+                }) { Text(stringResource(R.string.btn_save)) }
             },
             dismissButton = {
-                TextButton(onClick = { showAddSubscriptionDialog = false }) { Text("Cancel") }
+                TextButton(onClick = { showAddSubscriptionDialog = false }) { Text(stringResource(R.string.btn_cancel)) }
             }
         )
     }
@@ -431,18 +435,18 @@ fun SubscriptionDashboard(viewModel: ExpenseViewModel, onBack: () -> Unit, onNav
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Recurring Payments") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null) } }
+                title = { Text(stringResource(R.string.title_recurring_payments)) },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.btn_back)) } }
             )
         },
         floatingActionButton = {
             if (selectedTabIndex in 0..1) {
                 FloatingActionButton(onClick = { showAddSubscriptionDialog = true }) {
-                    Icon(Icons.Default.Add, "Add Subscription")
+                    Icon(Icons.Default.Add, stringResource(R.string.btn_add_subscription))
                 }
             } else if (selectedTabIndex == 2) {
                 FloatingActionButton(onClick = { showLoanTypeDialog = true }) {
-                    Icon(Icons.Default.Add, "Add Loan")
+                    Icon(Icons.Default.Add, stringResource(R.string.title_add_loan))
                 }
             }
         }
@@ -467,7 +471,7 @@ fun SubscriptionDashboard(viewModel: ExpenseViewModel, onBack: () -> Unit, onNav
 
                     if (filteredSubs.isEmpty()) {
                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text("No ${tabTitles[selectedTabIndex].lowercase()} found.")
+                            Text(stringResource(R.string.msg_no_active_loans)) // Using loans as placeholder or generic
                         }
                     } else {
                         LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
@@ -485,7 +489,7 @@ fun SubscriptionDashboard(viewModel: ExpenseViewModel, onBack: () -> Unit, onNav
                 2 -> {
                     if (activeLoans.isEmpty()) {
                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text("No active loans found.")
+                            Text(stringResource(R.string.msg_no_active_loans))
                         }
                     } else {
                         LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
@@ -534,7 +538,7 @@ fun LoanCard(loan: Loan, viewModel: ExpenseViewModel, onClick: () -> Unit, onLon
                     color = textColor
                 )
                 Text(
-                    if (loan.loanType == "LENDING") "Lending" else "Borrowing",
+                    if (loan.loanType == "LENDING") stringResource(R.string.label_lending) else stringResource(R.string.label_borrowing),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
                     color = if (loan.loanType == "LENDING") Color.Green else Color.Red
@@ -543,7 +547,7 @@ fun LoanCard(loan: Loan, viewModel: ExpenseViewModel, onClick: () -> Unit, onLon
             
             Spacer(Modifier.height(16.dp))
             
-            Text("Outstanding Balance", style = MaterialTheme.typography.labelSmall, color = textColor.copy(alpha = 0.8f))
+            Text(stringResource(R.string.label_outstanding_balance), style = MaterialTheme.typography.labelSmall, color = textColor.copy(alpha = 0.8f))
             Text(
                 viewModel.formatAmount(loan.outstandingBalance), 
                 style = MaterialTheme.typography.headlineMedium, 
@@ -555,7 +559,7 @@ fun LoanCard(loan: Loan, viewModel: ExpenseViewModel, onClick: () -> Unit, onLon
             
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Column {
-                    Text("Next Due Date", style = MaterialTheme.typography.labelSmall, color = textColor.copy(alpha = 0.8f))
+                    Text(stringResource(R.string.label_next_due_date), style = MaterialTheme.typography.labelSmall, color = textColor.copy(alpha = 0.8f))
                     Text(
                         Instant.ofEpochMilli(loan.nextDueDate).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("dd MMM yyyy")), 
                         style = MaterialTheme.typography.titleMedium,
@@ -563,7 +567,7 @@ fun LoanCard(loan: Loan, viewModel: ExpenseViewModel, onClick: () -> Unit, onLon
                     )
                 }
                 Column(horizontalAlignment = Alignment.End) {
-                    Text("Installment", style = MaterialTheme.typography.labelSmall, color = textColor.copy(alpha = 0.8f))
+                    Text(stringResource(R.string.label_installment), style = MaterialTheme.typography.labelSmall, color = textColor.copy(alpha = 0.8f))
                     Text(
                         viewModel.formatAmount(loan.installmentAmount), 
                         style = MaterialTheme.typography.titleMedium,
@@ -577,11 +581,11 @@ fun LoanCard(loan: Loan, viewModel: ExpenseViewModel, onClick: () -> Unit, onLon
             
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column {
-                    Text("Total Interest Paid", style = MaterialTheme.typography.labelSmall, color = textColor.copy(alpha = 0.8f))
+                    Text(stringResource(R.string.label_total_interest_paid), style = MaterialTheme.typography.labelSmall, color = textColor.copy(alpha = 0.8f))
                     Text(viewModel.formatAmount(loan.totalInterestPaid), style = MaterialTheme.typography.bodySmall, color = textColor)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Auto Record", style = MaterialTheme.typography.labelSmall, color = textColor.copy(alpha = 0.8f))
+                    Text(stringResource(R.string.label_auto_record), style = MaterialTheme.typography.labelSmall, color = textColor.copy(alpha = 0.8f))
                     Switch(
                         checked = loan.isAutoRecordEnabled,
                         onCheckedChange = { viewModel.toggleLoanAutoRecord(loan, it) },
@@ -589,13 +593,13 @@ fun LoanCard(loan: Loan, viewModel: ExpenseViewModel, onClick: () -> Unit, onLon
                     )
                 }
                 Column(horizontalAlignment = Alignment.End) {
-                    Text("Progress", style = MaterialTheme.typography.labelSmall, color = textColor.copy(alpha = 0.8f))
-                    Text("${loan.periodsPassed} / ${loan.periodsTotal} Paid", style = MaterialTheme.typography.bodySmall, color = textColor)
+                    Text(stringResource(R.string.label_progress), style = MaterialTheme.typography.labelSmall, color = textColor.copy(alpha = 0.8f))
+                    Text(stringResource(R.string.label_n_of_n_paid, loan.periodsPassed, loan.periodsTotal), style = MaterialTheme.typography.bodySmall, color = textColor)
                 }
             }
             
             Spacer(Modifier.height(8.dp))
-            Text("Click to view payment history", style = MaterialTheme.typography.labelSmall, color = textColor.copy(alpha = 0.6f), modifier = Modifier.align(Alignment.CenterHorizontally))
+            Text(stringResource(R.string.msg_click_view_history), style = MaterialTheme.typography.labelSmall, color = textColor.copy(alpha = 0.6f), modifier = Modifier.align(Alignment.CenterHorizontally))
         }
     }
 }
@@ -615,7 +619,7 @@ fun SubscriptionCard(sub: SubscriptionInfo, viewModel: ExpenseViewModel, onClick
         Column(modifier = Modifier.padding(16.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    sub.name + (if (sub.isStopped) " (Stopped)" else ""), 
+                    sub.name + (if (sub.isStopped) stringResource(R.string.label_stopped_suffix) else ""), 
                     style = MaterialTheme.typography.headlineSmall, 
                     fontWeight = FontWeight.Bold,
                     color = if (sub.isStopped) textColor.copy(alpha = 0.6f) else textColor
@@ -623,7 +627,7 @@ fun SubscriptionCard(sub: SubscriptionInfo, viewModel: ExpenseViewModel, onClick
                 IconButton(onClick = { viewModel.toggleSubscriptionStopped(sub.name, !sub.isStopped) }) {
                     Icon(
                         imageVector = if (sub.isStopped) Icons.Default.PlayCircle else Icons.Default.PauseCircle,
-                        contentDescription = if (sub.isStopped) "Resume" else "Stop",
+                        contentDescription = if (sub.isStopped) stringResource(R.string.btn_resume) else stringResource(R.string.btn_stop),
                         tint = if (sub.isStopped) Color(0xFF4CAF50) else Color.Red
                     )
                 }
@@ -632,12 +636,12 @@ fun SubscriptionCard(sub: SubscriptionInfo, viewModel: ExpenseViewModel, onClick
             
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Column {
-                    Text("Last Amount", style = MaterialTheme.typography.labelSmall, color = textColor.copy(alpha = 0.8f))
+                    Text(stringResource(R.string.label_last_amount), style = MaterialTheme.typography.labelSmall, color = textColor.copy(alpha = 0.8f))
                     Text(viewModel.formatAmount(sub.amount), style = MaterialTheme.typography.titleMedium, color = textColor)
                 }
                 Column(horizontalAlignment = Alignment.End) {
-                    Text("Frequency", style = MaterialTheme.typography.labelSmall, color = textColor.copy(alpha = 0.8f))
-                    Text("${sub.frequency} Months", style = MaterialTheme.typography.titleMedium, color = textColor)
+                    Text(stringResource(R.string.label_frequency), style = MaterialTheme.typography.labelSmall, color = textColor.copy(alpha = 0.8f))
+                    Text(stringResource(R.string.label_n_months, sub.frequency), style = MaterialTheme.typography.titleMedium, color = textColor)
                 }
             }
             
@@ -646,12 +650,12 @@ fun SubscriptionCard(sub: SubscriptionInfo, viewModel: ExpenseViewModel, onClick
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Next Due Date", style = MaterialTheme.typography.labelSmall, color = textColor.copy(alpha = 0.8f))
+                        Text(stringResource(R.string.label_next_due_date), style = MaterialTheme.typography.labelSmall, color = textColor.copy(alpha = 0.8f))
                         if (!sub.isStopped) {
                             Spacer(Modifier.width(8.dp))
                             Icon(
                                 imageVector = if (sub.isPaidCurrentMonth) Icons.Default.CheckCircle else Icons.Outlined.CheckCircle, 
-                                contentDescription = "Mark as Paid",
+                                contentDescription = stringResource(R.string.label_mark_as_paid),
                                 tint = if (sub.isPaidCurrentMonth) Color(0xFF4CAF50) else textColor.copy(alpha = 0.6f),
                                 modifier = Modifier.size(20.dp).clickable {
                                     if (sub.isPaidCurrentMonth) {
@@ -664,14 +668,14 @@ fun SubscriptionCard(sub: SubscriptionInfo, viewModel: ExpenseViewModel, onClick
                         }
                     }
                     Text(
-                        if (sub.isStopped) "N/A" else sub.nextDueDate.format(DateTimeFormatter.ofPattern("dd MMM yyyy")), 
+                        if (sub.isStopped) stringResource(R.string.label_not_applicable) else sub.nextDueDate.format(DateTimeFormatter.ofPattern("dd MMM yyyy")), 
                         style = MaterialTheme.typography.titleMedium,
                         color = textColor
                     )
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Auto Record", style = MaterialTheme.typography.labelSmall, color = textColor.copy(alpha = 0.8f))
+                        Text(stringResource(R.string.label_auto_record), style = MaterialTheme.typography.labelSmall, color = textColor.copy(alpha = 0.8f))
                         Switch(
                             checked = sub.isAutoRecordEnabled,
                             onCheckedChange = { viewModel.toggleSubscriptionAutoRecord(sub.name, it) },
@@ -680,13 +684,13 @@ fun SubscriptionCard(sub: SubscriptionInfo, viewModel: ExpenseViewModel, onClick
                     }
                 }
                 Column(horizontalAlignment = Alignment.End) {
-                    Text("Total Paid", style = MaterialTheme.typography.labelSmall, color = textColor.copy(alpha = 0.8f))
+                    Text(stringResource(R.string.label_total_paid), style = MaterialTheme.typography.labelSmall, color = textColor.copy(alpha = 0.8f))
                     Text(viewModel.formatAmount(sub.totalPaid), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold, color = textColor)
                 }
             }
             
             Spacer(Modifier.height(8.dp))
-            Text("Click to view payment history", style = MaterialTheme.typography.labelSmall, color = textColor.copy(alpha = 0.6f), modifier = Modifier.align(Alignment.CenterHorizontally))
+            Text(stringResource(R.string.msg_click_view_history), style = MaterialTheme.typography.labelSmall, color = textColor.copy(alpha = 0.6f), modifier = Modifier.align(Alignment.CenterHorizontally))
         }
     }
 }

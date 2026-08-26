@@ -5,6 +5,8 @@
 
 package com.openapps.fintrack.ui
 
+import androidx.compose.ui.res.stringResource
+import com.openapps.fintrack.R
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -33,10 +35,10 @@ fun ManageTagsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Manage Tags") },
+                title = { Text(stringResource(R.string.title_manage_tags)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.btn_back))
                     }
                 }
             )
@@ -46,7 +48,7 @@ fun ManageTagsScreen(
                 viewModel.editingTag = null
                 onEditTag() 
             }) {
-                Icon(Icons.Default.Add, contentDescription = "Add Tag")
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.btn_add))
             }
         }
     ) { padding ->
@@ -60,10 +62,10 @@ fun ManageTagsScreen(
                                 viewModel.editingTag = tag
                                 onEditTag() 
                             }) {
-                                Icon(Icons.Default.Edit, contentDescription = "Edit")
+                                Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.btn_edit))
                             }
                             IconButton(onClick = { viewModel.deleteTag(tag) }) {
-                                Icon(Icons.Default.Delete, contentDescription = "Delete")
+                                Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.btn_delete))
                             }
                             Switch(
                                 checked = tag.isEnabled,
@@ -81,18 +83,19 @@ fun ManageTagsScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddTagScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
+    val bothLabel = stringResource(R.string.label_both)
     var name by remember { mutableStateOf(viewModel.editingTag?.name ?: "") }
     var isEnabled by remember { mutableStateOf(viewModel.editingTag?.isEnabled ?: true) }
-    var trackingType by remember { mutableStateOf(viewModel.editingTag?.trackingType ?: "Both") }
+    var trackingType by remember { mutableStateOf(viewModel.editingTag?.trackingType ?: bothLabel) }
     var targetNumber by remember { mutableStateOf(viewModel.editingTag?.targetNumber?.toString() ?: "") }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (viewModel.editingTag == null) "Add Tag" else "Edit Tag") },
+                title = { Text(if (viewModel.editingTag == null) stringResource(R.string.title_add_tag) else stringResource(R.string.title_edit_tag)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.btn_back))
                     }
                 }
             )
@@ -102,7 +105,7 @@ fun AddTagScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
-                label = { Text("Tag Name") },
+                label = { Text(stringResource(R.string.label_tag_name)) },
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -113,7 +116,7 @@ fun AddTagScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                 OutlinedTextField(
                     value = trackingType,
                     onValueChange = {},
-                    label = { Text("Track Type") },
+                    label = { Text(stringResource(R.string.label_track_type)) },
                     readOnly = true,
                     modifier = Modifier.fillMaxWidth().clickable { trackingExpanded = true },
                     enabled = false,
@@ -125,7 +128,7 @@ fun AddTagScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                     trailingIcon = { Icon(Icons.Default.ArrowDropDown, "") }
                 )
                 DropdownMenu(expanded = trackingExpanded, onDismissRequest = { trackingExpanded = false }) {
-                    listOf("Income", "Expense", "Both").forEach { type ->
+                    listOf(stringResource(R.string.label_income), stringResource(R.string.label_expense), stringResource(R.string.label_both)).forEach { type ->
                         DropdownMenuItem(text = { Text(type) }, onClick = {
                             trackingType = type
                             trackingExpanded = false
@@ -139,7 +142,7 @@ fun AddTagScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
             OutlinedTextField(
                 value = targetNumber,
                 onValueChange = { targetNumber = it },
-                label = { Text("Target Number (Optional)") },
+                label = { Text(stringResource(R.string.label_target_number_optional)) },
                 modifier = Modifier.fillMaxWidth()
             )
             
@@ -148,7 +151,7 @@ fun AddTagScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("Enabled")
+                Text(stringResource(R.string.label_enabled))
                 Switch(checked = isEnabled, onCheckedChange = { isEnabled = it })
             }
             
@@ -161,7 +164,7 @@ fun AddTagScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Save Tag")
+                Text(stringResource(R.string.btn_save_tag))
             }
         }
     }

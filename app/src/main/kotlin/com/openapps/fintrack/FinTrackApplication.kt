@@ -7,6 +7,9 @@
 package com.openapps.fintrack
 
 import android.app.Application
+import android.content.Context
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.os.LocaleListCompat
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
@@ -18,6 +21,11 @@ class FinTrackApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         EncryptedPrefsHelper.init(this)
+        
+        val prefs = getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+        val lang = prefs.getString("app_language", "en") ?: "en"
+        AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(lang))
+        
         scheduleExchangeRateUpdates()
     }
 

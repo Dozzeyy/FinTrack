@@ -5,6 +5,8 @@
 
 package com.openapps.fintrack.ui
 
+import androidx.compose.ui.res.stringResource
+import com.openapps.fintrack.R
 import android.widget.Toast
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.*
@@ -30,6 +32,7 @@ fun ManageHeadsScreen(
     onEditMinor: () -> Unit,
     onBack: () -> Unit
 ) {
+    val cannotDeleteMandatoryHeadMsg = stringResource(R.string.msg_cannot_delete_mandatory_head)
     var selectedTab by remember { mutableStateOf(0) }
     val majorHeads by viewModel.getAllMajorHeads().collectAsState(initial = emptyList())
     val minorHeads by viewModel.getAllMinorHeads().collectAsState(initial = emptyList())
@@ -40,13 +43,13 @@ fun ManageHeadsScreen(
     if (showDeleteConfirm != null) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = null },
-            title = { Text("Confirm Deletion") },
+            title = { Text(stringResource(R.string.title_confirm_delete)) },
             text = { 
                 val item = showDeleteConfirm
                 val msg = if (item is MajorHead && !item.name.equals("On Account (Loan)", ignoreCase = true)) {
-                    "Are you sure you want to delete this major head? Warning: All existing minor heads mapped under this major head will fall back to the 'Others' head."
+                    stringResource(R.string.msg_delete_major_head_confirm)
                 } else {
-                    "Are you sure you want to delete this header? Warning: This might affect linked accounts."
+                    stringResource(R.string.msg_delete_header_confirm)
                 }
                 Text(msg) 
             },
@@ -56,7 +59,7 @@ fun ManageHeadsScreen(
                         val item = showDeleteConfirm
                         if (item is MajorHead) {
                             if (item.name.equals("On Account (Loan)", ignoreCase = true)) {
-                                Toast.makeText(context, "Cannot delete system mandatory head", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, cannotDeleteMandatoryHeadMsg, Toast.LENGTH_SHORT).show()
                             } else {
                                 viewModel.deleteMajorHeadAndRemap(item)
                             }
@@ -66,10 +69,10 @@ fun ManageHeadsScreen(
                         showDeleteConfirm = null
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
-                ) { Text("Delete", color = Color.White) }
+                ) { Text(stringResource(R.string.btn_delete), color = Color.White) }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = null }) { Text("Cancel") }
+                TextButton(onClick = { showDeleteConfirm = null }) { Text(stringResource(R.string.btn_cancel)) }
             }
         )
     }
@@ -77,10 +80,10 @@ fun ManageHeadsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Manage Headers") },
+                title = { Text(stringResource(R.string.title_manage_headers)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, "Back")
+                        Icon(Icons.Default.ArrowBack, stringResource(R.string.btn_back))
                     }
                 }
             )
@@ -95,14 +98,14 @@ fun ManageHeadsScreen(
                     onEditMinor()
                 }
             }) {
-                Icon(Icons.Default.Add, "Add")
+                Icon(Icons.Default.Add, stringResource(R.string.btn_add))
             }
         }
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
             TabRow(selectedTabIndex = selectedTab) {
-                Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("Major") })
-                Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text("Minor") })
+                Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text(stringResource(R.string.label_major)) })
+                Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text(stringResource(R.string.label_minor)) })
             }
 
             LazyColumn(modifier = Modifier.weight(1f)) {
@@ -122,10 +125,10 @@ fun ManageHeadsScreen(
                     }
                 } else {
                     items(minorHeads) { head ->
-                        val majorName = majorHeads.find { it.id == head.majorHeadId }?.name ?: "Unknown"
+                        val majorName = majorHeads.find { it.id == head.majorHeadId }?.name ?: stringResource(R.string.label_unknown)
                         HeaderItem(
                             name = head.name,
-                            nature = "Major: $majorName",
+                            nature = stringResource(R.string.label_major_colon_val, majorName),
                             isEnabled = head.isEnabled,
                             onEdit = {
                                 viewModel.editingMinorHead = head
@@ -164,8 +167,8 @@ fun HeaderItem(
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Switch(checked = isEnabled, onCheckedChange = { onToggle() })
-            IconButton(onClick = onEdit) { Icon(Icons.Default.Edit, "Edit") }
-            IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, "Delete") }
+            IconButton(onClick = onEdit) { Icon(Icons.Default.Edit, stringResource(R.string.btn_edit)) }
+            IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, stringResource(R.string.btn_delete)) }
         }
     }
 }

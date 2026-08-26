@@ -5,6 +5,8 @@
 
 package com.openapps.fintrack.ui
 
+import androidx.compose.ui.res.stringResource
+import com.openapps.fintrack.R
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -23,10 +25,10 @@ fun TutorialScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("App Tutorial & Guide") },
+                title = { Text(stringResource(R.string.title_app_tutorial)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.btn_back))
                     }
                 }
             )
@@ -40,36 +42,28 @@ fun TutorialScreen(onBack: () -> Unit) {
                 .verticalScroll(rememberScrollState())
         ) {
             TutorialSection(
-                title = "Getting Started",
-                content = "Welcome to FinTrack! This app helps you track expenses, manage budgets, and analyze your financial health locally on your device.\n\n" +
-                        "1. **Accounts**: Set up your bank accounts, cash, and credit cards first.\n" +
-                        "2. **Categories**: Define where your money goes (Food, Rent, etc.).\n" +
-                        "3. **Transactions**: Use the '+' button to record daily spending or income."
+                title = stringResource(R.string.tut_getting_started_title),
+                content = stringResource(R.string.tut_getting_started_content)
             )
 
             TutorialSection(
-                title = "Basic Financial Terms",
-                content = "• **Asset**: Anything you own that has value (Cash, Bank Balance).\n" +
-                        "• **Liability**: Money you owe (Credit Card debt, Loans).\n" +
-                        "• **Networth**: Your Total Assets minus Total Liabilities.\n" +
-                        "• **Budget**: A limit you set for spending in specific categories."
+                title = stringResource(R.string.tut_basic_terms_title),
+                content = stringResource(R.string.tut_basic_terms_content)
             )
 
             TutorialSection(
-                title = "Advanced: Loan Setup",
-                content = "Go to 'Loan & Subscriptions' to set up fixed-term loans. The app will automatically calculate the EMI (principal + interest) and remind you of due dates. You can enable 'Auto-Record' to have installments deducted from your accounts automatically."
+                title = stringResource(R.string.tut_advanced_loan_title),
+                content = stringResource(R.string.tut_advanced_loan_content)
             )
 
             TutorialSection(
-                title = "Advanced: Credit Card Tracking",
-                content = "When creating an account, select 'Credit Card' as the type. Input your credit limit and billing cycle. The app will alert you if your utilization exceeds 30%, helping you maintain a healthy credit score."
+                title = stringResource(R.string.tut_advanced_cc_title),
+                content = stringResource(R.string.tut_advanced_cc_content)
             )
 
             TutorialSection(
-                title = "Best Practices",
-                content = "• **Tags**: Use tags for temporary events like 'Vacation' or 'Project X' to track cross-category spending.\n" +
-                        "• **AI Chat**: Ask our local AI to summarize your month or find specific historical transactions.\n" +
-                        "• **Backups**: Regularly back up your database to your local storage or via WebDAV for safety."
+                title = stringResource(R.string.tut_best_practices_title),
+                content = stringResource(R.string.tut_best_practices_content)
             )
 
             Spacer(Modifier.height(32.dp))

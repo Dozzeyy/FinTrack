@@ -30,6 +30,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.openapps.fintrack.R
 import com.openapps.fintrack.data.Note
 import com.openapps.fintrack.data.Notebook
 import kotlinx.coroutines.launch
@@ -161,7 +163,7 @@ fun NotesScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                             TextField(
                                 value = searchQuery,
                                 onValueChange = { searchQuery = it },
-                                placeholder = { Text("Search notes...") },
+                                placeholder = { Text(stringResource(R.string.label_search_placeholder)) },
                                 modifier = Modifier.fillMaxWidth(),
                                 singleLine = true,
                                 colors = TextFieldDefaults.colors(
@@ -170,7 +172,7 @@ fun NotesScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                                 )
                             )
                         } else {
-                            Text("Notebooks & Pages")
+                            Text(stringResource(R.string.menu_notes))
                         }
                     },
                     navigationIcon = {
@@ -182,15 +184,15 @@ fun NotesScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                                 onBack()
                             }
                         }) {
-                            Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                            Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.btn_back))
                         }
                     },
                     actions = {
                         IconButton(onClick = { showTagFilter = true }) {
-                            Icon(Icons.Default.Label, contentDescription = "Filter by Tags", tint = if (selectedTagIds.isNotEmpty()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+                            Icon(Icons.Default.Label, contentDescription = stringResource(R.string.title_filter_tags), tint = if (selectedTagIds.isNotEmpty()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
                         }
                         IconButton(onClick = { isSearching = !isSearching }) {
-                            Icon(if (isSearching) Icons.Default.Close else Icons.Default.Search, contentDescription = "Search")
+                            Icon(if (isSearching) Icons.Default.Close else Icons.Default.Search, contentDescription = stringResource(R.string.label_search))
                         }
                     }
                 )
@@ -210,7 +212,7 @@ fun NotesScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                                     showFabMenu = false
                                 },
                                 icon = { Icon(Icons.Default.Brush, null) },
-                                text = { Text("Drawing") },
+                                text = { Text(stringResource(R.string.title_drawing)) },
                                 containerColor = MaterialTheme.colorScheme.secondaryContainer
                             )
                             ExtendedFloatingActionButton(
@@ -220,7 +222,7 @@ fun NotesScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                                     showFabMenu = false
                                 },
                                 icon = { Icon(Icons.Default.List, null) },
-                                text = { Text("Checklist") },
+                                text = { Text(stringResource(R.string.title_checklist)) },
                                 containerColor = MaterialTheme.colorScheme.secondaryContainer
                             )
                             ExtendedFloatingActionButton(
@@ -230,7 +232,7 @@ fun NotesScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                                     showFabMenu = false
                                 },
                                 icon = { Icon(Icons.Default.Notes, null) },
-                                text = { Text("Text Note") },
+                                text = { Text(stringResource(R.string.title_new_note)) },
                                 containerColor = MaterialTheme.colorScheme.secondaryContainer
                             )
                         }
@@ -243,7 +245,7 @@ fun NotesScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                         },
                         containerColor = if (isServerRunning) Color.Gray else MaterialTheme.colorScheme.primaryContainer
                     ) {
-                        Icon(if (showFabMenu) Icons.Default.Close else Icons.Default.Add, contentDescription = "Add Note")
+                        Icon(if (showFabMenu) Icons.Default.Close else Icons.Default.Add, contentDescription = stringResource(R.string.btn_add))
                     }
                 }
             }
@@ -262,9 +264,9 @@ fun NotesScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Notebooks", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.menu_notes), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                         IconButton(onClick = { showAddNotebookDialog = true }) {
-                            Icon(Icons.Default.AddCircle, "Add Notebook", modifier = Modifier.size(20.dp))
+                            Icon(Icons.Default.AddCircle, stringResource(R.string.title_new_notebook), modifier = Modifier.size(20.dp))
                         }
                     }
                     
@@ -277,7 +279,7 @@ fun NotesScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                                     .padding(vertical = 4.dp),
                                 color = if (viewModel.selectedNotebookId == null) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
                             ) {
-                                Text("All Notes", modifier = Modifier.padding(12.dp), style = MaterialTheme.typography.bodySmall)
+                                Text(stringResource(R.string.label_all) + " " + stringResource(R.string.menu_notes), modifier = Modifier.padding(12.dp), style = MaterialTheme.typography.bodySmall)
                             }
                         }
                         items(notebooks) { notebook ->
@@ -301,7 +303,7 @@ fun NotesScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                                 }
                                 DropdownMenu(expanded = showNotebookMenu, onDismissRequest = { showNotebookMenu = false }) {
                                     DropdownMenuItem(
-                                        text = { Text("Rename") },
+                                        text = { Text(stringResource(R.string.btn_rename)) },
                                         onClick = {
                                             showNotebookMenu = false
                                             notebookToRename = notebook
@@ -309,7 +311,7 @@ fun NotesScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                                         leadingIcon = { Icon(Icons.Default.Edit, null) }
                                     )
                                     DropdownMenuItem(
-                                        text = { Text("Delete") },
+                                        text = { Text(stringResource(R.string.btn_delete)) },
                                         onClick = {
                                             showNotebookMenu = false
                                             notebookToDelete = notebook
@@ -328,7 +330,7 @@ fun NotesScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                 Column(modifier = Modifier.weight(0.65f).fillMaxSize()) {
                     if (notes.isEmpty()) {
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text(if (isSearching || selectedTagIds.isNotEmpty()) "No matches" else "Empty", color = Color.Gray)
+                            Text(if (isSearching || selectedTagIds.isNotEmpty()) stringResource(R.string.label_no_matches) else stringResource(R.string.label_empty), color = Color.Gray)
                         }
                     } else {
                         LazyColumn(modifier = Modifier.fillMaxSize().padding(8.dp)) {
@@ -368,7 +370,7 @@ fun NotesScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                                                         items.joinToString(", ") { "${it.text} (${it.quantity})" }
                                                     } catch (e: Exception) { note.content }
                                                 } else if (note.type == "drawing") {
-                                                    "Drawing Note"
+                                                    stringResource(R.string.label_drawing_note)
                                                 } else {
                                                     note.content
                                                 },
@@ -380,7 +382,7 @@ fun NotesScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                                     }
                                     DropdownMenu(expanded = showNoteMenu, onDismissRequest = { showNoteMenu = false }) {
                                         DropdownMenuItem(
-                                            text = { Text("Move") },
+                                            text = { Text(stringResource(R.string.btn_move)) },
                                             onClick = {
                                                 showNoteMenu = false
                                                 noteForAction = note
@@ -389,7 +391,7 @@ fun NotesScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                                             leadingIcon = { Icon(Icons.Default.DriveFileMove, null) }
                                         )
                                         DropdownMenuItem(
-                                            text = { Text("Copy") },
+                                            text = { Text(stringResource(R.string.btn_duplicate)) },
                                             onClick = {
                                                 showNoteMenu = false
                                                 noteForAction = note
@@ -398,7 +400,7 @@ fun NotesScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                                             leadingIcon = { Icon(Icons.Default.ContentCopy, null) }
                                         )
                                         DropdownMenuItem(
-                                            text = { Text("Delete") },
+                                            text = { Text(stringResource(R.string.btn_delete)) },
                                             onClick = {
                                                 showNoteMenu = false
                                                 viewModel.deleteNote(note)
@@ -419,17 +421,17 @@ fun NotesScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
         var name by remember { mutableStateOf("") }
         AlertDialog(
             onDismissRequest = { showAddNotebookDialog = false },
-            title = { Text("New Notebook") },
-            text = { OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Name") }) },
+            title = { Text(stringResource(R.string.title_new_notebook)) },
+            text = { OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(stringResource(R.string.label_name)) }) },
             confirmButton = {
                 Button(onClick = {
                     if (name.isNotBlank()) {
                         viewModel.saveNotebook(name)
                         showAddNotebookDialog = false
                     }
-                }) { Text("Create") }
+                }) { Text(stringResource(R.string.btn_create)) }
             },
-            dismissButton = { TextButton(onClick = { showAddNotebookDialog = false }) { Text("Cancel") } }
+            dismissButton = { TextButton(onClick = { showAddNotebookDialog = false }) { Text(stringResource(R.string.btn_cancel)) } }
         )
     }
 
@@ -437,32 +439,32 @@ fun NotesScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
         var name by remember { mutableStateOf(notebookToRename!!.name) }
         AlertDialog(
             onDismissRequest = { notebookToRename = null },
-            title = { Text("Rename Notebook") },
-            text = { OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Name") }) },
+            title = { Text(stringResource(R.string.title_rename_notebook)) },
+            text = { OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(stringResource(R.string.label_name)) }) },
             confirmButton = {
                 Button(onClick = {
                     if (name.isNotBlank()) {
                         viewModel.saveNotebook(notebookToRename!!.copy(name = name))
                         notebookToRename = null
                     }
-                }) { Text("Save") }
+                }) { Text(stringResource(R.string.btn_save)) }
             },
-            dismissButton = { TextButton(onClick = { notebookToRename = null }) { Text("Cancel") } }
+            dismissButton = { TextButton(onClick = { notebookToRename = null }) { Text(stringResource(R.string.btn_cancel)) } }
         )
     }
 
     if (notebookToDelete != null) {
         AlertDialog(
             onDismissRequest = { notebookToDelete = null },
-            title = { Text("Delete Notebook?") },
-            text = { Text("This will permanently delete '${notebookToDelete!!.name}' and all pages inside it.") },
+            title = { Text(stringResource(R.string.title_delete_notebook)) },
+            text = { Text(stringResource(R.string.msg_delete_notebook_desc, notebookToDelete!!.name)) },
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.deleteNotebook(notebookToDelete!!)
                     notebookToDelete = null
-                }) { Text("Delete", color = Color.Red) }
+                }) { Text(stringResource(R.string.btn_delete), color = Color.Red) }
             },
-            dismissButton = { TextButton(onClick = { notebookToDelete = null }) { Text("Cancel") } }
+            dismissButton = { TextButton(onClick = { notebookToDelete = null }) { Text(stringResource(R.string.btn_cancel)) } }
         )
     }
 
@@ -478,13 +480,13 @@ fun NotesScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
     if (noteForAction != null) {
         AlertDialog(
             onDismissRequest = { noteForAction = null },
-            title = { Text(if (actionType == "move") "Move to Notebook" else "Copy to Notebook") },
+            title = { Text(if (actionType == "move") stringResource(R.string.title_move_to_notebook) else stringResource(R.string.title_copy_to_notebook)) },
             text = {
                 Box(modifier = Modifier.height(300.dp)) {
                     LazyColumn {
                         item {
                             ListItem(
-                                headlineContent = { Text("None (General)") },
+                                headlineContent = { Text(stringResource(R.string.label_none_general)) },
                                 modifier = Modifier.clickable {
                                     if (actionType == "move") viewModel.moveNote(noteForAction!!, null)
                                     else viewModel.copyNote(noteForAction!!, null)
@@ -554,20 +556,20 @@ fun ViewNoteScreen(viewModel: ExpenseViewModel, note: Note, onBack: () -> Unit, 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (note.type == "checklist") "Checklist" else if(note.type == "drawing") "Drawing" else "View Note") },
+                title = { Text(if (note.type == "checklist") stringResource(R.string.title_checklist) else if(note.type == "drawing") stringResource(R.string.title_drawing) else stringResource(R.string.title_view_note)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.btn_back))
                     }
                 },
                 actions = {
                     Box {
                         IconButton(onClick = { showMenu = true }) {
-                            Icon(Icons.Default.MoreVert, contentDescription = "More")
+                            Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.label_more))
                         }
                         DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
                             DropdownMenuItem(
-                                text = { Text("Delete") },
+                                text = { Text(stringResource(R.string.btn_delete)) },
                                 onClick = {
                                     showMenu = false
                                     showDeleteDialog = true
@@ -585,7 +587,7 @@ fun ViewNoteScreen(viewModel: ExpenseViewModel, note: Note, onBack: () -> Unit, 
                 onClick = { if (!isServerRunning) onEdit() },
                 containerColor = if (isServerRunning) Color.Gray else MaterialTheme.colorScheme.secondaryContainer
             ) {
-                Icon(Icons.Default.Edit, contentDescription = "Edit Note")
+                Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.btn_edit_note))
             }
         }
     ) { padding ->
@@ -601,7 +603,7 @@ fun ViewNoteScreen(viewModel: ExpenseViewModel, note: Note, onBack: () -> Unit, 
                 if (noteTags.isNotEmpty()) {
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        text = "Tags: " + noteTags.joinToString(", ") { it.name },
+                        text = stringResource(R.string.label_tags_colon, noteTags.joinToString(", ") { it.name }),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -610,13 +612,13 @@ fun ViewNoteScreen(viewModel: ExpenseViewModel, note: Note, onBack: () -> Unit, 
                 Spacer(Modifier.height(8.dp))
                 Column {
                     Text(
-                        text = "Created: " + dateFormatter.format(java.util.Date(note.createdAt)),
+                        text = stringResource(R.string.label_created_colon, dateFormatter.format(java.util.Date(note.createdAt))),
                         style = MaterialTheme.typography.labelSmall,
                         color = Color.Gray
                     )
                     note.editedAt?.let {
                         Text(
-                            text = "Last Edit: " + dateFormatter.format(java.util.Date(it)),
+                            text = stringResource(R.string.label_last_edit_colon, dateFormatter.format(java.util.Date(it))),
                             style = MaterialTheme.typography.labelSmall,
                             color = Color.Gray
                         )
@@ -717,19 +719,19 @@ fun ViewNoteScreen(viewModel: ExpenseViewModel, note: Note, onBack: () -> Unit, 
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Delete Note") },
-            text = { Text("Are you sure you want to delete this note?") },
+            title = { Text(stringResource(R.string.title_delete_note)) },
+            text = { Text(stringResource(R.string.msg_delete_note_confirm)) },
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.deleteNote(note)
                     onBack()
                 }) {
-                    Text("Delete", color = Color.Red)
+                    Text(stringResource(R.string.btn_delete), color = Color.Red)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.btn_cancel))
                 }
             }
         )
@@ -771,10 +773,10 @@ fun AddEditNoteScreen(viewModel: ExpenseViewModel, note: Note?, initialType: Str
         modifier = Modifier.imePadding(),
         topBar = {
             TopAppBar(
-                title = { Text(if (note == null) (if (initialType == "checklist") "New Checklist" else if(initialType == "drawing") "New Drawing" else "New Note") else "Edit Note") },
+                title = { Text(if (note == null) (if (initialType == "checklist") stringResource(R.string.title_new_checklist) else if(initialType == "drawing") stringResource(R.string.title_new_drawing) else stringResource(R.string.title_new_note)) else stringResource(R.string.title_edit_note)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.btn_back))
                     }
                 }
             )
@@ -791,7 +793,7 @@ fun AddEditNoteScreen(viewModel: ExpenseViewModel, note: Note?, initialType: Str
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
-                    label = { Text("Header") },
+                    label = { Text(stringResource(R.string.label_header)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     textStyle = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
@@ -800,7 +802,7 @@ fun AddEditNoteScreen(viewModel: ExpenseViewModel, note: Note?, initialType: Str
             }
 
             if (initialType == "checklist") {
-                Text("Line Items", style = MaterialTheme.typography.titleSmall)
+                Text(stringResource(R.string.label_line_items), style = MaterialTheme.typography.titleSmall)
                 Spacer(Modifier.height(8.dp))
                 
                 checklistItems.forEachIndexed { index, item ->
@@ -835,7 +837,7 @@ fun AddEditNoteScreen(viewModel: ExpenseViewModel, note: Note?, initialType: Str
                     OutlinedTextField(
                         value = newItemText,
                         onValueChange = { newItemText = it },
-                        label = { Text("Add Item") },
+                        label = { Text(stringResource(R.string.label_add_item)) },
                         modifier = Modifier.weight(1f),
                         singleLine = true
                     )
@@ -868,7 +870,7 @@ fun AddEditNoteScreen(viewModel: ExpenseViewModel, note: Note?, initialType: Str
                 OutlinedTextField(
                     value = content,
                     onValueChange = { content = it },
-                    label = { Text("Content") },
+                    label = { Text(stringResource(R.string.label_content)) },
                     modifier = Modifier.fillMaxWidth().heightIn(min = 200.dp),
                     textStyle = MaterialTheme.typography.bodyLarge
                 )
@@ -888,7 +890,7 @@ fun AddEditNoteScreen(viewModel: ExpenseViewModel, note: Note?, initialType: Str
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
                 ) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.btn_cancel))
                 }
                 Button(
                     onClick = {
@@ -909,7 +911,7 @@ fun AddEditNoteScreen(viewModel: ExpenseViewModel, note: Note?, initialType: Str
                     modifier = Modifier.weight(1f),
                     enabled = title.isNotBlank() && !isServerRunning
                 ) {
-                    Text("Save")
+                    Text(stringResource(R.string.btn_save))
                 }
             }
         }
@@ -941,39 +943,39 @@ fun DrawingCanvas(
         if (isToolbarVisible) {
             Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 IconButton(onClick = { currentTool = "pen" }, colors = if (currentTool == "pen") IconButtonDefaults.filledIconButtonColors() else IconButtonDefaults.iconButtonColors()) {
-                    Icon(Icons.Default.Edit, "Pen")
+                    Icon(Icons.Default.Edit, stringResource(R.string.label_pen))
                 }
                 IconButton(onClick = { currentTool = "highlighter" }, colors = if (currentTool == "highlighter") IconButtonDefaults.filledIconButtonColors() else IconButtonDefaults.iconButtonColors()) {
-                    Icon(Icons.Default.Highlight, "Highlighter")
+                    Icon(Icons.Default.Highlight, stringResource(R.string.label_highlighter))
                 }
                 IconButton(onClick = { currentTool = "eraser" }, colors = if (currentTool == "eraser") IconButtonDefaults.filledIconButtonColors() else IconButtonDefaults.iconButtonColors()) {
-                    Icon(Icons.Default.AutoFixNormal, "Eraser")
+                    Icon(Icons.Default.AutoFixNormal, stringResource(R.string.label_eraser))
                 }
                 IconButton(onClick = { currentTool = "line" }, colors = if (currentTool == "line") IconButtonDefaults.filledIconButtonColors() else IconButtonDefaults.iconButtonColors()) {
-                    Icon(Icons.Default.HorizontalRule, "Line")
+                    Icon(Icons.Default.HorizontalRule, stringResource(R.string.label_line))
                 }
                 IconButton(onClick = { currentTool = "arrow" }, colors = if (currentTool == "arrow") IconButtonDefaults.filledIconButtonColors() else IconButtonDefaults.iconButtonColors()) {
-                    Icon(Icons.Default.ArrowForward, "Arrow")
+                    Icon(Icons.Default.ArrowForward, stringResource(R.string.label_arrow))
                 }
                 IconButton(onClick = { currentTool = "rectangle" }, colors = if (currentTool == "rectangle") IconButtonDefaults.filledIconButtonColors() else IconButtonDefaults.iconButtonColors()) {
-                    Icon(Icons.Default.Rectangle, "Rectangle")
+                    Icon(Icons.Default.Rectangle, stringResource(R.string.label_rectangle))
                 }
                 IconButton(onClick = { currentTool = "square" }, colors = if (currentTool == "square") IconButtonDefaults.filledIconButtonColors() else IconButtonDefaults.iconButtonColors()) {
-                    Icon(Icons.Default.CropSquare, "Square")
+                    Icon(Icons.Default.CropSquare, stringResource(R.string.label_square))
                 }
                 IconButton(onClick = { currentTool = "circle" }, colors = if (currentTool == "circle") IconButtonDefaults.filledIconButtonColors() else IconButtonDefaults.iconButtonColors()) {
-                    Icon(Icons.Default.Circle, "Circle")
+                    Icon(Icons.Default.Circle, stringResource(R.string.label_circle))
                 }
                 IconButton(onClick = { if (elements.isNotEmpty()) { elements.removeAt(elements.size - 1); pathTrigger.value++ } }) {
-                    Icon(Icons.Default.Undo, "Undo")
+                    Icon(Icons.Default.Undo, stringResource(R.string.btn_undo))
                 }
                 IconButton(onClick = { elements.clear(); pathTrigger.value++ }) {
-                    Icon(Icons.Default.DeleteSweep, "Clear All")
+                    Icon(Icons.Default.DeleteSweep, stringResource(R.string.btn_clear_all_notes))
                 }
             }
             
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Text("Size: ", style = MaterialTheme.typography.labelSmall)
+                Text(stringResource(R.string.label_size_colon), style = MaterialTheme.typography.labelSmall)
                 Slider(value = currentThickness, onValueChange = { currentThickness = it }, valueRange = 1f..200f, modifier = Modifier.weight(1f))
                 Box(modifier = Modifier.size(24.dp).background(Color(currentColor), androidx.compose.foundation.shape.CircleShape).border(1.dp, Color.Gray, androidx.compose.foundation.shape.CircleShape))
             }
@@ -987,13 +989,13 @@ fun DrawingCanvas(
                 VerticalDivider(modifier = Modifier.height(24.dp).padding(horizontal = 4.dp))
                 
                 IconButton(onClick = { isDarkCanvas = !isDarkCanvas }) {
-                    Icon(if (isDarkCanvas) Icons.Default.LightMode else Icons.Default.DarkMode, "Toggle Canvas Theme")
+                    Icon(if (isDarkCanvas) Icons.Default.LightMode else Icons.Default.DarkMode, stringResource(R.string.label_toggle_canvas_theme))
                 }
             }
         }
         
         IconButton(onClick = { onToggleToolbar(!isToolbarVisible) }, modifier = Modifier.align(Alignment.CenterHorizontally)) {
-            Icon(if (isToolbarVisible) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, "Toggle Workspace")
+            Icon(if (isToolbarVisible) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, stringResource(R.string.label_toggle_workspace))
         }
 
         Spacer(Modifier.height(8.dp))

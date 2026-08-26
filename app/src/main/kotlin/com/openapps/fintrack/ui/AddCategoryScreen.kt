@@ -31,6 +31,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.openapps.fintrack.R
 import java.util.Calendar
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -87,6 +89,7 @@ fun AddCategoryScreen(viewModel: ExpenseViewModel, onNavigate: (String) -> Unit,
     var billingCycleStart by remember(editingAccount, draft) { mutableStateOf(draft?.billingCycleStart ?: editingAccount?.billingCycleStart ?: "") }
     var billingCycleEnd by remember(editingAccount, draft) { mutableStateOf(draft?.billingCycleEnd ?: editingAccount?.billingCycleEnd ?: "") }
     var paymentDueDate by remember(editingAccount, draft) { mutableStateOf(draft?.paymentDueDate ?: editingAccount?.paymentDueDate ?: "") }
+    var defaultDueDays by remember(editingAccount, draft) { mutableStateOf(draft?.defaultDueDays ?: editingAccount?.defaultDueDays?.toString() ?: "") }
 
     val context = LocalContext.current
 
@@ -105,7 +108,8 @@ fun AddCategoryScreen(viewModel: ExpenseViewModel, onNavigate: (String) -> Unit,
                 billingCycleEnd = billingCycleEnd,
                 paymentDueDate = paymentDueDate,
                 icon = icon,
-                isEmergencyFund = isEmergencyFund
+                isEmergencyFund = isEmergencyFund,
+                defaultDueDays = defaultDueDays
             )
         }
     }
@@ -119,7 +123,7 @@ fun AddCategoryScreen(viewModel: ExpenseViewModel, onNavigate: (String) -> Unit,
         modifier = Modifier.imePadding(),
         topBar = {
             TopAppBar(
-                title = { Text(if (editingCategory != null || editingAccount != null || editingParty != null) "Edit Item" else "Add Item") },
+                title = { Text(if (editingCategory != null || editingAccount != null || editingParty != null) stringResource(R.string.title_edit_item) else stringResource(R.string.title_add_item)) },
                 navigationIcon = {
                     IconButton(onClick = {
                         viewModel.editingCategory = null
@@ -127,7 +131,7 @@ fun AddCategoryScreen(viewModel: ExpenseViewModel, onNavigate: (String) -> Unit,
                         viewModel.editingParty = null
                         onBack()
                     }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.btn_back))
                     }
                 },
                 actions = {
@@ -136,7 +140,7 @@ fun AddCategoryScreen(viewModel: ExpenseViewModel, onNavigate: (String) -> Unit,
                             saveAsDraft()
                             onNavigate("manage_heads") 
                         }) {
-                            Text("Modify Heads")
+                            Text(stringResource(R.string.btn_modify_heads))
                         }
                     }
                 }
@@ -153,11 +157,11 @@ fun AddCategoryScreen(viewModel: ExpenseViewModel, onNavigate: (String) -> Unit,
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
-                label = { Text("Name") },
+                label = { Text(stringResource(R.string.label_name)) },
                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
             )
 
-            Text("Select Icon", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(vertical = 8.dp))
+            Text(stringResource(R.string.label_select_icon), style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(vertical = 8.dp))
             val emojiList = listOf(
                 "💰", "🏦", "💵", "💳", "📈", "📉", "🍔", "🛒", "🚗", "🏠", "📱", "💻", 
                 "🎬", "🎓", "👔", "🥂", "📞", "⛽", "📦", "👨‍💼", "💹", "🍀", "🔌", "💧", 
@@ -185,29 +189,29 @@ fun AddCategoryScreen(viewModel: ExpenseViewModel, onNavigate: (String) -> Unit,
 
             if (editingCategory == null && editingAccount == null && editingParty == null) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    FilterChip(selected = type == "income", onClick = { type = "income" }, label = { Text("Income") })
-                    FilterChip(selected = type == "expense", onClick = { type = "expense" }, label = { Text("Expense") })
-                    FilterChip(selected = type == "accounts", onClick = { type = "accounts" }, label = { Text("Account") })
+                    FilterChip(selected = type == "income", onClick = { type = "income" }, label = { Text(stringResource(R.string.label_income)) })
+                    FilterChip(selected = type == "expense", onClick = { type = "expense" }, label = { Text(stringResource(R.string.label_expense)) })
+                    FilterChip(selected = type == "accounts", onClick = { type = "accounts" }, label = { Text(stringResource(R.string.label_account)) })
                 }
             } else {
                 val typeLabel = when(type) {
-                    "accounts" -> "Account"
-                    "party" -> "Payer/ee"
+                    "accounts" -> stringResource(R.string.label_account)
+                    "party" -> stringResource(R.string.label_payer)
                     else -> type.replaceFirstChar { it.uppercase() }
                 }
-                Text("Type: $typeLabel", modifier = Modifier.padding(vertical = 8.dp))
+                Text(stringResource(R.string.label_type_colon_val, typeLabel), modifier = Modifier.padding(vertical = 8.dp))
             }
 
             if (type == "accounts") {
                 // Major Head Dropdown
                 var majorExpanded by remember { mutableStateOf(false) }
-                val majorName = allMajorHeads.find { it.id == selectedMajorHeadId }?.name ?: "Select Major Head"
+                val majorName = allMajorHeads.find { it.id == selectedMajorHeadId }?.name ?: stringResource(R.string.label_select_major_head)
                 
                 Box(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
                     OutlinedTextField(
                         value = majorName,
                         onValueChange = {},
-                        label = { Text("Major Head") },
+                        label = { Text(stringResource(R.string.label_major_head)) },
                         readOnly = true,
                         modifier = Modifier.fillMaxWidth().clickable { majorExpanded = true },
                         enabled = false,
@@ -242,13 +246,13 @@ fun AddCategoryScreen(viewModel: ExpenseViewModel, onNavigate: (String) -> Unit,
                 // Minor Head Dropdown
                 var minorExpanded by remember { mutableStateOf(false) }
                 val filteredMinors = allMinorHeads.filter { it.majorHeadId == selectedMajorHeadId }
-                val minorName = filteredMinors.find { it.id == selectedMinorHeadId }?.name ?: "Select Minor Head"
+                val minorName = filteredMinors.find { it.id == selectedMinorHeadId }?.name ?: stringResource(R.string.label_select_minor_head)
 
                 Box(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
                     OutlinedTextField(
                         value = minorName,
                         onValueChange = {},
-                        label = { Text("Minor Head") },
+                        label = { Text(stringResource(R.string.label_minor_head)) },
                         readOnly = true,
                         modifier = Modifier.fillMaxWidth().clickable { minorExpanded = true },
                         enabled = false,
@@ -285,7 +289,7 @@ fun AddCategoryScreen(viewModel: ExpenseViewModel, onNavigate: (String) -> Unit,
                     OutlinedTextField(
                         value = creditLimit,
                         onValueChange = { creditLimit = it },
-                        label = { Text("Credit Limit") },
+                        label = { Text(stringResource(R.string.label_credit_limit)) },
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                     )
 
@@ -295,7 +299,7 @@ fun AddCategoryScreen(viewModel: ExpenseViewModel, onNavigate: (String) -> Unit,
                             OutlinedTextField(
                                 value = billingCycleStart,
                                 onValueChange = {},
-                                label = { Text("Cycle Start (Day)") },
+                                label = { Text(stringResource(R.string.label_cycle_start_day)) },
                                 readOnly = true,
                                 modifier = Modifier.fillMaxWidth().clickable { startExpanded = true },
                                 enabled = false,
@@ -318,7 +322,7 @@ fun AddCategoryScreen(viewModel: ExpenseViewModel, onNavigate: (String) -> Unit,
                             OutlinedTextField(
                                 value = billingCycleEnd,
                                 onValueChange = {},
-                                label = { Text("Cycle End (Day)") },
+                                label = { Text(stringResource(R.string.label_cycle_end_day)) },
                                 readOnly = true,
                                 modifier = Modifier.fillMaxWidth().clickable { endExpanded = true },
                                 enabled = false,
@@ -341,16 +345,27 @@ fun AddCategoryScreen(viewModel: ExpenseViewModel, onNavigate: (String) -> Unit,
                     OutlinedTextField(
                         value = paymentDueDate,
                         onValueChange = { paymentDueDate = it },
-                        label = { Text("Days after billing cycle ends") },
+                        label = { Text(stringResource(R.string.label_days_after_billing)) },
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+                }
+
+                if (currentMajorName?.equals("On Account (Loan)", ignoreCase = true) == true) {
+                    OutlinedTextField(
+                        value = defaultDueDays,
+                        onValueChange = { defaultDueDays = it },
+                        label = { Text(stringResource(R.string.label_default_due_days)) },
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        shape = CircleShape
                     )
                 }
 
                 if (currentMajorName?.equals("Investments", ignoreCase = true) == true) {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
                         Checkbox(checked = isEmergencyFund, onCheckedChange = { isEmergencyFund = it })
-                        Text("This is an emergency fund", modifier = Modifier.clickable { isEmergencyFund = !isEmergencyFund })
+                        Text(stringResource(R.string.label_is_emergency_fund), modifier = Modifier.clickable { isEmergencyFund = !isEmergencyFund })
                     }
                 }
             }
@@ -358,7 +373,7 @@ fun AddCategoryScreen(viewModel: ExpenseViewModel, onNavigate: (String) -> Unit,
             OutlinedTextField(
                 value = description,
                 onValueChange = { description = it },
-                label = { Text("Description (Notes)") },
+                label = { Text(stringResource(R.string.label_description_notes)) },
                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
             )
 
@@ -369,13 +384,13 @@ fun AddCategoryScreen(viewModel: ExpenseViewModel, onNavigate: (String) -> Unit,
                 ) {
                     Column(Modifier.padding(12.dp)) {
                         Text(
-                            "Tip: If you want to track expenses under sub-categories, keep the category description in the format - Main: Minor.",
+                            stringResource(R.string.msg_subcat_tip),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.primary
                         )
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            "Example - Food: Dining, Food: Snacks, Health: Medicines, Health: Consultation etc.",
+                            stringResource(R.string.msg_subcat_example),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.secondary
                         )
@@ -387,7 +402,7 @@ fun AddCategoryScreen(viewModel: ExpenseViewModel, onNavigate: (String) -> Unit,
                 OutlinedTextField(
                     value = openingBalance,
                     onValueChange = { openingBalance = it },
-                    label = { Text("Opening Balance") },
+                    label = { Text(stringResource(R.string.label_opening_balance)) },
                     modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
                 )
             }
@@ -400,11 +415,11 @@ fun AddCategoryScreen(viewModel: ExpenseViewModel, onNavigate: (String) -> Unit,
                     
                     if (type == "accounts") {
                         if (selectedMajorHeadId == null) {
-                            Toast.makeText(context, "Major Head is mandatory for accounts", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, context.getString(R.string.msg_major_head_mandatory), Toast.LENGTH_SHORT).show()
                             return@Button
                         }
                         if (selectedMinorHeadId == null) {
-                            Toast.makeText(context, "Minor Head is mandatory for accounts", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, context.getString(R.string.msg_minor_head_mandatory), Toast.LENGTH_SHORT).show()
                             return@Button
                         }
                         viewModel.saveAccount(
@@ -418,7 +433,8 @@ fun AddCategoryScreen(viewModel: ExpenseViewModel, onNavigate: (String) -> Unit,
                             billingCycleEnd = billingCycleEnd,
                             paymentDueDate = paymentDueDate,
                             icon = icon,
-                            isEmergencyFund = isEmergencyFund
+                            isEmergencyFund = isEmergencyFund,
+                            defaultDueDays = defaultDueDays.toIntOrNull()
                         )
                         viewModel.draftAccount = null
                     } else if (type == "party") {
@@ -432,7 +448,7 @@ fun AddCategoryScreen(viewModel: ExpenseViewModel, onNavigate: (String) -> Unit,
                 },
                 modifier = Modifier.fillMaxWidth().padding(top = 16.dp)
             ) {
-                Text("Save")
+                Text(stringResource(R.string.btn_save))
             }
         }
     }

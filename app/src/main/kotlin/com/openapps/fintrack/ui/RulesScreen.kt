@@ -22,6 +22,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.openapps.fintrack.R
 import com.openapps.fintrack.data.*
 import kotlinx.coroutines.launch
 
@@ -34,23 +36,23 @@ fun RulesScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Automation Rules") },
+                title = { Text(stringResource(R.string.title_automation_rules)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, "Back")
+                        Icon(Icons.Default.ArrowBack, stringResource(R.string.btn_back))
                     }
                 }
             )
         },
         floatingActionButton = {
             FloatingActionButton(onClick = { showAddRule = true }) {
-                Icon(Icons.Default.Add, "Add Rule")
+                Icon(Icons.Default.Add, stringResource(R.string.title_add_rule))
             }
         }
     ) { padding ->
         if (rules.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Text("No rules defined. Add one to automate recording.", color = Color.Gray)
+                Text(stringResource(R.string.msg_no_rules_defined), color = Color.Gray)
             }
         } else {
             LazyColumn(modifier = Modifier.padding(padding).fillMaxSize()) {
@@ -76,21 +78,21 @@ fun RuleItem(rule: Rule, viewModel: ExpenseViewModel) {
                     IconButton(onClick = { viewModel.saveRule(rule.copy(isEnabled = !rule.isEnabled)) }) {
                         Icon(
                             imageVector = if (rule.isEnabled) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                            contentDescription = "Toggle",
+                            contentDescription = stringResource(R.string.label_toggle),
                             tint = if (rule.isEnabled) MaterialTheme.colorScheme.primary else Color.Gray
                         )
                     }
                     IconButton(onClick = { viewModel.deleteRule(rule) }) {
-                        Icon(Icons.Default.Delete, "Delete", tint = Color.Red)
+                        Icon(Icons.Default.Delete, stringResource(R.string.btn_delete), tint = Color.Red)
                     }
                 }
             }
-            Text("From: ${rule.msgFrom ?: "Any"}", style = MaterialTheme.typography.bodySmall)
-            Text("Contains: \"${rule.textContaining}\"", style = MaterialTheme.typography.bodySmall)
-            Text("Action: ${rule.type.uppercase()}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
+            Text(stringResource(R.string.label_from_any, rule.msgFrom ?: stringResource(R.string.label_all)), style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.label_contains_text, rule.textContaining), style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.label_action_type, rule.type.uppercase()), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
             
             if (!rule.isEnabled) {
-                Text("DISABLED", style = MaterialTheme.typography.labelSmall, color = Color.Red, fontWeight = FontWeight.ExtraBold)
+                Text(stringResource(R.string.label_disabled_caps), style = MaterialTheme.typography.labelSmall, color = Color.Red, fontWeight = FontWeight.ExtraBold)
             }
         }
     }
@@ -134,25 +136,25 @@ fun AddRuleDialog(viewModel: ExpenseViewModel, onDismiss: () -> Unit) {
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add Automation Rule") },
+        title = { Text(stringResource(R.string.title_add_automation_rule)) },
         text = {
             Column(modifier = Modifier.verticalScroll(scrollState).fillMaxWidth()) {
-                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Rule Name") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = msgFrom, onValueChange = { msgFrom = it }, label = { Text("Msg From (Sender)") }, modifier = Modifier.fillMaxWidth(), placeholder = { Text("e.g. ICICI") })
-                OutlinedTextField(value = textContaining, onValueChange = { textContaining = it }, label = { Text("Text Exactly Containing") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(stringResource(R.string.label_rule_name)) }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = msgFrom, onValueChange = { msgFrom = it }, label = { Text(stringResource(R.string.label_msg_from_sender)) }, modifier = Modifier.fillMaxWidth(), placeholder = { Text(stringResource(R.string.label_msg_from_sender_hint)) })
+                OutlinedTextField(value = textContaining, onValueChange = { textContaining = it }, label = { Text(stringResource(R.string.label_text_exactly_containing)) }, modifier = Modifier.fillMaxWidth())
                 
                 Spacer(Modifier.height(16.dp))
-                Text("Action Details", style = MaterialTheme.typography.labelMedium)
+                Text(stringResource(R.string.label_action_details), style = MaterialTheme.typography.labelMedium)
                 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    FilterChip(selected = type == "income", onClick = { type = "income"; selectedCategoryId = null }, label = { Text("Income") })
-                    FilterChip(selected = type == "expense", onClick = { type = "expense"; selectedCategoryId = null }, label = { Text("Expense") })
-                    FilterChip(selected = type == "transfer", onClick = { type = "transfer"; selectedCategoryId = null }, label = { Text("Transfer") })
+                    FilterChip(selected = type == "income", onClick = { type = "income"; selectedCategoryId = null }, label = { Text(stringResource(R.string.label_income)) })
+                    FilterChip(selected = type == "expense", onClick = { type = "expense"; selectedCategoryId = null }, label = { Text(stringResource(R.string.label_expense)) })
+                    FilterChip(selected = type == "transfer", onClick = { type = "transfer"; selectedCategoryId = null }, label = { Text(stringResource(R.string.label_transfer)) })
                 }
 
                 if (type == "transfer") {
                     AccountSelectionDialog(
-                        label = "From Account", accounts = accounts, balances = accountBalances, majorHeads = allMajorHeads, minorHeads = allMinorHeads,
+                        label = stringResource(R.string.label_from_account), accounts = accounts, balances = accountBalances, majorHeads = allMajorHeads, minorHeads = allMinorHeads,
                         viewModel = viewModel, selectedId = if(isFromOnAccountSelected) null else selectedAccountId,
                         onSelected = { selectedAccountId = it; isFromOnAccountSelected = false },
                         onOnAccountSelected = { isFromOnAccountSelected = true; selectedAccountId = null },
@@ -160,11 +162,11 @@ fun AddRuleDialog(viewModel: ExpenseViewModel, onDismiss: () -> Unit) {
                         onAdd = {}
                     )
                     if (isFromOnAccountSelected) {
-                        PartySelectionDialog(label = "From Party", parties = onAccountMicroAccounts.map { Party(it.id, it.name, it.openingBalance) }, selectedId = selectedPartyId, onSelected = { selectedPartyId = it }, onAdd = {})
+                        PartySelectionDialog(label = stringResource(R.string.label_from_party), parties = onAccountMicroAccounts.map { Party(it.id, it.name, it.openingBalance) }, selectedId = selectedPartyId, onSelected = { selectedPartyId = it }, onAdd = {})
                     }
                     
                     AccountSelectionDialog(
-                        label = "To Account", accounts = accounts, balances = accountBalances, majorHeads = allMajorHeads, minorHeads = allMinorHeads,
+                        label = stringResource(R.string.label_to_account), accounts = accounts, balances = accountBalances, majorHeads = allMajorHeads, minorHeads = allMinorHeads,
                         viewModel = viewModel, selectedId = if(isToOnAccountSelected) null else selectedToAccountId,
                         onSelected = { selectedToAccountId = it; isToOnAccountSelected = false },
                         onOnAccountSelected = { isToOnAccountSelected = true; selectedToAccountId = null },
@@ -172,11 +174,11 @@ fun AddRuleDialog(viewModel: ExpenseViewModel, onDismiss: () -> Unit) {
                         onAdd = {}
                     )
                     if (isToOnAccountSelected) {
-                        PartySelectionDialog(label = "To Party", parties = onAccountMicroAccounts.map { Party(it.id, it.name, it.openingBalance) }, selectedId = selectedToPartyId, onSelected = { selectedToPartyId = it }, onAdd = {})
+                        PartySelectionDialog(label = stringResource(R.string.label_to_party), parties = onAccountMicroAccounts.map { Party(it.id, it.name, it.openingBalance) }, selectedId = selectedToPartyId, onSelected = { selectedToPartyId = it }, onAdd = {})
                     }
                 } else {
                     AccountSelectionDialog(
-                        label = "Account", accounts = accounts, balances = accountBalances, majorHeads = allMajorHeads, minorHeads = allMinorHeads,
+                        label = stringResource(R.string.label_account), accounts = accounts, balances = accountBalances, majorHeads = allMajorHeads, minorHeads = allMinorHeads,
                         viewModel = viewModel, selectedId = if(isFromOnAccountSelected) null else selectedAccountId,
                         onSelected = { selectedAccountId = it; isFromOnAccountSelected = false },
                         onOnAccountSelected = { isFromOnAccountSelected = true; selectedAccountId = null },
@@ -184,19 +186,19 @@ fun AddRuleDialog(viewModel: ExpenseViewModel, onDismiss: () -> Unit) {
                         onAdd = {}
                     )
                     if (isFromOnAccountSelected) {
-                        PartySelectionDialog(label = "Party", parties = onAccountMicroAccounts.map { Party(it.id, it.name, it.openingBalance) }, selectedId = selectedPartyId, onSelected = { selectedPartyId = it }, onAdd = {})
+                        PartySelectionDialog(label = stringResource(R.string.label_party_name), parties = onAccountMicroAccounts.map { Party(it.id, it.name, it.openingBalance) }, selectedId = selectedPartyId, onSelected = { selectedPartyId = it }, onAdd = {})
                     }
-                    CategorySelectionDialog(label = "Category", categories = categories, selectedId = selectedCategoryId, onSelected = { selectedCategoryId = it }, onAdd = {})
+                    CategorySelectionDialog(label = stringResource(R.string.label_category), categories = categories, selectedId = selectedCategoryId, onSelected = { selectedCategoryId = it }, onAdd = {})
                 }
 
                 TagSelectionPopup(allTags = allTags, selectedIds = selectedTagIds, multiSelect = viewModel.multiTagEnabled)
-                OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text("Notes") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text(stringResource(R.string.label_notes)) }, modifier = Modifier.fillMaxWidth())
             }
         },
         confirmButton = {
             Button(onClick = {
                 if (name.isBlank() || textContaining.isBlank()) {
-                    Toast.makeText(context, "Please fill required fields", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, context.getString(R.string.msg_fill_required), Toast.LENGTH_SHORT).show()
                     return@Button
                 }
                 
@@ -217,11 +219,11 @@ fun AddRuleDialog(viewModel: ExpenseViewModel, onDismiss: () -> Unit) {
                 viewModel.saveRule(rule)
                 onDismiss()
             }) {
-                Text("Save Rule")
+                Text(stringResource(R.string.btn_save_rule))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.btn_cancel)) }
         }
     )
 }

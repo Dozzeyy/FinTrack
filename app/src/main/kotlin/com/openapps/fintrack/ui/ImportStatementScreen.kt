@@ -17,6 +17,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.res.stringResource
+import com.openapps.fintrack.R
 import java.io.InputStreamReader
 import java.io.BufferedReader
 import androidx.compose.foundation.clickable
@@ -73,9 +75,15 @@ fun ImportStatementScreen(
         categories.filter { it.type == selectedBulkType }
     }
 
+    val errorTitle = stringResource(R.string.title_error)
+    val parsingCsvMsg = stringResource(R.string.msg_parsing_csv)
+    val extractingTxnsMsg = stringResource(R.string.msg_extracting_txns)
+    val noNewTxnsMsg = stringResource(R.string.msg_no_new_txns)
+    val foundNTxnsMsg = stringResource(R.string.msg_found_n_txns)
+
     fun processFile(uri: Uri) {
         isProcessing = true
-        viewModel.importStatus = "Parsing CSV..."
+        viewModel.importStatus = parsingCsvMsg
         scope.launch {
             try {
                 val rows = extractBlocksFromCsv(context, uri)
@@ -95,7 +103,7 @@ fun ImportStatementScreen(
                 isProcessing = false
             } catch (e: Exception) {
                 isProcessing = false
-                viewModel.importStatus = "Error: ${e.localizedMessage}"
+                viewModel.importStatus = "$errorTitle: ${e.localizedMessage}"
             }
         }
     }
@@ -103,13 +111,13 @@ fun ImportStatementScreen(
     fun finalizeImport() {
         val mapping = viewModel.detectedColumnMap ?: return
         isProcessing = true
-        viewModel.importStatus = "Extracting Transactions..."
+        viewModel.importStatus = extractingTxnsMsg
         scope.launch {
             val results = processTransactions(viewModel.rawRows, mapping, viewModel, selectedAccount)
             viewModel.pendingTransactions = results
             viewModel.isShowingTablePreview = false
             isProcessing = false
-            viewModel.importStatus = if (results.isEmpty()) "No new transactions found." else "Found ${results.size} new entries."
+            viewModel.importStatus = if (results.isEmpty()) noNewTxnsMsg else foundNTxnsMsg.format(results.size)
             viewModel.showAccountSelection = false
         }
     }
@@ -123,7 +131,7 @@ fun ImportStatementScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Import Statement (CSV)") },
+                title = { Text(stringResource(R.string.title_import_statement)) },
                 navigationIcon = {
                     IconButton(onClick = {
                         if (viewModel.isShowingTablePreview) {
@@ -135,17 +143,17 @@ fun ImportStatementScreen(
                             onBack()
                         }
                     }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.btn_back))
                     }
                 },
                 actions = {
                     if (importStatus.isNotEmpty() && !showAccountSelection && !viewModel.isShowingTablePreview) {
                         IconButton(onClick = { menuExpanded = true }) {
-                            Icon(Icons.Default.MoreVert, contentDescription = "Menu")
+                            Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.label_more))
                         }
                         DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
                             DropdownMenuItem(
-                                text = { Text("Bulk Record") },
+                                text = { Text(stringResource(R.string.btn_bulk_record)) },
                                 onClick = {
                                     menuExpanded = false
                                     if (pendingTransactions.isNotEmpty()) showBulkDialog = true
@@ -153,7 +161,7 @@ fun ImportStatementScreen(
                                 leadingIcon = { Icon(Icons.Default.LibraryAdd, null) }
                             )
                             DropdownMenuItem(
-                                text = { Text("Reset") },
+                                text = { Text(stringResource(R.string.btn_reset)) },
                                 onClick = {
                                     menuExpanded = false
                                     viewModel.showAccountSelection = true
@@ -182,16 +190,16 @@ fun ImportStatementScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.Info, null, tint = MaterialTheme.colorScheme.primary)
                             Spacer(Modifier.width(8.dp))
-                            Text("How it works", style = MaterialTheme.typography.titleSmall)
+                            Text(stringResource(R.string.label_how_it_works), style = MaterialTheme.typography.titleSmall)
                         }
                         Spacer(Modifier.height(8.dp))
                         val steps = listOf(
-                            "1. Select the bank account from the dropdown.",
-                            "2. Upload your bank statement CSV file.",
-                            "3. Confirm column mapping (Date, Description, Amount).",
-                            "4. Use Amount as dropdown if the statement has single column with negative and positive values for deposits and withdrawals. Use DR_CR to identify deposit and withdrawal if statement has single positive amount column for withdrawal and deposits with another column to indicate DR and CR ",
-                            "5. Review and tap any transaction to record it.",
-                            "6. Save and repeat until finished!"
+                            stringResource(R.string.msg_import_step_1),
+                            stringResource(R.string.msg_import_step_2),
+                            stringResource(R.string.msg_import_step_3),
+                            stringResource(R.string.msg_import_step_4),
+                            stringResource(R.string.msg_import_step_5),
+                            stringResource(R.string.msg_import_step_6)
                         )
                         steps.forEach { step ->
                             Text(step, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 2.dp))
@@ -199,7 +207,7 @@ fun ImportStatementScreen(
                     }
                 }
 
-                Text("Select Account for Mapping", style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.label_select_account_mapping), style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(8.dp))
                 
                 var accExpanded by remember { mutableStateOf(false) }
@@ -208,7 +216,7 @@ fun ImportStatementScreen(
                         onClick = { accExpanded = true },
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(selectedAccount?.name ?: "Choose Account")
+                        Text(selectedAccount?.name ?: stringResource(R.string.label_choose_account))
                         Icon(Icons.Default.ArrowDropDown, null)
                     }
                     DropdownMenu(expanded = accExpanded, onDismissRequest = { accExpanded = false }) {
@@ -232,13 +240,13 @@ fun ImportStatementScreen(
                 ) {
                     Icon(Icons.Default.Description, null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Select CSV File")
+                    Text(stringResource(R.string.btn_select_csv_file))
                 }
             }
 
             if (viewModel.isShowingTablePreview) {
-                Text("Confirm Column Mapping", style = MaterialTheme.typography.titleMedium)
-                Text("Tap headers to re-assign roles. Ensure Date, Description, and Amount columns are correct.", style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.title_confirm_col_mapping), style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.msg_col_mapping_desc), style = MaterialTheme.typography.bodySmall)
                 
                 Spacer(Modifier.height(8.dp))
                 
@@ -255,7 +263,7 @@ fun ImportStatementScreen(
                     onClick = { finalizeImport() },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Confirm and Extract Transactions")
+                    Text(stringResource(R.string.btn_confirm_extract))
                 }
             } else if (isProcessing) {
                 Spacer(Modifier.height(16.dp))
@@ -266,7 +274,7 @@ fun ImportStatementScreen(
                     Column {
                         Text(importStatus, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
                         if (selectedTxnKeys.isNotEmpty()) {
-                            Text("${selectedTxnKeys.size} selected", style = MaterialTheme.typography.labelSmall)
+                            Text(stringResource(R.string.label_n_selected, selectedTxnKeys.size), style = MaterialTheme.typography.labelSmall)
                         }
                     }
                     Spacer(Modifier.weight(1f))
@@ -275,17 +283,17 @@ fun ImportStatementScreen(
                 if (showBulkDialog) {
                     AlertDialog(
                         onDismissRequest = { showBulkDialog = false },
-                        title = { Text("Bulk Record Transactions") },
+                        title = { Text(stringResource(R.string.title_bulk_record_txns)) },
                         text = {
                             Column {
-                                Text("Select mapping for selected items:", style = MaterialTheme.typography.bodySmall)
+                                Text(stringResource(R.string.msg_select_mapping_bulk), style = MaterialTheme.typography.bodySmall)
                                 Spacer(Modifier.height(8.dp))
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                                    FilterChip(selected = selectedBulkType == "expense", onClick = { selectedBulkType = "expense"; selectedBulkCategoryId = null }, label = { Text("Expense") })
-                                    FilterChip(selected = selectedBulkType == "income", onClick = { selectedBulkType = "income"; selectedBulkCategoryId = null }, label = { Text("Income") })
+                                    FilterChip(selected = selectedBulkType == "expense", onClick = { selectedBulkType = "expense"; selectedBulkCategoryId = null }, label = { Text(stringResource(R.string.label_expense)) })
+                                    FilterChip(selected = selectedBulkType == "income", onClick = { selectedBulkType = "income"; selectedBulkCategoryId = null }, label = { Text(stringResource(R.string.label_income)) })
                                 }
                                 CategorySelectionDialog(
-                                    label = "Category",
+                                    label = stringResource(R.string.label_category),
                                     categories = filteredCategories,
                                     selectedId = selectedBulkCategoryId,
                                     onSelected = { selectedBulkCategoryId = it },
@@ -316,14 +324,14 @@ fun ImportStatementScreen(
                                             )
                                         }
                                         viewModel.pendingTransactions = pendingTransactions.filter { (it.description + it.date.toString() + it.amount.toString()) !in selectedTxnKeys }
-                                        Toast.makeText(context, "Booked ${toBook.size} transactions!", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, context.getString(R.string.msg_booked_n_txns, toBook.size), Toast.LENGTH_SHORT).show()
                                         selectedTxnKeys = emptySet()
                                         showBulkDialog = false
                                     }
                                 }
-                            ) { Text("Confirm Bulk Record") }
+                            ) { Text(stringResource(R.string.btn_confirm_bulk_record)) }
                         },
-                        dismissButton = { TextButton(onClick = { showBulkDialog = false }) { Text("Cancel") } }
+                        dismissButton = { TextButton(onClick = { showBulkDialog = false }) { Text(stringResource(R.string.btn_cancel)) } }
                     )
                 }
                 
@@ -335,7 +343,7 @@ fun ImportStatementScreen(
                             else selectedTxnKeys = emptySet()
                         }
                     )
-                    Text("Select All", style = MaterialTheme.typography.labelMedium)
+                    Text(stringResource(R.string.label_select_all), style = MaterialTheme.typography.labelMedium)
                 }
 
                 LazyColumn(modifier = Modifier.weight(1f)) {

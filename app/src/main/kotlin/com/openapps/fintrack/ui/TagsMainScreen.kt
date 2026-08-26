@@ -5,6 +5,8 @@
 
 package com.openapps.fintrack.ui
 
+import androidx.compose.ui.res.stringResource
+import com.openapps.fintrack.R
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -22,10 +24,10 @@ fun TagsMainScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Tags Management") },
+                title = { Text(stringResource(R.string.title_tags_management)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.btn_back))
                     }
                 }
             )
@@ -36,21 +38,21 @@ fun TagsMainScreen(
                 onClick = { onNavigate("add_tag") },
                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
             ) {
-                Text("Create Tag")
+                Text(stringResource(R.string.btn_create_tag))
             }
             
             Button(
                 onClick = { onNavigate("manage_tags") },
                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
             ) {
-                Text("Manage Tags")
+                Text(stringResource(R.string.title_manage_tags))
             }
             
             Button(
                 onClick = { onNavigate("summary_by_tags") },
                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
             ) {
-                Text("Summary by Tags")
+                Text(stringResource(R.string.btn_summary_by_tags))
             }
         }
     }

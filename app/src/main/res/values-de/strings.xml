@@ -1,0 +1,120 @@
+<!-- 
+  FinTrack
+  Copyright (C) 2026 Bhuvan
+  Licensed under GPL-3.0-or-later
+ -->
+
+<resources>
+    <string name="app_name">FinTrack</string>
+
+    <!-- Menu -->
+    <string name="menu_home">Startseite</string>
+    <string name="menu_summary">Übersicht</string>
+    <string name="menu_import">Kontoauszug importieren</string>
+    <string name="menu_credit_cards">Kreditkarten</string>
+    <string name="menu_subscriptions">Kredite &amp; Abonnements</string>
+    <string name="menu_performance">Leistung</string>
+    <string name="menu_categories">Kategorien &amp; Konten</string>
+    <string name="menu_templates">Vorlagen</string>
+    <string name="menu_tags">Tags</string>
+    <string name="menu_budgets">Budgets</string>
+    <string name="menu_notes">Notizen</string>
+    <string name="menu_tutorial">Tutorial &amp; Anleitung</string>
+    <string name="menu_permissions">Berechtigungen</string>
+    <string name="menu_settings">Einstellungen</string>
+    <string name="menu_database">Datenbank</string>
+    <string name="menu_contact">Kontaktieren Sie uns</string>
+    <string name="menu_analysis">Analyse</string>
+    <string name="menu_entries">Einträge</string>
+    <string name="menu_assets">Vermögenswerte/Verbindlichkeiten</string>
+    <string name="menu_transactions">Transaktionen</string>
+
+    <!-- Buttons -->
+    <string name="btn_back">Zurück</string>
+    <string name="btn_save">Speichern</string>
+    <string name="btn_delete">Löschen</string>
+    <string name="btn_cancel">Abbrechen</string>
+    <string name="btn_done">Fertig</string>
+    <string name="btn_ok">OK</string>
+    <string name="btn_add">Hinzufügen</string>
+    <string name="btn_edit">Bearbeiten</string>
+    <string name="btn_confirm">Bestätigen</string>
+    <string name="btn_duplicate">Duplizieren</string>
+    <string name="btn_proceed">Fortfahren</string>
+    <string name="btn_enable">Aktivieren</string>
+    <string name="btn_record">Aufzeichnen</string>
+    <string name="btn_create">Erstellen</string>
+    <string name="btn_search">Suchen</string>
+    <string name="btn_apply">Anwenden</string>
+
+    <!-- Labels -->
+    <string name="label_income">Einnahmen</string>
+    <string name="label_expense">Ausgaben</string>
+    <string name="label_transfer">Überweisung</string>
+    <string name="label_amount">Betrag</string>
+    <string name="label_date">Datum</string>
+    <string name="label_time">Zeit</string>
+    <string name="label_note">Notiz</string>
+    <string name="label_tags">Tags</string>
+    <string name="label_search">Suchen</string>
+    <string name="label_net_position">Netto-Position</string>
+    <string name="label_top_expenses">Top Ausgaben</string>
+    <string name="label_net">Netto</string>
+    <string name="label_insights">Smart Insights</string>
+    <string name="label_dashboard_accounts">Dashboard Konten</string>
+    <string name="label_budget_performance">Budget Leistung</string>
+    <string name="label_search_placeholder">Suchen...</string>
+    <string name="label_name">Name</string>
+    <string name="label_category">Kategorie</string>
+    <string name="label_account">Konto</string>
+    <string name="label_major_head">Hauptüberschrift</string>
+    <string name="label_minor_head">Unterüberschrift</string>
+    <string name="label_credit_limit">Kreditlimit</string>
+    <string name="label_password">Passwort</string>
+    <string name="label_confirm_password_plain">Passwort bestätigen</string>
+    <string name="label_merchant_name">Händlername</string>
+    <string name="label_invoice_no">Rechnungs-Nr.</string>
+    <string name="label_due_day_x">Fälligkeitstage</string>
+    <string name="label_currency">Währung</string>
+    <string name="label_notes">Notizen</string>
+    <string name="label_total_tenure">Laufzeit</string>
+    <string name="label_annual_rate_pct">Zinssatz</string>
+    <string name="label_frequency">Häufigkeit</string>
+    <string name="label_periodic_emi">Monatliche Rate</string>
+    <string name="label_borrowing">Kreditaufnahme</string>
+    <string name="label_lending">Kreditvergabe</string>
+    <string name="label_principal">Kapital</string>
+
+    <!-- Settings -->
+    <string name="settings_appearance">Erscheinungsbild</string>
+    <string name="settings_theme">Thema</string>
+    <string name="settings_color">Primärfarbe</string>
+    <string name="settings_language">Sprache</string>
+    <string name="settings_advanced_trackers">Erweiterte Tracker</string>
+    <string name="settings_negotiation">Verhandlungs-Tracker</string>
+    <string name="settings_merchant">Händler-Tracker</string>
+    <string name="settings_discretionary">Ermessensausgaben</string>
+    <string name="settings_financial_behavior">Finanzverhalten</string>
+    <string name="settings_security">Sicherheit</string>
+    <string name="settings_app_lock">App-Sperre (Biometrie/PIN)</string>
+    <string name="settings_disable_screenshot">Screenshot deaktivieren</string>
+    <string name="settings_delete_protection">Löschschutz für Transaktionen</string>
+
+    <!-- Titles & Messages -->
+    <string name="title_confirm_delete">Löschen bestätigen</string>
+    <string name="title_success">Erfolg</string>
+    <string name="title_error">Fehler</string>
+    <string name="title_budgets">Budgets</string>
+    <string name="title_templates">Vorlagen</string>
+    <string name="title_loans">Kredite</string>
+    <string name="title_add_rule">Automatisierungsregel hinzufügen</string>
+    <string name="title_automation_rules">Automatisierungsregeln</string>
+    <string name="title_import_csv">Kontoauszug importieren (CSV)</string>
+    <string name="title_select_invoices">Rechnungen auswählen</string>
+
+    <string name="msg_saved_success">Transaktion erfolgreich gespeichert!</string>
+    <string name="msg_delete_confirm_txn">Sind Sie sicher, dass Sie diese Transaktion dauerhaft löschen möchten? Dies kann nicht rückgängig gemacht werden.</string>
+    <string name="msg_no_templates">Keine Vorlagen gefunden.</string>
+    <string name="msg_no_active_loans">Keine aktiven Kredite gefunden.</string>
+    <string name="msg_no_data">Keine Daten für den ausgewählten Zeitraum.</string>
+</resources>

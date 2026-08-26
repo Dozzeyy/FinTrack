@@ -6,6 +6,8 @@
 
 package com.openapps.fintrack.ui
 
+import androidx.compose.ui.res.stringResource
+import com.openapps.fintrack.R
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
@@ -32,11 +34,11 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-enum class ColumnGrouping(val label: String) {
-    MONTHLY("Monthly"),
-    QUARTERLY("Quarterly"),
-    HALF_YEARLY("Half Yearly"),
-    YEARLY("Yearly")
+enum class ColumnGrouping(val labelRes: Int) {
+    MONTHLY(R.string.label_monthly),
+    QUARTERLY(R.string.label_quarterly),
+    HALF_YEARLY(R.string.label_half_yearly),
+    YEARLY(R.string.label_yearly)
 }
 
 data class GroupedColumn(
@@ -67,22 +69,22 @@ fun PerformanceScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Financial Performance") },
+                title = { Text(stringResource(R.string.title_performance_dashboard)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.btn_back))
                     }
                 },
                 actions = {
                     var showGroupingMenu by remember { mutableStateOf(false) }
                     Box {
                         IconButton(onClick = { showGroupingMenu = true }) {
-                            Icon(Icons.Default.ViewColumn, "Column Grouping")
+                            Icon(Icons.Default.ViewColumn, stringResource(R.string.label_column_grouping))
                         }
                         DropdownMenu(expanded = showGroupingMenu, onDismissRequest = { showGroupingMenu = false }) {
                             ColumnGrouping.entries.forEach { g ->
                                 DropdownMenuItem(
-                                    text = { Text(g.label) },
+                                    text = { Text(stringResource(g.labelRes)) },
                                     onClick = { grouping = g; showGroupingMenu = false },
                                     trailingIcon = { if (grouping == g) Icon(Icons.Default.Check, null) }
                                 )
@@ -90,7 +92,7 @@ fun PerformanceScreen(
                         }
                     }
                     IconButton(onClick = { showFilter = true }) {
-                        Icon(Icons.Default.DateRange, "Select Period")
+                        Icon(Icons.Default.DateRange, stringResource(R.string.label_select_period))
                     }
                 }
             )
@@ -98,8 +100,8 @@ fun PerformanceScreen(
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
             TabRow(selectedTabIndex = selectedTab) {
-                Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("Numbers") })
-                Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text("Charts") })
+                Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text(stringResource(R.string.label_numbers)) })
+                Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text(stringResource(R.string.label_charts)) })
             }
 
             if (showFilter) {
@@ -199,10 +201,10 @@ fun NumbersView(
         // --- 1. Budget Performance Section ---
         item {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Budget Performance", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                Text(stringResource(R.string.label_budget_performance), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
                 
                 var expanded by remember { mutableStateOf(false) }
-                val currentBudgetName = budgets.find { it.budgetId == selectedBudgetId }?.name ?: "All Budgets"
+                val currentBudgetName = budgets.find { it.budgetId == selectedBudgetId }?.name ?: stringResource(R.string.label_all_budgets)
                 
                 Box {
                     TextButton(onClick = { expanded = true }) {
@@ -210,7 +212,7 @@ fun NumbersView(
                         Icon(Icons.Default.ArrowDropDown, null)
                     }
                     DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                        DropdownMenuItem(text = { Text("All Budgets") }, onClick = { onBudgetSelected(-1); expanded = false })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.label_all_budgets)) }, onClick = { onBudgetSelected(-1); expanded = false })
                         budgets.forEach { b ->
                             DropdownMenuItem(text = { Text(b.name) }, onClick = { onBudgetSelected(b.budgetId); expanded = false })
                         }
@@ -223,14 +225,14 @@ fun NumbersView(
         if (selectedBudgetId == -1) {
             stickyHeader {
                 Row(Modifier.background(MaterialTheme.colorScheme.surfaceVariant).padding(vertical = 4.dp)) {
-                    TableCell("Item", width = 140.dp, isHeader = true)
+                    TableCell(stringResource(R.string.label_item), width = 140.dp, isHeader = true)
                     Box(Modifier.horizontalScroll(budgetSummaryScrollState)) {
                         Row {
-                            TableCell("Period", width = 100.dp, isHeader = true)
-                            TableCell("Budget", width = 100.dp, isHeader = true)
-                            TableCell("Actual", width = 100.dp, isHeader = true)
-                            TableCell("Var Amt", width = 100.dp, isHeader = true)
-                            TableCell("Var %", width = 80.dp, isHeader = true)
+                            TableCell(stringResource(R.string.label_period), width = 100.dp, isHeader = true)
+                            TableCell(stringResource(R.string.label_budget), width = 100.dp, isHeader = true)
+                            TableCell(stringResource(R.string.label_actual), width = 100.dp, isHeader = true)
+                            TableCell(stringResource(R.string.label_var_amt), width = 100.dp, isHeader = true)
+                            TableCell(stringResource(R.string.label_var_pct), width = 80.dp, isHeader = true)
                         }
                     }
                 }
@@ -255,7 +257,7 @@ fun NumbersView(
             if (trend != null) {
                 stickyHeader {
                     Row(Modifier.background(MaterialTheme.colorScheme.surfaceVariant).padding(vertical = 4.dp)) {
-                        TableCell("Metric", width = 140.dp, isHeader = true)
+                        TableCell(stringResource(R.string.label_metric), width = 140.dp, isHeader = true)
                         Box(Modifier.horizontalScroll(monthScrollState)) {
                             Row {
                                 displayMonths.forEach { m ->
@@ -268,7 +270,14 @@ fun NumbersView(
                 val budgetMetrics = listOf("Budget", "Actual", "Var Amt", "Var %")
                 items(budgetMetrics) { metric ->
                     Row(Modifier.padding(vertical = 4.dp)) {
-                        TableCell(metric, width = 140.dp, isHeader = true)
+                        val metricLabel = when(metric) {
+                            "Budget" -> stringResource(R.string.label_budget)
+                            "Actual" -> stringResource(R.string.label_actual)
+                            "Var Amt" -> stringResource(R.string.label_var_amt)
+                            "Var %" -> stringResource(R.string.label_var_pct)
+                            else -> metric
+                        }
+                        TableCell(metricLabel, width = 140.dp, isHeader = true)
                         Box(Modifier.horizontalScroll(monthScrollState)) {
                             Row {
                                 months.forEach { month ->
@@ -296,10 +305,10 @@ fun NumbersView(
         // --- 2. Category Performance Section ---
         item {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Category Performance", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                Text(stringResource(R.string.label_category_performance), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
                 
                 var expanded by remember { mutableStateOf(false) }
-                val currentCategoryName = categoryTrends.find { it.categoryId == selectedCategoryId }?.categoryName ?: "All Categories"
+                val currentCategoryName = categoryTrends.find { it.categoryId == selectedCategoryId }?.categoryName ?: stringResource(R.string.label_all_categories)
                 
                 Box {
                     TextButton(onClick = { expanded = true }) {
@@ -307,7 +316,7 @@ fun NumbersView(
                         Icon(Icons.Default.ArrowDropDown, null)
                     }
                     DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                        DropdownMenuItem(text = { Text("All Categories") }, onClick = { onCategorySelected(-1); expanded = false })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.label_all_categories)) }, onClick = { onCategorySelected(-1); expanded = false })
                         categoryTrends.forEach { c ->
                             DropdownMenuItem(text = { Text(c.categoryName) }, onClick = { onCategorySelected(c.categoryId); expanded = false })
                         }
@@ -320,7 +329,7 @@ fun NumbersView(
         if (selectedCategoryId == -1) {
             stickyHeader {
                 Row(Modifier.background(MaterialTheme.colorScheme.surfaceVariant).padding(vertical = 4.dp)) {
-                    TableCell("Category", width = 140.dp, isHeader = true)
+                    TableCell(stringResource(R.string.label_category), width = 140.dp, isHeader = true)
                     Box(Modifier.horizontalScroll(monthScrollState)) {
                         Row {
                             groupedColumns.forEach { g ->
@@ -349,7 +358,7 @@ fun NumbersView(
             if (trend != null) {
                 stickyHeader {
                     Row(Modifier.background(MaterialTheme.colorScheme.surfaceVariant).padding(vertical = 4.dp)) {
-                        TableCell("Metric", width = 140.dp, isHeader = true)
+                        TableCell(stringResource(R.string.label_metric), width = 140.dp, isHeader = true)
                         Box(Modifier.horizontalScroll(monthScrollState)) {
                             Row {
                                 groupedColumns.forEach { g ->
@@ -362,7 +371,15 @@ fun NumbersView(
                 val catMetrics = listOf("Amount", "MoM Change", "MoM %", "YoY Amount", "YoY Change")
                 items(catMetrics) { metric ->
                     Row(Modifier.padding(vertical = 4.dp)) {
-                        TableCell(metric, width = 140.dp, isHeader = true)
+                        val metricLabel = when(metric) {
+                            "Amount" -> stringResource(R.string.label_amount)
+                            "MoM Change" -> stringResource(R.string.label_mom_change)
+                            "MoM %" -> stringResource(R.string.label_mom_pct)
+                            "YoY Amount" -> stringResource(R.string.label_yoy_amount)
+                            "YoY Change" -> stringResource(R.string.label_yoy_change)
+                            else -> metric
+                        }
+                        TableCell(metricLabel, width = 140.dp, isHeader = true)
                         Box(Modifier.horizontalScroll(monthScrollState)) {
                             Row {
                                 groupedColumns.forEach { g ->
@@ -405,13 +422,13 @@ fun NumbersView(
 
         // --- 3. Monthly Financial Metrics Section ---
         item {
-            Text("${grouping.label} Financial Metrics", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+            Text(stringResource(R.string.label_financial_metrics, stringResource(grouping.labelRes)), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
             Spacer(Modifier.height(8.dp))
         }
 
         stickyHeader {
             Row(Modifier.background(MaterialTheme.colorScheme.surfaceVariant).padding(vertical = 4.dp)) {
-                TableCell("Metric", width = 140.dp, isHeader = true)
+                TableCell(stringResource(R.string.label_metric), width = 140.dp, isHeader = true)
                 Box(Modifier.horizontalScroll(monthScrollState)) {
                     Row {
                         groupedColumns.forEach { g ->
@@ -486,7 +503,7 @@ fun ChartsView(
 
         if (budgets.isNotEmpty()) {
             item {
-                Text("Budget Variances (%)", style = MaterialTheme.typography.titleSmall)
+                Text(stringResource(R.string.label_budget_variances_pct), style = MaterialTheme.typography.titleSmall)
                 Spacer(Modifier.height(8.dp))
                 Card(modifier = Modifier.fillMaxWidth().height(260.dp)) {
                     Box(Modifier.padding(16.dp)) {

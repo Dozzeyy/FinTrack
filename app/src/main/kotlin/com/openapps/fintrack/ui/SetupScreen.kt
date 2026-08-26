@@ -18,11 +18,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.openapps.fintrack.R
 import com.openapps.fintrack.data.EncryptedPrefsHelper
 
 @Composable
 fun SetupScreen(viewModel: ExpenseViewModel, onComplete: () -> Unit) {
     val context = LocalContext.current
+    val passwordsNotMatchMsg = stringResource(R.string.msg_passwords_not_match)
     val prefs = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
     val backupPrefs = context.getSharedPreferences("backup_prefs", Context.MODE_PRIVATE)
     
@@ -44,20 +47,20 @@ fun SetupScreen(viewModel: ExpenseViewModel, onComplete: () -> Unit) {
                 showRemoteEncryptPassDialog = false 
                 e2eeEnabled = false
             },
-            title = { Text("Set Backup Password") },
+            title = { Text(stringResource(R.string.title_set_backup_password)) },
             text = {
                 Column {
                     Text(
-                        "We do not store your passwords anywhere. It's your sole responsibility to keep this password in a safe recoverable place.",
+                        stringResource(R.string.msg_password_responsibility),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error,
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
-                    Text("This password will be used to encrypt your backup files (E2EE).")
+                    Text(stringResource(R.string.msg_backup_password_desc))
                     OutlinedTextField(
                         value = pass,
                         onValueChange = { pass = it; error = null },
-                        label = { Text("Master Password") },
+                        label = { Text(stringResource(R.string.label_master_password)) },
                         visualTransformation = PasswordVisualTransformation(),
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -65,7 +68,7 @@ fun SetupScreen(viewModel: ExpenseViewModel, onComplete: () -> Unit) {
                     OutlinedTextField(
                         value = confirmPass,
                         onValueChange = { confirmPass = it; error = null },
-                        label = { Text("Confirm password") },
+                        label = { Text(stringResource(R.string.label_confirm_password_plain)) },
                         visualTransformation = PasswordVisualTransformation(),
                         modifier = Modifier.fillMaxWidth(),
                         isError = error != null
@@ -82,17 +85,17 @@ fun SetupScreen(viewModel: ExpenseViewModel, onComplete: () -> Unit) {
                         e2eeEnabled = true
                         showRemoteEncryptPassDialog = false
                     } else {
-                        error = "Passwords do not match"
+                        error = passwordsNotMatchMsg
                     }
                 }, enabled = pass.isNotEmpty() && confirmPass.isNotEmpty()) {
-                    Text("Set & Enable")
+                    Text(stringResource(R.string.btn_set_enable))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { 
                     showRemoteEncryptPassDialog = false 
                     e2eeEnabled = false
-                }) { Text("Cancel") }
+                }) { Text(stringResource(R.string.btn_cancel)) }
             }
         )
     }
@@ -126,7 +129,7 @@ fun SetupScreen(viewModel: ExpenseViewModel, onComplete: () -> Unit) {
         verticalArrangement = Arrangement.Center
     ) {
         Text(
-            "Welcome to FinTrack",
+            stringResource(R.string.title_welcome_fintrack),
             style = MaterialTheme.typography.headlineMedium,
             textAlign = TextAlign.Center
         )
@@ -134,7 +137,7 @@ fun SetupScreen(viewModel: ExpenseViewModel, onComplete: () -> Unit) {
         Spacer(Modifier.height(16.dp))
         
         Text(
-            "This app doesn't use a central server. To keep your data safe, please select a folder where your automatic backups will be saved.",
+            stringResource(R.string.msg_setup_welcome_desc),
             style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.Center
         )
@@ -143,7 +146,7 @@ fun SetupScreen(viewModel: ExpenseViewModel, onComplete: () -> Unit) {
         
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text("Backup Location:", style = MaterialTheme.typography.labelSmall)
+                Text(stringResource(R.string.label_backup_location), style = MaterialTheme.typography.labelSmall)
                 Text(selectedPath, style = MaterialTheme.typography.bodySmall)
             }
         }
@@ -155,7 +158,7 @@ fun SetupScreen(viewModel: ExpenseViewModel, onComplete: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text("Schedule Backup", style = MaterialTheme.typography.bodyLarge)
+            Text(stringResource(R.string.btn_schedule_backup), style = MaterialTheme.typography.bodyLarge)
             Switch(
                 checked = scheduleBackupEnabled,
                 onCheckedChange = { scheduleBackupEnabled = it }
@@ -168,8 +171,8 @@ fun SetupScreen(viewModel: ExpenseViewModel, onComplete: () -> Unit) {
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column {
-                Text("E2EE (Encryption)", style = MaterialTheme.typography.bodyLarge)
-                Text("Encrypted backup files", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                Text(stringResource(R.string.label_e2ee_encryption), style = MaterialTheme.typography.bodyLarge)
+                Text(stringResource(R.string.label_encrypted_backup_files), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
             }
             Switch(
                 checked = e2eeEnabled,
@@ -196,7 +199,7 @@ fun SetupScreen(viewModel: ExpenseViewModel, onComplete: () -> Unit) {
             },
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text(if (isPathSelected) "Change Backup Folder" else "Select Backup Folder")
+            Text(if (isPathSelected) stringResource(R.string.btn_change_backup_folder) else stringResource(R.string.btn_select_backup_folder))
         }
         
         Spacer(Modifier.height(24.dp))
@@ -229,7 +232,7 @@ fun SetupScreen(viewModel: ExpenseViewModel, onComplete: () -> Unit) {
             enabled = isPathSelected,
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
         ) {
-            Text("Get Started")
+            Text(stringResource(R.string.btn_get_started))
         }
 
         Spacer(Modifier.height(8.dp))
@@ -242,7 +245,7 @@ fun SetupScreen(viewModel: ExpenseViewModel, onComplete: () -> Unit) {
             },
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Skip and set up later")
+            Text(stringResource(R.string.btn_skip_setup))
         }
     }
 }

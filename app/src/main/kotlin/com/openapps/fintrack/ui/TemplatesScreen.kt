@@ -5,6 +5,8 @@
 
 package com.openapps.fintrack.ui
 
+import androidx.compose.ui.res.stringResource
+import com.openapps.fintrack.R
 import android.os.Bundle
 import androidx.compose.animation.*
 import androidx.compose.foundation.clickable
@@ -32,10 +34,10 @@ fun TemplatesScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Templates") },
+                title = { Text(stringResource(R.string.menu_templates)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, "Back")
+                        Icon(Icons.Default.ArrowBack, stringResource(R.string.btn_back))
                     }
                 }
             )
@@ -46,15 +48,15 @@ fun TemplatesScreen(
                     viewModel.editingTemplate = null
                     onNavigate("add_transaction_template", null)
                 }) {
-                    Icon(Icons.Default.Add, "Add Template")
+                    Icon(Icons.Default.Add, stringResource(R.string.btn_add_template))
                 }
             }
         }
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
             TabRow(selectedTabIndex = activeTab) {
-                Tab(selected = activeTab == 0, onClick = { activeTab = 0 }, text = { Text("Manage") })
-                Tab(selected = activeTab == 1, onClick = { activeTab = 1 }, text = { Text("Customize") })
+                Tab(selected = activeTab == 0, onClick = { activeTab = 0 }, text = { Text(stringResource(R.string.label_manage)) })
+                Tab(selected = activeTab == 1, onClick = { activeTab = 1 }, text = { Text(stringResource(R.string.label_customize)) })
             }
 
             AnimatedContent(
@@ -78,11 +80,13 @@ fun TemplatesScreen(
 @Composable
 fun ManageTemplatesView(viewModel: ExpenseViewModel, onNavigate: (String, Bundle?) -> Unit) {
     val templates by viewModel.getAllTemplates().collectAsState(initial = emptyList())
-    val typeFilters = remember { mutableStateListOf("Single", "Multi") }
+    val singleLabel = stringResource(R.string.label_single)
+    val multiLabel = stringResource(R.string.label_multi)
+    val typeFilters = remember { mutableStateListOf(singleLabel, multiLabel) }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("Single", "Multi").forEach { type ->
+            listOf(singleLabel, multiLabel).forEach { type ->
                 val isSelected = typeFilters.contains(type)
                 FilterChip(
                     selected = isSelected,
@@ -96,13 +100,13 @@ fun ManageTemplatesView(viewModel: ExpenseViewModel, onNavigate: (String, Bundle
         }
 
         Spacer(Modifier.height(16.dp))
-        Text("Existing Templates", style = MaterialTheme.typography.titleMedium)
+        Text(stringResource(R.string.title_existing_templates), style = MaterialTheme.typography.titleMedium)
         Divider(Modifier.padding(vertical = 8.dp))
 
         val filteredTemplates = remember(templates, typeFilters.toList()) {
             templates.filter { t ->
-                (typeFilters.contains("Single") && t.multiEntries == null) ||
-                (typeFilters.contains("Multi") && t.multiEntries != null)
+                (typeFilters.contains(singleLabel) && t.multiEntries == null) ||
+                (typeFilters.contains(multiLabel) && t.multiEntries != null)
             }
         }
 
@@ -110,17 +114,17 @@ fun ManageTemplatesView(viewModel: ExpenseViewModel, onNavigate: (String, Bundle
             items(filteredTemplates) { template ->
                 ListItem(
                     headlineContent = { Text(template.name) },
-                    supportingContent = { Text("${template.type.replaceFirstChar { it.uppercase() }} template") },
+                    supportingContent = { Text(template.type.replaceFirstChar { it.uppercase() } + stringResource(R.string.label_template_suffix)) },
                     trailingContent = {
                         Row {
                             IconButton(onClick = { 
                                 viewModel.editingTemplate = template
                                 onNavigate("add_transaction_template", null)
                             }) {
-                                Icon(Icons.Default.Edit, "Edit")
+                                Icon(Icons.Default.Edit, stringResource(R.string.btn_edit))
                             }
                             IconButton(onClick = { viewModel.deleteTemplate(template) }) {
-                                Icon(Icons.Default.Delete, "Delete", tint = Color.Red)
+                                Icon(Icons.Default.Delete, stringResource(R.string.btn_delete), tint = Color.Red)
                             }
                         }
                     }
@@ -134,16 +138,16 @@ fun ManageTemplatesView(viewModel: ExpenseViewModel, onNavigate: (String, Bundle
 @Composable
 fun CustomizeTemplatesView(viewModel: ExpenseViewModel) {
     val fields = listOf(
-        "type" to "Transaction Type",
-        "accountId" to "Account",
-        "categoryId" to "Category",
-        "amount" to "Amount",
-        "note" to "Note",
-        "tags" to "Tags"
+        "type" to stringResource(R.string.label_txn_type),
+        "accountId" to stringResource(R.string.label_account),
+        "categoryId" to stringResource(R.string.label_category),
+        "amount" to stringResource(R.string.label_amount),
+        "note" to stringResource(R.string.label_notes),
+        "tags" to stringResource(R.string.label_tags)
     )
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Select fields to include in templates", style = MaterialTheme.typography.titleMedium)
+        Text(stringResource(R.string.msg_select_template_fields), style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.height(16.dp))
 
         fields.forEach { (key, label) ->

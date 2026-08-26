@@ -378,7 +378,89 @@ interface ExpenseDao {
 
     @Delete
     suspend fun deleteRule(rule: Rule)
+
+    // Invoice Clearances
+    @Insert
+    suspend fun insertInvoiceClearance(clearance: InvoiceClearance)
+
+    @Query("DELETE FROM invoice_clearances WHERE transferTransactionId = :transferId")
+    suspend fun deleteClearancesByTransfer(transferId: Int)
+
+    @Query("""
+        SELECT t.*, c.name as categoryName, c.type as categoryType, c.icon as categoryIcon, 
+               a.name as accountName, a.icon as accountIcon, 
+               a2.name as toAccountName, a2.icon as toAccountIcon, 
+               COALESCE(p.name, ap.name, a.name) as partyName, 
+               COALESCE(p2.name, ap2.name, a2.name) as toPartyName,
+               COALESCE((SELECT SUM(amountCleared) FROM invoice_clearances ic JOIN transactions tt ON ic.transferTransactionId = tt.id WHERE ic.invoiceTransactionId = t.id AND tt.date <= :asOfDate), 0.0) as totalCleared
+        FROM transactions t 
+        LEFT JOIN categories c ON t.categoryId = c.id 
+        JOIN accounts a ON t.accountId = a.id
+        LEFT JOIN accounts a2 ON t.toAccountId = a2.id
+        LEFT JOIN parties p ON t.partyId = p.id
+        LEFT JOIN accounts ap ON t.partyId = ap.id
+        LEFT JOIN parties p2 ON t.toPartyId = p2.id
+        LEFT JOIN accounts ap2 ON t.toPartyId = ap2.id
+        WHERE t.invoiceNumber IS NOT NULL 
+        AND (t.partyId = :partyId OR t.accountId = :partyId)
+        AND t.date <= :asOfDate
+        ORDER BY t.date ASC, t.time ASC
+    """)
+    fun getInvoicesForParty(partyId: Int, asOfDate: String): Flow<List<TransactionWithInvoiceDetails>>
+
+    @Query("""
+        SELECT ic.*, t.transactionNumber as otherTxnNumber, t.date as otherDate, t.amount as otherTotalAmount,
+               a1.name as accountName, a2.name as toAccountName
+        FROM invoice_clearances ic
+        JOIN transactions t ON ic.transferTransactionId = t.id
+        JOIN accounts a1 ON t.accountId = a1.id
+        LEFT JOIN accounts a2 ON t.toAccountId = a2.id
+        WHERE ic.invoiceTransactionId = :invoiceId
+    """)
+    suspend fun getClearingsForInvoice(invoiceId: Int): List<InvoiceClearanceExtended>
+
+    @Query("""
+        SELECT ic.*, t.transactionNumber as otherTxnNumber, t.date as otherDate, t.amount as otherTotalAmount,
+               t.invoiceNumber as otherInvoiceNumber
+        FROM invoice_clearances ic
+        JOIN transactions t ON ic.invoiceTransactionId = t.id
+        WHERE ic.transferTransactionId = :transferId
+    """)
+    suspend fun getInvoicesClearedByTransfer(transferId: Int): List<InvoiceClearanceExtended>
+
+    @Query("""
+        SELECT t.*, c.name as categoryName, c.type as categoryType, c.icon as categoryIcon, 
+               a.name as accountName, a.icon as accountIcon, 
+               a2.name as toAccountName, a2.icon as toAccountIcon, 
+               COALESCE(p.name, ap.name, a.name) as partyName, 
+               COALESCE(p2.name, ap2.name, a2.name) as toPartyName
+        FROM transactions t 
+        LEFT JOIN categories c ON t.categoryId = c.id 
+        JOIN accounts a ON t.accountId = a.id
+        LEFT JOIN accounts a2 ON t.toAccountId = a2.id
+        LEFT JOIN parties p ON t.partyId = p.id
+        LEFT JOIN accounts ap ON t.partyId = ap.id
+        LEFT JOIN parties p2 ON t.toPartyId = p2.id
+        LEFT JOIN accounts ap2 ON t.toPartyId = ap2.id
+        WHERE t.id = :id
+    """)
+    suspend fun getTransactionWithDetails(id: Int): TransactionWithDetails?
 }
+
+data class InvoiceClearanceExtended(
+    @Embedded val clearance: InvoiceClearance,
+    val otherTxnNumber: String?,
+    val otherDate: String,
+    val otherTotalAmount: Double,
+    val otherInvoiceNumber: String? = null,
+    val accountName: String? = null,
+    val toAccountName: String? = null
+)
+
+data class TransactionWithInvoiceDetails(
+    @Embedded val detail: TransactionWithDetails,
+    val totalCleared: Double
+)
 
 data class TransactionWithDetails(
     @Embedded val transaction: Transaction,

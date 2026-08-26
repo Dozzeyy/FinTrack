@@ -44,6 +44,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.openapps.fintrack.R
 import com.openapps.fintrack.data.AmortizationRow
 import com.google.zxing.BarcodeFormat
 import com.journeyapps.barcodescanner.BarcodeEncoder
@@ -52,6 +54,7 @@ import com.openapps.fintrack.data.Tag
 import com.openapps.fintrack.data.TransactionWithDetails
 import com.openapps.fintrack.data.PartyBalance
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 
 import java.io.File
@@ -109,7 +112,7 @@ fun TransactionRow(
                 val headlineText = if (detail.categoryType == null && detail.toAccountName != null) {
                     detail.toAccountName
                 } else {
-                    (detail.categoryName ?: "Transfer")
+                    (detail.categoryName ?: stringResource(R.string.label_transfer))
                 }
 
                 Text(
@@ -182,7 +185,7 @@ fun TransactionRow(
                 
                 if (runningBalance != null) {
                     Text(
-                        text = "Bal: ${viewModel.formatAmount(runningBalance)}",
+                        text = stringResource(R.string.label_bal_colon) + viewModel.formatAmount(runningBalance),
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
                         color = Color.Gray
@@ -246,7 +249,7 @@ fun DonutChart(
     val total = data.sumOf { Math.abs(it.second) }
     if (total <= 0.0) {
         Box(modifier = modifier, contentAlignment = Alignment.Center) {
-            Text("No Data", color = Color.Gray)
+            Text(stringResource(R.string.label_no_data_chart), color = Color.Gray)
         }
         return
     }
@@ -558,7 +561,9 @@ fun TransactionHistoryView(viewModel: ExpenseViewModel, onOpenDrawer: (() -> Uni
     var showFilterDialog by remember { mutableStateOf(false) }
     val filterTypes = remember { mutableStateListOf<String>() }
     
-    var viewMode by remember { mutableStateOf("List") } // "List" or "Calendar"
+    val listLabel = stringResource(R.string.label_list)
+    val calendarLabel = stringResource(R.string.label_calendar)
+    var viewMode by remember { mutableStateOf<String>(listLabel) } 
 
     val allTags by viewModel.getEnabledTags().collectAsState(initial = emptyList())
     val allAccounts by viewModel.getEnabledAccounts().collectAsState(initial = emptyList())
@@ -569,8 +574,23 @@ fun TransactionHistoryView(viewModel: ExpenseViewModel, onOpenDrawer: (() -> Uni
     var showTagFilterDialog by remember { mutableStateOf(false) }
     var showAccountFilterDialog by remember { mutableStateOf(false) }
 
+    var showCrossReferenceScreen by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val minorHeads by viewModel.getAllMinorHeads().collectAsState(initial = emptyList())
+    val majorHeads by viewModel.getAllMajorHeads().collectAsState(initial = emptyList())
+    
+    val onAccountIds = remember(allAccounts, minorHeads, majorHeads) {
+        val onAccountMajorId = majorHeads.find { it.name.contains("On Account", ignoreCase = true) }?.id ?: 6
+        val onAccountMinorIds = minorHeads.filter { it.majorHeadId == onAccountMajorId }.map { it.id }
+        allAccounts.filter { it.minorHeadId in onAccountMinorIds }.map { it.id }.toSet()
+    }
+
     val transactions by viewModel.getFilteredTransactions(startDate, endDate).collectAsState(initial = emptyList())
     val context = LocalContext.current
+
+    var isMultiSelectMode by remember { mutableStateOf(false) }
+    val selectedIds = remember { mutableStateListOf<Int>() }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
 
     val filteredTransactions = remember(transactions, filterTypes.toList(), selectedTagIds.toList(), selectedAccountIds.toList()) {
         var list = if (filterTypes.isEmpty()) transactions
@@ -606,171 +626,296 @@ fun TransactionHistoryView(viewModel: ExpenseViewModel, onOpenDrawer: (() -> Uni
     )
 
     Column(modifier = Modifier.fillMaxSize()) {
-        if (onOpenDrawer != null) {
-            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onOpenDrawer) {
-                        Icon(Icons.Default.Menu, "Menu")
+        if (showCrossReferenceScreen) {
+            BackHandler { showCrossReferenceScreen = false }
+            CrossReferenceScreen(
+                viewModel = viewModel,
+                onBack = { showCrossReferenceScreen = false },
+                onNavigateToTransaction = { id ->
+                    scope.launch {
+                        val detail = viewModel.dao.getTransactionWithDetails(id)
+                        if (detail != null) {
+                            viewModel.selectedTransactionDetail = detail
+                            showCrossReferenceScreen = false
+                        }
                     }
-                    Text("Transactions", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                 }
-            }
-        }
-
-        // Month Navigation
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-            IconButton(onClick = { 
-                month = month.minusMonths(1)
-                startDate = month.withDayOfMonth(1).format(DateTimeFormatter.ISO_DATE)
-                endDate = month.with(TemporalAdjusters.lastDayOfMonth()).format(DateTimeFormatter.ISO_DATE)
-            }) { Icon(Icons.Default.ChevronLeft, "") }
-            
-            Text(
-                month.format(DateTimeFormatter.ofPattern("MMMM yyyy")), 
-                modifier = Modifier.weight(1f).clickable { showFilterDialog = true }, 
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
-            
-            IconButton(onClick = { 
-                month = month.plusMonths(1)
-                startDate = month.withDayOfMonth(1).format(DateTimeFormatter.ISO_DATE)
-                endDate = month.with(TemporalAdjusters.lastDayOfMonth()).format(DateTimeFormatter.ISO_DATE)
-            }) { Icon(Icons.Default.ChevronRight, "") }
+        } else {
+            if (onOpenDrawer != null) {
+                Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (isMultiSelectMode) {
+                            IconButton(onClick = { isMultiSelectMode = false; selectedIds.clear() }) {
+                                Icon(Icons.Default.Close, stringResource(R.string.btn_cancel))
+                            }
+                            Text(stringResource(R.string.label_num_selected, selectedIds.size), style = MaterialTheme.typography.titleMedium)
+                        } else {
+                            IconButton(onClick = onOpenDrawer) {
+                                Icon(Icons.Default.Menu, stringResource(R.string.menu_home))
+                            }
+                            Text(stringResource(R.string.menu_transactions), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                        }
+                    }
 
-            IconButton(onClick = { viewMode = if (viewMode == "List") "Calendar" else "List" }) {
-                Icon(if (viewMode == "List") Icons.Default.CalendarMonth else Icons.Default.FormatListBulleted, contentDescription = "Toggle View")
-            }
-
-            IconButton(onClick = { showFilterDialog = true }) {
-                Icon(Icons.Default.DateRange, contentDescription = "Filter")
-            }
-
-            IconButton(onClick = { showAccountFilterDialog = true }) {
-                Box {
-                    Icon(
-                        imageVector = Icons.Default.AccountBalance, 
-                        contentDescription = "Accounts Filter",
-                        tint = if (selectedAccountIds.isNotEmpty()) MaterialTheme.colorScheme.primary else LocalContentColor.current
-                    )
-                    if (selectedAccountIds.isNotEmpty()) {
-                        Surface(
-                            modifier = Modifier.size(6.dp).align(Alignment.TopEnd),
-                            shape = androidx.compose.foundation.shape.CircleShape,
-                            color = MaterialTheme.colorScheme.error
-                        ) {}
+                    if (isMultiSelectMode) {
+                        var expanded by remember { mutableStateOf(false) }
+                        Box {
+                            IconButton(onClick = { expanded = true }) {
+                                Icon(Icons.Default.MoreVert, stringResource(R.string.label_more))
+                            }
+                            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                                if (!viewModel.disableTransactionDeletion) {
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.btn_delete), color = Color.Red) },
+                                        onClick = { 
+                                            expanded = false
+                                            showDeleteConfirm = true 
+                                        },
+                                        leadingIcon = { Icon(Icons.Default.Delete, stringResource(R.string.btn_delete), tint = Color.Red) }
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
 
-            IconButton(onClick = { 
-                exportLauncher.launch("transactions_${month.format(DateTimeFormatter.ofPattern("MMM_yyyy"))}.csv")
-            }) {
-                Icon(Icons.Default.FileDownload, contentDescription = "Export")
-            }
-        }
+            // Month Navigation
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                IconButton(onClick = { 
+                    month = month.minusMonths(1)
+                    startDate = month.withDayOfMonth(1).format(DateTimeFormatter.ISO_DATE)
+                    endDate = month.with(TemporalAdjusters.lastDayOfMonth()).format(DateTimeFormatter.ISO_DATE)
+                }) { Icon(Icons.Default.ChevronLeft, "") }
+                
+                Text(
+                    month.format(DateTimeFormatter.ofPattern("MMMM yyyy")), 
+                    modifier = Modifier.weight(1f).clickable { showFilterDialog = true }, 
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+                
+                IconButton(onClick = { 
+                    month = month.plusMonths(1)
+                    startDate = month.withDayOfMonth(1).format(DateTimeFormatter.ISO_DATE)
+                    endDate = month.with(TemporalAdjusters.lastDayOfMonth()).format(DateTimeFormatter.ISO_DATE)
+                }) { Icon(Icons.Default.ChevronRight, "") }
 
-        if (viewMode == "List") {
-            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                listOf("Income", "Expense", "Transfer").forEach { type ->
-                    val isSelected = filterTypes.contains(type)
+                IconButton(onClick = { viewMode = if (viewMode == listLabel) calendarLabel else listLabel }) {
+                    Icon(if (viewMode == listLabel) Icons.Default.CalendarMonth else Icons.Default.FormatListBulleted, contentDescription = stringResource(R.string.label_toggle_view))
+                }
+
+                IconButton(onClick = { showFilterDialog = true }) {
+                    Icon(Icons.Default.DateRange, contentDescription = stringResource(R.string.label_filter))
+                }
+
+                IconButton(onClick = { showAccountFilterDialog = true }) {
+                    Box {
+                        Icon(
+                            imageVector = Icons.Default.AccountBalance, 
+                            contentDescription = stringResource(R.string.title_filter_by_accounts),
+                            tint = if (selectedAccountIds.isNotEmpty()) MaterialTheme.colorScheme.primary else LocalContentColor.current
+                        )
+                        if (selectedAccountIds.isNotEmpty()) {
+                            Surface(
+                                modifier = Modifier.size(6.dp).align(Alignment.TopEnd),
+                                shape = androidx.compose.foundation.shape.CircleShape,
+                                color = MaterialTheme.colorScheme.error
+                            ) {}
+                        }
+                    }
+                }
+
+                IconButton(onClick = { 
+                    exportLauncher.launch("transactions_${month.format(DateTimeFormatter.ofPattern("MMM_yyyy"))}.csv")
+                }) {
+                    Icon(Icons.Default.FileDownload, contentDescription = stringResource(R.string.label_export))
+                }
+            }
+
+            if (viewMode == listLabel) {
+                Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    listOf("Income", "Expense", "Transfer").forEach { type ->
+                        val isSelected = filterTypes.contains(type)
+                        val label = when(type) {
+                            "Income" -> stringResource(R.string.label_income)
+                            "Expense" -> stringResource(R.string.label_expense)
+                            else -> stringResource(R.string.label_transfer)
+                        }
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { 
+                                if (isSelected) {
+                                    filterTypes.remove(type)
+                                } else {
+                                    filterTypes.add(type)
+                                }
+                            },
+                            label = { Text(label, style = MaterialTheme.typography.labelSmall) }
+                        )
+                    }
+                    
                     FilterChip(
-                        selected = isSelected,
-                        onClick = { 
-                            if (isSelected) {
-                                filterTypes.remove(type)
-                            } else {
-                                filterTypes.add(type)
-                            }
-                        },
-                        label = { Text(type, style = MaterialTheme.typography.labelSmall) }
+                        selected = selectedTagIds.isNotEmpty(),
+                        onClick = { showTagFilterDialog = true },
+                        label = { Text(stringResource(R.string.label_tags), style = MaterialTheme.typography.labelSmall) },
+                        leadingIcon = if (selectedTagIds.isNotEmpty()) {
+                            { Icon(Icons.Default.Check, null, modifier = Modifier.size(16.dp)) }
+                        } else null,
+                        trailingIcon = { Icon(Icons.Default.ArrowDropDown, null) }
                     )
+                }
+
+                val singleAccountId = if (selectedAccountIds.size == 1) selectedAccountIds.first() else null
+                
+                // Calculate summary and running balance if single account is selected
+                val prevDate = try { LocalDate.parse(startDate).minusDays(1).format(DateTimeFormatter.ISO_DATE) } catch(e: Exception) { startDate }
+                val openingBalances by if (singleAccountId != null) viewModel.getAccountBalances(prevDate).collectAsState(initial = emptyList()) else remember { mutableStateOf(emptyList<AccountBalance>()) }
+                val openingBalance = remember(openingBalances, singleAccountId) { openingBalances.find { it.id == singleAccountId }?.balance ?: 0.0 }
+
+                val transactionsWithRunningBalance = remember(filteredTransactions, openingBalance, singleAccountId) {
+                    if (singleAccountId == null) {
+                        filteredTransactions.map { TransactionWithRunningBalance(it, null) }
+                    } else {
+                        val sorted = filteredTransactions.sortedWith(compareBy({ it.transaction.date }, { it.transaction.time }, { it.transaction.id }))
+                        var currentBal = openingBalance
+                        sorted.map { detail ->
+                            val amount = detail.transaction.amount
+                            val isIncoming = detail.transaction.toAccountId == singleAccountId || (detail.transaction.accountId == singleAccountId && detail.categoryType == "income")
+                            val isOutgoing = detail.transaction.accountId == singleAccountId && detail.categoryType != "income"
+                            
+                            if (isIncoming) currentBal += amount
+                            else if (isOutgoing) currentBal -= amount
+                            
+                            TransactionWithRunningBalance(detail, currentBal)
+                        }.reversed()
+                    }
+                }
+
+                if (singleAccountId != null) {
+                    val additions = transactionsWithRunningBalance.sumOf { item -> 
+                        if (item.detail.transaction.toAccountId == singleAccountId || (item.detail.transaction.accountId == singleAccountId && item.detail.categoryType == "income")) item.detail.transaction.amount else 0.0 
+                    }
+                    val deletions = transactionsWithRunningBalance.sumOf { item -> 
+                        if (item.detail.transaction.accountId == singleAccountId && item.detail.categoryType != "income") item.detail.transaction.amount else 0.0 
+                    }
+                    val closingBalance = openingBalance + additions - deletions
+
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(stringResource(R.string.label_opening), style = MaterialTheme.typography.labelSmall)
+                                Text(stringResource(R.string.label_additions_plus), style = MaterialTheme.typography.labelSmall)
+                                Text(stringResource(R.string.label_deletions_minus), style = MaterialTheme.typography.labelSmall)
+                                Text(stringResource(R.string.label_closing), style = MaterialTheme.typography.labelSmall)
+                            }
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(viewModel.formatAmount(openingBalance), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                                Text(viewModel.formatAmount(additions), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = Color(0xFF4CAF50))
+                                Text(viewModel.formatAmount(deletions), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = Color.Red)
+                                Text(viewModel.formatAmount(closingBalance), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
                 }
                 
-                FilterChip(
-                    selected = selectedTagIds.isNotEmpty(),
-                    onClick = { showTagFilterDialog = true },
-                    label = { Text("Tags", style = MaterialTheme.typography.labelSmall) },
-                    leadingIcon = if (selectedTagIds.isNotEmpty()) {
-                        { Icon(Icons.Default.Check, null, modifier = Modifier.size(16.dp)) }
-                    } else null,
-                    trailingIcon = { Icon(Icons.Default.ArrowDropDown, null) }
-                )
-            }
+                LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp).padding(top = 0.dp)) {
+                    transactionsWithRunningBalance.forEach { entry ->
+                        item {
+                            var showTxnMenu by remember { mutableStateOf(false) }
+                            val isSelected = selectedIds.contains(entry.detail.transaction.id)
+                            val isLoanTxn = remember(entry.detail.transaction, onAccountIds) {
+                                entry.detail.transaction.accountId in onAccountIds || entry.detail.transaction.toAccountId in onAccountIds
+                            }
 
-            val singleAccountId = if (selectedAccountIds.size == 1) selectedAccountIds.first() else null
-            
-            // Calculate summary and running balance if single account is selected
-            val prevDate = try { LocalDate.parse(startDate).minusDays(1).format(DateTimeFormatter.ISO_DATE) } catch(e: Exception) { startDate }
-            val openingBalances by if (singleAccountId != null) viewModel.getAccountBalances(prevDate).collectAsState(initial = emptyList()) else remember { mutableStateOf(emptyList<AccountBalance>()) }.let { it }
-            val openingBalance = remember(openingBalances, singleAccountId) { openingBalances.find { it.id == singleAccountId }?.balance ?: 0.0 }
+                            Box(modifier = Modifier
+                                .combinedClickable(
+                                    onClick = { 
+                                        if (isMultiSelectMode) {
+                                            if (isSelected) selectedIds.remove(entry.detail.transaction.id)
+                                            else selectedIds.add(entry.detail.transaction.id)
+                                            if (selectedIds.isEmpty()) isMultiSelectMode = false
+                                        } else {
+                                            viewModel.selectedTransactionDetail = entry.detail 
+                                        }
+                                    },
+                                    onLongClick = {
+                                        if (!isMultiSelectMode) {
+                                            showTxnMenu = true
+                                        }
+                                    }
+                                )
+                                .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.Transparent, RoundedCornerShape(12.dp))
+                            ) {
+                                TransactionRow(
+                                    detail = entry.detail, 
+                                    viewModel = viewModel, 
+                                    showTxnNumber = false,
+                                    runningBalance = entry.runningBalance,
+                                    hideAccountName = singleAccountId != null
+                                )
+                                
+                                DropdownMenu(expanded = showTxnMenu, onDismissRequest = { showTxnMenu = false }) {
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.btn_multi_select)) },
+                                        onClick = {
+                                            isMultiSelectMode = true
+                                            selectedIds.add(entry.detail.transaction.id)
+                                            showTxnMenu = false
+                                        },
+                                        leadingIcon = { Icon(Icons.Default.Checklist, null) }
+                                    )
+                                    if (isLoanTxn) {
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(R.string.btn_cross_reference)) },
+                                            onClick = {
+                                                viewModel.loadCrossReference(entry.detail.transaction.id)
+                                                showCrossReferenceScreen = true
+                                                showTxnMenu = false
+                                            },
+                                            leadingIcon = { Icon(Icons.Default.Link, null) }
+                                        )
+                                    }
+                                }
 
-            val transactionsWithRunningBalance = remember(filteredTransactions, openingBalance, singleAccountId) {
-                if (singleAccountId == null) {
-                    filteredTransactions.map { TransactionWithRunningBalance(it, null) }
-                } else {
-                    val sorted = filteredTransactions.sortedWith(compareBy({ it.transaction.date }, { it.transaction.time }, { it.transaction.id }))
-                    var currentBal = openingBalance
-                    sorted.map { detail ->
-                        val amount = detail.transaction.amount
-                        val isIncoming = detail.transaction.toAccountId == singleAccountId || (detail.transaction.accountId == singleAccountId && detail.categoryType == "income")
-                        val isOutgoing = detail.transaction.accountId == singleAccountId && detail.categoryType != "income"
-                        
-                        if (isIncoming) currentBal += amount
-                        else if (isOutgoing) currentBal -= amount
-                        
-                        TransactionWithRunningBalance(detail, currentBal)
-                    }.reversed()
-                }
-            }
-
-            if (singleAccountId != null) {
-                val additions = transactionsWithRunningBalance.sumOf { item -> 
-                    if (item.detail.transaction.toAccountId == singleAccountId || (item.detail.transaction.accountId == singleAccountId && item.detail.categoryType == "income")) item.detail.transaction.amount else 0.0 
-                }
-                val deletions = transactionsWithRunningBalance.sumOf { item -> 
-                    if (item.detail.transaction.accountId == singleAccountId && item.detail.categoryType != "income") item.detail.transaction.amount else 0.0 
-                }
-                val closingBalance = openingBalance + additions - deletions
-
-                Card(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("Opening", style = MaterialTheme.typography.labelSmall)
-                            Text("Additions (+)", style = MaterialTheme.typography.labelSmall)
-                            Text("Deletions (-)", style = MaterialTheme.typography.labelSmall)
-                            Text("Closing", style = MaterialTheme.typography.labelSmall)
-                        }
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(viewModel.formatAmount(openingBalance), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-                            Text(viewModel.formatAmount(additions), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = Color(0xFF4CAF50))
-                            Text(viewModel.formatAmount(deletions), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = Color.Red)
-                            Text(viewModel.formatAmount(closingBalance), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-            }
-            
-            LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp).padding(top = 0.dp)) {
-                transactionsWithRunningBalance.forEach { entry ->
-                    item {
-                        Box(modifier = Modifier.clickable { viewModel.selectedTransactionDetail = entry.detail }) {
-                            TransactionRow(
-                                detail = entry.detail, 
-                                viewModel = viewModel, 
-                                showTxnNumber = false,
-                                runningBalance = entry.runningBalance,
-                                hideAccountName = singleAccountId != null
-                            )
+                                if (isSelected) {
+                                    Icon(
+                                        Icons.Default.CheckCircle, 
+                                        null, 
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).size(16.dp)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
+            } else {
+                TransactionCalendarView(month, filteredTransactions, viewModel)
             }
-        } else {
-            TransactionCalendarView(month, filteredTransactions, viewModel)
         }
+    }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text(stringResource(R.string.title_delete_transactions)) },
+            text = { Text(stringResource(R.string.msg_delete_transactions_confirm, selectedIds.size)) },
+            confirmButton = {
+                Button(onClick = {
+                    viewModel.deleteTransactions(selectedIds.toList())
+                    isMultiSelectMode = false
+                    selectedIds.clear()
+                    showDeleteConfirm = false
+                }, colors = ButtonDefaults.buttonColors(containerColor = Color.Red)) { Text(stringResource(R.string.btn_delete)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) { Text(stringResource(R.string.btn_cancel)) }
+            }
+        )
     }
     
     if (showFilterDialog) {
@@ -786,7 +931,7 @@ fun TransactionHistoryView(viewModel: ExpenseViewModel, onOpenDrawer: (() -> Uni
 
     if (showTagFilterDialog) {
         MultiSelectFilterDialog(
-            title = "Filter by Tags",
+            title = stringResource(R.string.title_filter_by_tags),
             items = allTags.map { it.id to it.name },
             selectedIds = selectedTagIds,
             onDismiss = { showTagFilterDialog = false }
@@ -795,11 +940,130 @@ fun TransactionHistoryView(viewModel: ExpenseViewModel, onOpenDrawer: (() -> Uni
 
     if (showAccountFilterDialog) {
         MultiSelectFilterDialog(
-            title = "Filter by Accounts",
+            title = stringResource(R.string.title_filter_by_accounts),
             items = allAccounts.map { it.id to it.name },
             selectedIds = selectedAccountIds,
             onDismiss = { showAccountFilterDialog = false }
         )
+    }
+
+    if (showCrossReferenceScreen) {
+        BackHandler { showCrossReferenceScreen = false }
+        CrossReferenceScreen(
+            viewModel = viewModel,
+            onBack = { showCrossReferenceScreen = false },
+            onNavigateToTransaction = { id ->
+                scope.launch {
+                    val detail = viewModel.dao.getTransactionWithDetails(id)
+                    if (detail != null) {
+                        viewModel.selectedTransactionDetail = detail
+                        showCrossReferenceScreen = false
+                    }
+                }
+            }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CrossReferenceScreen(
+    viewModel: ExpenseViewModel,
+    onBack: () -> Unit,
+    onNavigateToTransaction: (Int) -> Unit
+) {
+    val details = viewModel.crossReferenceDetails
+    val isLoading = viewModel.isLoadingCrossReference
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.title_cross_reference_details)) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, stringResource(R.string.btn_back)) }
+                }
+            )
+        }
+    ) { padding ->
+        if (isLoading) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        } else if (details.isEmpty()) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(stringResource(R.string.msg_no_cross_reference_found))
+            }
+        } else {
+            LazyColumn(modifier = Modifier.padding(padding).fillMaxSize().padding(16.dp)) {
+                items(details) { inv ->
+                    Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(stringResource(R.string.title_original_invoice), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Spacer(Modifier.height(8.dp))
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(stringResource(R.string.label_amount_colon))
+                                Text(viewModel.formatAmount(inv.invoiceAmount), fontWeight = FontWeight.Bold)
+                            }
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(stringResource(R.string.label_invoice_no_colon))
+                                Text(inv.invoiceNumber ?: "N/A")
+                            }
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(stringResource(R.string.label_txn_no_colon))
+                                Text(
+                                    text = inv.invoiceTxnNumber ?: "N/A",
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.clickable { onNavigateToTransaction(inv.invoiceId) }
+                                )
+                            }
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(stringResource(R.string.label_date_colon))
+                                Text(inv.invoiceDate)
+                            }
+                            
+                            Spacer(Modifier.height(16.dp))
+                            Text(stringResource(R.string.label_clearance_history), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                            Divider(modifier = Modifier.padding(vertical = 4.dp))
+                            
+                            if (inv.clearingTransfers.isEmpty()) {
+                                Text(stringResource(R.string.msg_no_clearing_entries), style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                            } else {
+                                inv.clearingTransfers.forEach { transfer ->
+                                    Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                            Text(
+                                                text = stringResource(R.string.label_txn_no_colon) + (transfer.transferTxnNumber ?: "N/A"),
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.clickable { onNavigateToTransaction(transfer.transferTxnId) }
+                                            )
+                                            Text(transfer.transferDate, style = MaterialTheme.typography.bodySmall)
+                                        }
+                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                            Text(stringResource(R.string.label_applied_colon) + viewModel.formatAmount(transfer.amountApplied), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                                            if (transfer.otherAccountName != null) {
+                                                Text(stringResource(R.string.label_acc_colon) + transfer.otherAccountName, style = MaterialTheme.typography.bodySmall)
+                                            }
+                                        }
+                                    }
+                                    Divider(modifier = Modifier.alpha(0.2f))
+                                }
+                            }
+                            
+                            Spacer(Modifier.height(8.dp))
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(stringResource(R.string.label_total_cleared_colon), fontWeight = FontWeight.Bold)
+                                Text(viewModel.formatAmount(inv.totalCleared), fontWeight = FontWeight.Bold, color = Color(0xFF4CAF50))
+                            }
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(stringResource(R.string.label_pending_amount_colon), fontWeight = FontWeight.Bold)
+                                Text(viewModel.formatAmount(inv.pendingAmount), fontWeight = FontWeight.Bold, color = if (inv.pendingAmount > 0) Color.Red else Color.Gray)
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -821,7 +1085,7 @@ fun MultiSelectFilterDialog(
                 ) {
                     RadioButton(selected = selectedIds.isEmpty(), onClick = null)
                     Spacer(Modifier.width(8.dp))
-                    Text("All")
+                    Text(stringResource(R.string.label_all))
                 }
                 Divider()
                 LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
@@ -868,7 +1132,7 @@ fun AssetsLiabilitiesView(viewModel: ExpenseViewModel) {
             uri?.let { 
                 exportToUri(context, microBalances.map { b ->
                     TransactionWithDetails(
-                        transaction = com.openapps.fintrack.data.Transaction(date = asOfDate, time = "00:00", accountId = b.id, amount = b.balance, note = "Balance Export", categoryId = null),
+                        transaction = com.openapps.fintrack.data.Transaction(date = asOfDate, time = "00:00", accountId = b.id, amount = b.balance, note = context.getString(R.string.label_balance_export), categoryId = null),
                         categoryName = null,
                         categoryType = if (b.balance >= 0) "asset" else "liability",
                         categoryIcon = null,
@@ -896,7 +1160,7 @@ fun AssetsLiabilitiesView(viewModel: ExpenseViewModel) {
         val minor = minorBalances.find { it.id == drillMinorId }
         val micros = microBalances.filter { it.minorHeadId == drillMinorId }
         DrillDownView(
-            title = minor?.name ?: "Minor Head",
+            title = minor?.name ?: stringResource(R.string.label_minor_head),
             items = micros.map { it.name to it.balance },
             onItemClick = { name -> drillMicroId = microBalances.find { it.name == name }?.id },
             onBack = { drillMinorId = null },
@@ -911,7 +1175,7 @@ fun AssetsLiabilitiesView(viewModel: ExpenseViewModel) {
         val major = majorBalances.find { it.id == drillMajorId }
         val minors = minorBalances.filter { it.majorHeadId == drillMajorId }
         DrillDownView(
-            title = major?.name ?: "Major Head",
+            title = major?.name ?: stringResource(R.string.label_major_head),
             items = minors.map { it.name to it.balance },
             onItemClick = { name -> drillMinorId = minorBalances.find { it.name == name && it.majorHeadId == drillMajorId }?.id },
             onBack = { drillMajorId = null },
@@ -932,7 +1196,7 @@ fun AssetsLiabilitiesView(viewModel: ExpenseViewModel) {
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF4CAF50).copy(alpha = 0.1f))
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Available Balance", style = MaterialTheme.typography.labelSmall, color = Color(0xFF4CAF50))
+                    Text(stringResource(R.string.label_available_balance), style = MaterialTheme.typography.labelSmall, color = Color(0xFF4CAF50))
                     Text(viewModel.formatAmount(totalAssets), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color(0xFF4CAF50))
                 }
             }
@@ -941,7 +1205,7 @@ fun AssetsLiabilitiesView(viewModel: ExpenseViewModel) {
                 colors = CardDefaults.cardColors(containerColor = Color.Red.copy(alpha = 0.1f))
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Payable", style = MaterialTheme.typography.labelSmall, color = Color.Red)
+                    Text(stringResource(R.string.label_payable), style = MaterialTheme.typography.labelSmall, color = Color.Red)
                     Text(viewModel.formatAmount(totalLiabilities), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.Red)
                 }
             }
@@ -949,16 +1213,16 @@ fun AssetsLiabilitiesView(viewModel: ExpenseViewModel) {
 
         Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { viewMode = (viewMode + 1) % 5 }) {
-                Icon(Icons.Default.Layers, "Toggle Mode")
+                Icon(Icons.Default.Layers, stringResource(R.string.label_toggle_mode))
             }
-            Text(text = "As of: $asOfDate", modifier = Modifier.clickable {
+            Text(text = stringResource(R.string.label_as_of_colon, asOfDate), modifier = Modifier.clickable {
                 val date = try { LocalDate.parse(asOfDate) } catch(e: Exception) { LocalDate.now() }
                 DatePickerDialog(context, { _, year, month, day ->
                     asOfDate = LocalDate.of(year, month + 1, day).format(DateTimeFormatter.ISO_DATE)
                 }, date.year, date.monthValue - 1, date.dayOfMonth).show()
             })
             IconButton(onClick = { exportLauncher.launch("balances_$asOfDate.csv") }) {
-                Icon(Icons.Default.FileDownload, "Export")
+                Icon(Icons.Default.FileDownload, stringResource(R.string.label_export))
             }
         }
 
@@ -968,11 +1232,11 @@ fun AssetsLiabilitiesView(viewModel: ExpenseViewModel) {
                     val pos = majorBalances.filter { it.balance > 0 }
                     val neg = majorBalances.filter { it.balance <= 0 }
                     if (pos.isNotEmpty()) {
-                        item { Text("Assets", fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
+                        item { Text(stringResource(R.string.label_assets), fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
                         items(pos) { hb -> BalanceRow(hb.name, hb.balance, null, viewModel) { drillMajorId = hb.id } }
                     }
                     if (neg.isNotEmpty()) {
-                        item { Text("Liabilities", fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
+                        item { Text(stringResource(R.string.label_liabilities), fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
                         items(neg) { hb -> BalanceRow(hb.name, hb.balance, null, viewModel) { drillMajorId = hb.id } }
                     }
                 }
@@ -981,7 +1245,7 @@ fun AssetsLiabilitiesView(viewModel: ExpenseViewModel) {
                     val negMajor = majorBalances.filter { it.balance <= 0 }
                     
                     if (posMajor.isNotEmpty()) {
-                        item { Text("Assets", fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
+                        item { Text(stringResource(R.string.label_assets), fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
                         posMajor.forEach { mhb ->
                             item { Text(mhb.name, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(vertical = 4.dp)) }
                             items(minorBalances.filter { it.majorHeadId == mhb.id }) { mihb ->
@@ -990,7 +1254,7 @@ fun AssetsLiabilitiesView(viewModel: ExpenseViewModel) {
                         }
                     }
                     if (negMajor.isNotEmpty()) {
-                        item { Text("Liabilities", fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
+                        item { Text(stringResource(R.string.label_liabilities), fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
                         negMajor.forEach { mhb ->
                             item { Text(mhb.name, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(vertical = 4.dp)) }
                             items(minorBalances.filter { it.majorHeadId == mhb.id }) { mihb ->
@@ -1004,7 +1268,7 @@ fun AssetsLiabilitiesView(viewModel: ExpenseViewModel) {
                     val negMajor = majorBalances.filter { it.balance <= 0 }
 
                     if (posMajor.isNotEmpty()) {
-                        item { Text("Assets", fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
+                        item { Text(stringResource(R.string.label_assets), fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
                         posMajor.forEach { mhb ->
                             item { Text(mhb.name, style = MaterialTheme.typography.titleSmall) }
                             minorBalances.filter { it.majorHeadId == mhb.id }.forEach { mihb ->
@@ -1019,7 +1283,7 @@ fun AssetsLiabilitiesView(viewModel: ExpenseViewModel) {
                         }
                     }
                     if (negMajor.isNotEmpty()) {
-                        item { Text("Liabilities", fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
+                        item { Text(stringResource(R.string.label_liabilities), fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
                         negMajor.forEach { mhb ->
                             item { Text(mhb.name, style = MaterialTheme.typography.titleSmall) }
                             minorBalances.filter { it.majorHeadId == mhb.id }.forEach { mihb ->
@@ -1038,11 +1302,11 @@ fun AssetsLiabilitiesView(viewModel: ExpenseViewModel) {
                     val pos = minorBalances.filter { it.balance > 0 }
                     val neg = minorBalances.filter { it.balance <= 0 }
                     if (pos.isNotEmpty()) {
-                        item { Text("Assets", fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
+                        item { Text(stringResource(R.string.label_assets), fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
                         items(pos) { hb -> BalanceRow(hb.name, hb.balance, null, viewModel) { drillMinorId = hb.id } }
                     }
                     if (neg.isNotEmpty()) {
-                        item { Text("Liabilities", fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
+                        item { Text(stringResource(R.string.label_liabilities), fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
                         items(neg) { hb -> BalanceRow(hb.name, hb.balance, null, viewModel) { drillMinorId = hb.id } }
                     }
                 }
@@ -1050,11 +1314,11 @@ fun AssetsLiabilitiesView(viewModel: ExpenseViewModel) {
                     val pos = microBalances.filter { it.balance > 0 }
                     val neg = microBalances.filter { it.balance <= 0 }
                     if (pos.isNotEmpty()) {
-                        item { Text("Assets", fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
+                        item { Text(stringResource(R.string.label_assets), fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
                         items(pos) { hb -> BalanceRow(hb.name, hb.balance, hb.icon, viewModel) { drillMicroId = hb.id } }
                     }
                     if (neg.isNotEmpty()) {
-                        item { Text("Liabilities", fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
+                        item { Text(stringResource(R.string.label_liabilities), fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
                         items(neg) { hb -> BalanceRow(hb.name, hb.balance, hb.icon, viewModel) { drillMicroId = hb.id } }
                     }
                 }
@@ -1068,7 +1332,7 @@ fun AssetsLiabilitiesView(viewModel: ExpenseViewModel) {
                     shape = MaterialTheme.shapes.medium
                 ) {
                     Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Net Position", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.label_net_position), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         Text(viewModel.formatAmount(netPosition), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     }
                 }
@@ -1140,12 +1404,15 @@ fun DrillDownView(
         }
     }
 
+    val transferLabel = stringResource(R.string.label_transfer)
+    val exportLabel = stringResource(R.string.label_export)
+
     val balancesLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
         uri?.let {
             val csv = StringBuilder("Item,Balance\n")
             filteredItems.forEach { csv.append("${it.first},${it.second}\n") }
             context.contentResolver.openOutputStream(it)?.use { out -> out.write(csv.toString().toByteArray()) }
-            Toast.makeText(context, "Exported", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "$exportLabel ed", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -1160,10 +1427,10 @@ fun DrillDownView(
                 (selectedAccountIds.isEmpty() || t.transaction.accountId in selectedAccountIds || t.transaction.toAccountId in selectedAccountIds)
             }
             txns.forEach { t ->
-                csv.append("${t.transaction.date},${t.transaction.time},${t.accountName},${t.categoryName ?: "Transfer"},${t.transaction.amount},\"${t.transaction.note ?: ""}\"\n")
+                csv.append("${t.transaction.date},${t.transaction.time},${t.accountName},${t.categoryName ?: transferLabel},${t.transaction.amount},\"${t.transaction.note ?: ""}\"\n")
             }
             context.contentResolver.openOutputStream(it)?.use { out -> out.write(csv.toString().toByteArray()) }
-            Toast.makeText(context, "Exported", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "$exportLabel ed", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -1198,22 +1465,22 @@ fun DrillDownView(
     if (showExportDialog) {
         AlertDialog(
             onDismissRequest = { showExportDialog = false },
-            title = { Text("Export Data") },
-            text = { Text("What would you like to export?") },
+            title = { Text(stringResource(R.string.title_export_data)) },
+            text = { Text(stringResource(R.string.msg_export_ask)) },
             confirmButton = {
-                TextButton(onClick = { showExportDialog = false; balancesLauncher.launch("balances_${title}_$asOfDate.csv") }) { Text("Balances") }
+                TextButton(onClick = { showExportDialog = false; balancesLauncher.launch("balances_${title}_$asOfDate.csv") }) { Text(stringResource(R.string.btn_balances)) }
             },
             dismissButton = {
-                TextButton(onClick = { showExportDialog = false; txnsLauncher.launch("transactions_${title}_$asOfDate.csv") }) { Text("Transactions") }
+                TextButton(onClick = { showExportDialog = false; txnsLauncher.launch("transactions_${title}_$asOfDate.csv") }) { Text(stringResource(R.string.btn_transactions)) }
             }
         )
     }
 
     if (showTagFilter) {
-        MultiSelectFilterDialog(title = "Filter by Tags", items = allTags.map { it.id to it.name }, selectedIds = selectedTagIds, onDismiss = { showTagFilter = false })
+        MultiSelectFilterDialog(title = stringResource(R.string.title_filter_by_tags), items = allTags.map { it.id to it.name }, selectedIds = selectedTagIds, onDismiss = { showTagFilter = false })
     }
     if (showAccountFilter) {
-        MultiSelectFilterDialog(title = "Filter by Accounts", items = allAccounts.map { it.id to it.name }, selectedIds = selectedAccountIds, onDismiss = { showAccountFilter = false })
+        MultiSelectFilterDialog(title = stringResource(R.string.title_filter_by_accounts), items = allAccounts.map { it.id to it.name }, selectedIds = selectedAccountIds, onDismiss = { showAccountFilter = false })
     }
 }
 
@@ -1288,7 +1555,7 @@ fun OnAccountPartyBalancesView(viewModel: ExpenseViewModel, asOfDate: String, on
                 val csv = StringBuilder("Party Name,Balance\n")
                 displayParties.forEach { csv.append("${it.name},${it.balance}\n") }
                 context.contentResolver.openOutputStream(it)?.use { out -> out.write(csv.toString().toByteArray()) }
-                Toast.makeText(context, "Balances Exported", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.msg_export_success), Toast.LENGTH_SHORT).show()
             }
         }
     )
@@ -1307,7 +1574,7 @@ fun OnAccountPartyBalancesView(viewModel: ExpenseViewModel, asOfDate: String, on
                     csv.append("${t.transaction.date},${t.transaction.time},${t.partyName ?: ""},${t.categoryName ?: ""},${t.transaction.amount},\"${t.transaction.note ?: ""}\"\n")
                 }
                 context.contentResolver.openOutputStream(it)?.use { out -> out.write(csv.toString().toByteArray()) }
-                Toast.makeText(context, "Transactions Exported", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.msg_export_success), Toast.LENGTH_SHORT).show()
             }
         }
     )
@@ -1326,18 +1593,23 @@ fun OnAccountPartyBalancesView(viewModel: ExpenseViewModel, asOfDate: String, on
         Column(modifier = Modifier.fillMaxSize()) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(8.dp)) {
                 IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "") }
-                Text("On Account - Parties", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-                IconButton(onClick = { showExportDialog = true }) { Icon(Icons.Default.FileDownload, "Export") }
+                Text(stringResource(R.string.title_parties_on_account), style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                IconButton(onClick = { showExportDialog = true }) { Icon(Icons.Default.FileDownload, stringResource(R.string.label_export)) }
             }
             Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 listOf("Both", "Receivable", "Payable").forEach { t ->
-                    FilterChip(selected = filterType == t, onClick = { filterType = t }, label = { Text(t, style = MaterialTheme.typography.labelSmall) })
+                    val label = when(t) {
+                        "Receivable" -> stringResource(R.string.label_receivable)
+                        "Payable" -> stringResource(R.string.label_payable)
+                        else -> stringResource(R.string.label_both)
+                    }
+                    FilterChip(selected = filterType == t, onClick = { filterType = t }, label = { Text(label, style = MaterialTheme.typography.labelSmall) })
                 }
             }
             Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
-                FilterChip(selected = selectedTagIds.isNotEmpty(), onClick = { showTagFilter = true }, label = { Text("Tags (${selectedTagIds.size})") }, trailingIcon = { Icon(Icons.Default.ArrowDropDown, null) })
+                FilterChip(selected = selectedTagIds.isNotEmpty(), onClick = { showTagFilter = true }, label = { Text(stringResource(R.string.label_tags_with_count, selectedTagIds.size)) }, trailingIcon = { Icon(Icons.Default.ArrowDropDown, null) })
                 Spacer(Modifier.width(8.dp))
-                FilterChip(selected = selectedCategoryIds.isNotEmpty(), onClick = { showCategoryFilter = true }, label = { Text("Categories (${selectedCategoryIds.size})") }, trailingIcon = { Icon(Icons.Default.ArrowDropDown, null) })
+                FilterChip(selected = selectedCategoryIds.isNotEmpty(), onClick = { showCategoryFilter = true }, label = { Text(stringResource(R.string.label_categories_with_count, selectedCategoryIds.size)) }, trailingIcon = { Icon(Icons.Default.ArrowDropDown, null) })
             }
             LazyColumn(modifier = Modifier.weight(1f).padding(horizontal = 16.dp)) {
                 items(displayParties) { p ->
@@ -1351,12 +1623,12 @@ fun OnAccountPartyBalancesView(viewModel: ExpenseViewModel, asOfDate: String, on
     }
 
     if (showTagFilter) {
-        AlertDialog(onDismissRequest = { showTagFilter = false }, title = { Text("Filter by Tags") }, text = {
+        AlertDialog(onDismissRequest = { showTagFilter = false }, title = { Text(stringResource(R.string.title_filter_by_tags)) }, text = {
             Box(Modifier.height(300.dp)) {
                 LazyColumn {
                     item {
                         Row(modifier = Modifier.fillMaxWidth().clickable { selectedTagIds.clear() }.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            RadioButton(selected = selectedTagIds.isEmpty(), onClick = null); Text("All", modifier = Modifier.padding(start = 8.dp))
+                            RadioButton(selected = selectedTagIds.isEmpty(), onClick = null); Text(stringResource(R.string.label_all), modifier = Modifier.padding(start = 8.dp))
                         }
                         Divider()
                     }
@@ -1367,16 +1639,16 @@ fun OnAccountPartyBalancesView(viewModel: ExpenseViewModel, asOfDate: String, on
                     }
                 }
             }
-        }, confirmButton = { TextButton(onClick = { showTagFilter = false }) { Text("Done") } })
+        }, confirmButton = { TextButton(onClick = { showTagFilter = false }) { Text(stringResource(R.string.btn_done)) } })
     }
 
     if (showCategoryFilter) {
-        AlertDialog(onDismissRequest = { showCategoryFilter = false }, title = { Text("Filter by Categories") }, text = {
+        AlertDialog(onDismissRequest = { showCategoryFilter = false }, title = { Text(stringResource(R.string.title_filter_categories)) }, text = {
             Box(Modifier.height(300.dp)) {
                 LazyColumn {
                     item {
                         Row(modifier = Modifier.fillMaxWidth().clickable { selectedCategoryIds.clear() }.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            RadioButton(selected = selectedCategoryIds.isEmpty(), onClick = null); Text("All", modifier = Modifier.padding(start = 8.dp))
+                            RadioButton(selected = selectedCategoryIds.isEmpty(), onClick = null); Text(stringResource(R.string.label_all), modifier = Modifier.padding(start = 8.dp))
                         }
                         Divider()
                     }
@@ -1387,18 +1659,18 @@ fun OnAccountPartyBalancesView(viewModel: ExpenseViewModel, asOfDate: String, on
                     }
                 }
             }
-        }, confirmButton = { TextButton(onClick = { showCategoryFilter = false }) { Text("Done") } })
+        }, confirmButton = { TextButton(onClick = { showCategoryFilter = false }) { Text(stringResource(R.string.btn_done)) } })
     }
 
     if (showExportDialog) {
-        AlertDialog(onDismissRequest = { showExportDialog = false }, title = { Text("Export On Account Data") }, text = { Text("Choose export type:") },
+        AlertDialog(onDismissRequest = { showExportDialog = false }, title = { Text(stringResource(R.string.title_export_on_account)) }, text = { Text(stringResource(R.string.msg_export_on_account_ask)) },
             confirmButton = {
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    Button(onClick = { showExportDialog = false; balancesLauncher.launch("party_balances_${LocalDate.now()}.csv") }, modifier = Modifier.fillMaxWidth()) { Text("Export Party Balances") }
+                    Button(onClick = { showExportDialog = false; balancesLauncher.launch("party_balances_${LocalDate.now()}.csv") }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.btn_export_party_balances)) }
                     Spacer(Modifier.height(8.dp))
-                    Button(onClick = { showExportDialog = false; txnsLauncher.launch("party_transactions_${LocalDate.now()}.csv") }, modifier = Modifier.fillMaxWidth()) { Text("Export Transactions Detail") }
+                    Button(onClick = { showExportDialog = false; txnsLauncher.launch("party_transactions_${LocalDate.now()}.csv") }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.btn_export_transactions_detail)) }
                 }
-            }, dismissButton = { TextButton(onClick = { showExportDialog = false }) { Text("Cancel") } }
+            }, dismissButton = { TextButton(onClick = { showExportDialog = false }) { Text(stringResource(R.string.btn_cancel)) } }
         )
     }
 }
@@ -1529,10 +1801,10 @@ fun AccountDetailView(viewModel: ExpenseViewModel, account: AccountBalance, onBa
         ) {
             Column(modifier = Modifier.padding(12.dp)) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Opening", style = MaterialTheme.typography.labelSmall)
-                    Text("Additions (+)", style = MaterialTheme.typography.labelSmall)
-                    Text("Deletions (-)", style = MaterialTheme.typography.labelSmall)
-                    Text("Closing", style = MaterialTheme.typography.labelSmall)
+                    Text(stringResource(R.string.label_opening), style = MaterialTheme.typography.labelSmall)
+                    Text(stringResource(R.string.label_additions_plus), style = MaterialTheme.typography.labelSmall)
+                    Text(stringResource(R.string.label_deletions_minus), style = MaterialTheme.typography.labelSmall)
+                    Text(stringResource(R.string.label_closing), style = MaterialTheme.typography.labelSmall)
                 }
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(viewModel.formatAmount(openingBalance), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
@@ -1560,8 +1832,8 @@ fun AccountDetailView(viewModel: ExpenseViewModel, account: AccountBalance, onBa
         }
     }
     if (showFilterDialog) { DateRangeFilterDialog(onDismiss = { showFilterDialog = false }, onApply = { s, e -> startDate = s; endDate = e; showFilterDialog = false }) }
-    if (showTagFilter) { MultiSelectFilterDialog("Filter by Tags", allTags.map { it.id to it.name }, filterTagIds, onDismiss = { showTagFilter = false }) }
-    if (showAccountFilter) { MultiSelectFilterDialog("Filter by Accounts", allAccounts.map { it.id to it.name }, filterAccountIds, onDismiss = { showAccountFilter = false }) }
+    if (showTagFilter) { MultiSelectFilterDialog(stringResource(R.string.title_filter_by_tags), allTags.map { it.id to it.name }, filterTagIds, onDismiss = { showTagFilter = false }) }
+    if (showAccountFilter) { MultiSelectFilterDialog(stringResource(R.string.title_filter_by_accounts), allAccounts.map { it.id to it.name }, filterAccountIds, onDismiss = { showAccountFilter = false }) }
 }
 
 @Composable
@@ -1571,19 +1843,22 @@ fun ExportView(viewModel: ExpenseViewModel) {
     val context = LocalContext.current
     val exportLauncher = rememberLauncherForActivityResult(contract = ActivityResultContracts.CreateDocument(if (format == "CSV") "text/csv" else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"), onResult = { uri -> uri?.let { exportToUri(context, transactions, format, it) } })
     Column(modifier = Modifier.fillMaxSize().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("Export Data", style = MaterialTheme.typography.titleLarge); Spacer(Modifier.height(16.dp))
+        Text(stringResource(R.string.title_export_data), style = MaterialTheme.typography.titleLarge); Spacer(Modifier.height(16.dp))
         Row {
             RadioButton(selected = format == "CSV", onClick = { format = "CSV" }); Text("CSV", modifier = Modifier.align(Alignment.CenterVertically)); Spacer(Modifier.width(16.dp))
-            RadioButton(selected = format == "Excel", onClick = { format = "Excel" }); Text("Excel (XLSX)", modifier = Modifier.align(Alignment.CenterVertically))
+            RadioButton(selected = format == "Excel", onClick = { format = "Excel" }); Text(stringResource(R.string.label_excel_xlsx), modifier = Modifier.align(Alignment.CenterVertically))
         }
         Spacer(Modifier.height(32.dp))
         Button(onClick = { exportLauncher.launch("fintrack_export_${System.currentTimeMillis()}.${if (format == "CSV") "csv" else "xlsx"}") }, modifier = Modifier.fillMaxWidth()) {
-            Icon(Icons.Default.Share, null); Spacer(Modifier.width(8.dp)); Text("Select Destination and Export")
+            Icon(Icons.Default.Share, null); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.btn_select_dest_export))
         }
     }
 }
 
 fun exportToUri(context: Context, data: List<TransactionWithDetails>, format: String, uri: Uri) {
+    val successMsg = context.getString(R.string.msg_export_success)
+    val failedMsgPrefix = context.getString(R.string.msg_export_failed_colon)
+
     try {
         context.contentResolver.openOutputStream(uri)?.use { outputStream ->
             outputStream.bufferedWriter().use { out ->
@@ -1602,13 +1877,17 @@ fun exportToUri(context: Context, data: List<TransactionWithDetails>, format: St
                 }
             }
         }
-        Toast.makeText(context, "Export Successful!", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, successMsg, Toast.LENGTH_SHORT).show()
     } catch (e: Exception) {
-        Toast.makeText(context, "Export Failed: ${e.message}", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, failedMsgPrefix.format(e.message), Toast.LENGTH_SHORT).show()
     }
 }
 
 fun exportScheduleToUri(context: Context, data: List<AmortizationRow>, uri: Uri) {
+    // Need to resolve strings via context if not in Composable
+    val successMsg = context.getString(R.string.msg_export_success)
+    val failedMsgPrefix = context.getString(R.string.msg_export_failed_colon)
+
     try {
         context.contentResolver.openOutputStream(uri)?.use { outputStream ->
             outputStream.bufferedWriter(Charsets.UTF_8).use { out ->
@@ -1618,9 +1897,9 @@ fun exportScheduleToUri(context: Context, data: List<AmortizationRow>, uri: Uri)
                 }
             }
         }
-        Toast.makeText(context, "Export Successful!", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, successMsg, Toast.LENGTH_SHORT).show()
     } catch (e: Exception) {
-        Toast.makeText(context, "Export Failed: ${e.message}", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, failedMsgPrefix.format(e.message), Toast.LENGTH_SHORT).show()
     }
 }
 
@@ -1711,26 +1990,26 @@ fun DateRangeFilterDialog(onDismiss: () -> Unit, onApply: (String, String) -> Un
     val context = LocalContext.current
     var start by remember { mutableStateOf(LocalDate.now().minusDays(7)) }
     var end by remember { mutableStateOf(LocalDate.now()) }
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("Filter by Date") }, text = {
+    AlertDialog(onDismissRequest = onDismiss, title = { Text(stringResource(R.string.title_filter_by_date)) }, text = {
         Column {
-            Row(modifier = Modifier.fillMaxWidth().clickable { DatePickerDialog(context, { _, y, m, d -> start = LocalDate.of(y, m+1, d) }, start.year, start.monthValue - 1, start.dayOfMonth).show() }.padding(8.dp)) { Text("From: ${start.format(DateTimeFormatter.ISO_DATE)}") }
-            Row(modifier = Modifier.fillMaxWidth().clickable { DatePickerDialog(context, { _, y, m, d -> end = LocalDate.of(y, m+1, d) }, end.year, end.monthValue - 1, end.dayOfMonth).show() }.padding(8.dp)) { Text("To: ${end.format(DateTimeFormatter.ISO_DATE)}") }
-            Spacer(Modifier.height(8.dp)); Text("Shortcuts:", style = MaterialTheme.typography.labelSmall)
+            Row(modifier = Modifier.fillMaxWidth().clickable { DatePickerDialog(context, { _, y, m, d -> start = LocalDate.of(y, m+1, d) }, start.year, start.monthValue - 1, start.dayOfMonth).show() }.padding(8.dp)) { Text(stringResource(R.string.label_from_colon, start.format(DateTimeFormatter.ISO_DATE))) }
+            Row(modifier = Modifier.fillMaxWidth().clickable { DatePickerDialog(context, { _, y, m, d -> end = LocalDate.of(y, m+1, d) }, end.year, end.monthValue - 1, end.dayOfMonth).show() }.padding(8.dp)) { Text(stringResource(R.string.label_to_colon, end.format(DateTimeFormatter.ISO_DATE))) }
+            Spacer(Modifier.height(8.dp)); Text(stringResource(R.string.label_shortcuts), style = MaterialTheme.typography.labelSmall)
             val shortcuts = listOf(
-                "Today" to { start = LocalDate.now(); end = LocalDate.now() }, 
-                "Yesterday" to { start = LocalDate.now().minusDays(1); end = LocalDate.now().minusDays(1) }, 
-                "Last 7 Days" to { start = LocalDate.now().minusDays(7); end = LocalDate.now() }, 
-                "Last 2 Weeks" to { start = LocalDate.now().minusWeeks(2); end = LocalDate.now() }, 
-                "This Month" to { start = LocalDate.now().withDayOfMonth(1); end = LocalDate.now().with(TemporalAdjusters.lastDayOfMonth()) }, 
-                "Last Month" to { start = LocalDate.now().minusMonths(1).withDayOfMonth(1); end = LocalDate.now().minusMonths(1).with(TemporalAdjusters.lastDayOfMonth()) }, 
-                "Last 2 Months" to { start = LocalDate.now().minusMonths(2); end = LocalDate.now() }, 
-                "Last 6 Months" to { start = LocalDate.now().minusMonths(6); end = LocalDate.now() }, 
-                "This Year" to { start = LocalDate.now().with(TemporalAdjusters.firstDayOfYear()); end = LocalDate.now() },
-                "Last Year" to { start = LocalDate.now().minusYears(1).with(TemporalAdjusters.firstDayOfYear()); end = LocalDate.now().minusYears(1).with(TemporalAdjusters.lastDayOfYear()) }
+                stringResource(R.string.label_today) to { start = LocalDate.now(); end = LocalDate.now() }, 
+                stringResource(R.string.label_yesterday) to { start = LocalDate.now().minusDays(1); end = LocalDate.now().minusDays(1) }, 
+                stringResource(R.string.label_last_7_days) to { start = LocalDate.now().minusDays(7); end = LocalDate.now() }, 
+                stringResource(R.string.label_last_2_weeks) to { start = LocalDate.now().minusWeeks(2); end = LocalDate.now() }, 
+                stringResource(R.string.label_this_month) to { start = LocalDate.now().withDayOfMonth(1); end = LocalDate.now().with(TemporalAdjusters.lastDayOfMonth()) }, 
+                stringResource(R.string.label_last_month) to { start = LocalDate.now().minusMonths(1).withDayOfMonth(1); end = LocalDate.now().minusMonths(1).with(TemporalAdjusters.lastDayOfMonth()) }, 
+                stringResource(R.string.label_last_2_months) to { start = LocalDate.now().minusMonths(2); end = LocalDate.now() }, 
+                stringResource(R.string.label_last_6_months) to { start = LocalDate.now().minusMonths(6); end = LocalDate.now() }, 
+                stringResource(R.string.label_this_year) to { start = LocalDate.now().with(TemporalAdjusters.firstDayOfYear()); end = LocalDate.now() },
+                stringResource(R.string.label_last_year) to { start = LocalDate.now().minusYears(1).with(TemporalAdjusters.firstDayOfYear()); end = LocalDate.now().minusYears(1).with(TemporalAdjusters.lastDayOfYear()) }
             )
             androidx.compose.foundation.layout.FlowRow(modifier = Modifier.fillMaxWidth()) { shortcuts.forEach { (label, action) -> AssistChip(onClick = action, label = { Text(label) }, modifier = Modifier.padding(2.dp)) } }
         }
-    }, confirmButton = { Button(onClick = { onApply(start.format(DateTimeFormatter.ISO_DATE), end.format(DateTimeFormatter.ISO_DATE)) }) { Text("Apply") } }, dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
+    }, confirmButton = { Button(onClick = { onApply(start.format(DateTimeFormatter.ISO_DATE), end.format(DateTimeFormatter.ISO_DATE)) }) { Text(stringResource(R.string.btn_apply)) } }, dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.btn_cancel)) } })
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -1800,7 +2079,15 @@ fun TransactionCalendarView(month: LocalDate, transactions: List<TransactionWith
 
     Column(modifier = Modifier.fillMaxSize().padding(8.dp)) {
         Row(modifier = Modifier.fillMaxWidth()) {
-            listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat").forEach { day ->
+            listOf(
+                stringResource(R.string.label_sun),
+                stringResource(R.string.label_mon),
+                stringResource(R.string.label_tue),
+                stringResource(R.string.label_wed),
+                stringResource(R.string.label_thu),
+                stringResource(R.string.label_fri),
+                stringResource(R.string.label_sat)
+            ).forEach { day ->
                 Text(
                     text = day,
                     modifier = Modifier.weight(1f),

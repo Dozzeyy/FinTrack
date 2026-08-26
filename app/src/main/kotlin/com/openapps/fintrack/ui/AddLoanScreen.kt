@@ -24,6 +24,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.openapps.fintrack.R
 import com.openapps.fintrack.data.Loan
 import com.openapps.fintrack.data.LoanCalculator
 import com.openapps.fintrack.data.Party
@@ -170,8 +172,8 @@ fun AddLoanScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: (
         modifier = Modifier.imePadding(),
         topBar = {
             TopAppBar(
-                title = { Text(if (isNewMode) "New Loan" else "Add Existing Loan") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) } }
+                title = { Text(if (isNewMode) stringResource(R.string.title_new_loan) else stringResource(R.string.title_add_existing_loan)) },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.btn_back)) } }
             )
         }
     ) { padding ->
@@ -185,18 +187,18 @@ fun AddLoanScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: (
         ) {
             // Loan Type Toggle
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Text("Type:", modifier = Modifier.weight(1f))
+                Text(stringResource(R.string.label_type_colon), modifier = Modifier.weight(1f))
                 FilterChip(
                     selected = loanType == "BORROWING",
                     onClick = { loanType = "BORROWING" },
-                    label = { Text("Borrowing") },
+                    label = { Text(stringResource(R.string.label_borrowing)) },
                     colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Color.Red.copy(alpha = 0.2f))
                 )
                 Spacer(Modifier.width(8.dp))
                 FilterChip(
                     selected = loanType == "LENDING",
                     onClick = { loanType = "LENDING" },
-                    label = { Text("Lending") },
+                    label = { Text(stringResource(R.string.label_lending)) },
                     colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Color.Green.copy(alpha = 0.2f))
                 )
             }
@@ -204,14 +206,14 @@ fun AddLoanScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: (
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
-                label = { Text("Loan Reference Name (Account Name)") },
+                label = { Text(stringResource(R.string.label_loan_ref_name)) },
                 modifier = Modifier.fillMaxWidth()
             )
 
             OutlinedTextField(
                 value = principalInput,
                 onValueChange = { principalInput = it },
-                label = { Text("Loan Amount Issued (Original Principal)") },
+                label = { Text(stringResource(R.string.label_loan_amt_issued)) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 modifier = Modifier.fillMaxWidth()
             )
@@ -219,7 +221,7 @@ fun AddLoanScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: (
             OutlinedTextField(
                 value = totalTenure,
                 onValueChange = { totalTenure = it },
-                label = { Text("Total Tenure (Number of Payments)") },
+                label = { Text(stringResource(R.string.label_total_tenure)) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.fillMaxWidth()
             )
@@ -229,7 +231,7 @@ fun AddLoanScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: (
                 OutlinedTextField(
                     value = frequency.replace("_", " "),
                     onValueChange = {},
-                    label = { Text("Repayment Frequency") },
+                    label = { Text(stringResource(R.string.label_repayment_freq)) },
                     readOnly = true,
                     modifier = Modifier.fillMaxWidth(),
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = freqExpanded) }
@@ -253,7 +255,7 @@ fun AddLoanScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: (
                     modifier = Modifier.weight(1f)
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Issue Date", style = MaterialTheme.typography.labelSmall)
+                        Text(stringResource(R.string.label_issue_date), style = MaterialTheme.typography.labelSmall)
                         Text(loanIssueDate.format(DateTimeFormatter.ofPattern("dd MMM yyyy")))
                     }
                 }
@@ -268,7 +270,7 @@ fun AddLoanScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: (
                     modifier = Modifier.weight(1f)
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("1st Repayment", style = MaterialTheme.typography.labelSmall)
+                        Text(stringResource(R.string.label_1st_repayment), style = MaterialTheme.typography.labelSmall)
                         Text(firstRepaymentDate.format(DateTimeFormatter.ofPattern("dd MMM yyyy")))
                     }
                 }
@@ -276,18 +278,18 @@ fun AddLoanScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: (
 
             // Gap Interest Methodology
             Column(modifier = Modifier.fillMaxWidth()) {
-                Text("Gap Interest Methodology:", style = MaterialTheme.typography.labelMedium)
+                Text(stringResource(R.string.label_gap_interest_method), style = MaterialTheme.typography.labelMedium)
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(
                         selected = gapMethod == "DAYS",
                         onClick = { gapMethod = "DAYS" },
-                        label = { Text("Actual/365 Days") },
+                        label = { Text(stringResource(R.string.label_actual_365_days)) },
                         modifier = Modifier.weight(1f)
                     )
                     FilterChip(
                         selected = gapMethod == "MONTH_ODD",
                         onClick = { gapMethod = "MONTH_ODD" },
-                        label = { Text("Months + Odd Days") },
+                        label = { Text(stringResource(R.string.label_months_odd_days)) },
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -300,12 +302,12 @@ fun AddLoanScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: (
                 ) {
                     Column(modifier = Modifier.padding(8.dp)) {
                         Text(
-                            text = "Estimated Gap Interest: ${viewModel.formatAmount(gapInterest)}",
+                            text = stringResource(R.string.label_est_gap_interest, viewModel.formatAmount(gapInterest)),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.secondary
                         )
                         Text(
-                            text = "Note: This will be covered by the first EMI payment. Total cash outflow remains constant.",
+                            text = stringResource(R.string.msg_gap_interest_note),
                             style = MaterialTheme.typography.labelSmall,
                             color = Color.Gray
                         )
@@ -316,7 +318,7 @@ fun AddLoanScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: (
             OutlinedTextField(
                 value = annualRateInput,
                 onValueChange = { annualRateInput = it },
-                label = { Text("Annual Interest Rate (%)") },
+                label = { Text(stringResource(R.string.label_annual_rate_pct)) },
                 trailingIcon = {
                     IconButton(onClick = {
                         val p = principalInput.toDoubleOrNull() ?: 0.0
@@ -326,10 +328,10 @@ fun AddLoanScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: (
                             installment = String.format(Locale.US, "%.2f", computed)
                             isInstallmentManuallyEdited = false
                         } else {
-                            Toast.makeText(context, "Enter Principal, Tenure and Rate", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, context.getString(R.string.msg_enter_p_n_r), Toast.LENGTH_SHORT).show()
                         }
                     }) {
-                        Icon(Icons.Default.Calculate, "Compute EMI")
+                        Icon(Icons.Default.Calculate, stringResource(R.string.btn_compute_emi))
                     }
                 },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -342,8 +344,8 @@ fun AddLoanScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: (
                     installment = it
                     isInstallmentManuallyEdited = true
                 },
-                label = { Text("Periodic EMI") },
-                placeholder = { Text("Auto-computed / Editable") },
+                label = { Text(stringResource(R.string.label_periodic_emi)) },
+                placeholder = { Text(stringResource(R.string.label_emi_placeholder)) },
                 trailingIcon = { 
                     Row {
                         IconButton(onClick = {
@@ -356,14 +358,14 @@ fun AddLoanScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: (
                                 )
                                 annualRateInput = String.format(Locale.US, "%.2f", pRate * multiplier)
                             } else {
-                                Toast.makeText(context, "Enter Principal, Tenure and EMI", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, context.getString(R.string.msg_enter_p_n_emi), Toast.LENGTH_SHORT).show()
                             }
                         }) {
-                            Icon(Icons.Default.Percent, "Compute Rate")
+                            Icon(Icons.Default.Percent, stringResource(R.string.btn_compute_rate))
                         }
                         if (isInstallmentManuallyEdited) {
                             IconButton(onClick = { isInstallmentManuallyEdited = false }) {
-                                Icon(Icons.Default.Refresh, "Recalculate")
+                                Icon(Icons.Default.Refresh, stringResource(R.string.btn_recalculate))
                             }
                         }
                     }
@@ -377,14 +379,14 @@ fun AddLoanScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: (
                     checked = isActualEmiDifferent,
                     onCheckedChange = { isActualEmiDifferent = it }
                 )
-                Text("Actual EMI is different", style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.label_actual_emi_diff), style = MaterialTheme.typography.bodyMedium)
             }
 
             if (isActualEmiDifferent) {
                 OutlinedTextField(
                     value = actualRepaymentAmount,
                     onValueChange = { actualRepaymentAmount = it },
-                    label = { Text("Actual Repayment Amount") },
+                    label = { Text(stringResource(R.string.label_actual_repayment_amt)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -397,14 +399,14 @@ fun AddLoanScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: (
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f))
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text("Current Outstanding Balance", style = MaterialTheme.typography.labelMedium)
+                        Text(stringResource(R.string.label_curr_outstanding_bal), style = MaterialTheme.typography.labelMedium)
                         Text(
                             text = viewModel.formatAmount(currentOutstanding),
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
                         )
-                        Text("Computed based on schedule up to today", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                        Text(stringResource(R.string.msg_computed_schedule_today), style = MaterialTheme.typography.bodySmall, color = Color.Gray)
                     }
                 }
             }
@@ -440,11 +442,11 @@ fun AddLoanScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: (
                     Column(modifier = Modifier.padding(12.dp)) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Column {
-                                Text("Total Repayment", style = MaterialTheme.typography.labelSmall)
+                                Text(stringResource(R.string.label_total_repayment), style = MaterialTheme.typography.labelSmall)
                                 Text(viewModel.formatAmount(totalRepayment), fontWeight = FontWeight.Bold)
                             }
-                            Column(horizontalAlignment = Alignment.End) {
-                                Text("Total Interest", style = MaterialTheme.typography.labelSmall)
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(stringResource(R.string.label_total_interest), style = MaterialTheme.typography.labelSmall)
                                 Text(viewModel.formatAmount(totalInterestSum), fontWeight = FontWeight.Bold, color = Color.Red)
                             }
                         }
@@ -457,7 +459,7 @@ fun AddLoanScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: (
                             ) {
                                 Icon(Icons.Default.List, null)
                                 Spacer(Modifier.width(8.dp))
-                                Text("See Schedule")
+                                Text(stringResource(R.string.btn_see_schedule))
                             }
                         }
                     }
@@ -468,26 +470,26 @@ fun AddLoanScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: (
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
-                        Text("Loan Balance at end of tenure", style = MaterialTheme.typography.labelMedium)
+                        Text(stringResource(R.string.label_loan_bal_end_tenure), style = MaterialTheme.typography.labelMedium)
                         Text(
                             text = viewModel.formatAmountWhole(terminalBalance),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = if (Math.abs(terminalBalance) < 1.0) Color(0xFF4CAF50) else Color.Red
                         )
-                        Text("Tip: This should be approximately zero if periodic EMI is correct.", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                        Text(stringResource(R.string.msg_loan_bal_zero_tip), style = MaterialTheme.typography.labelSmall, color = Color.Gray)
                     }
                 }
             }
 
             // Mapping Section
             HorizontalDivider()
-            Text("Account & Mapping", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.title_acc_mapping), style = MaterialTheme.typography.titleMedium)
             
             var minorExpanded by remember { mutableStateOf(false) }
             Box(Modifier.fillMaxWidth()) {
                 OutlinedTextField(
-                    value = loanMinorHeads.find { it.id == selectedMinorHeadId }?.name ?: "Select Loan Category (Minor Head)",
+                    value = loanMinorHeads.find { it.id == selectedMinorHeadId }?.name ?: stringResource(R.string.label_select_loan_cat),
                     onValueChange = {},
                     readOnly = true,
                     modifier = Modifier.fillMaxWidth(),
@@ -508,7 +510,7 @@ fun AddLoanScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: (
             }
 
             AccountSelectionDialog(
-                label = if (loanType == "BORROWING") "Received In (Account)" else "Paid From (Account)",
+                label = if (loanType == "BORROWING") stringResource(R.string.label_received_in_acc) else stringResource(R.string.label_paid_from_acc),
                 accounts = disbursementAccounts,
                 balances = emptyList(),
                 majorHeads = emptyList(),
@@ -532,7 +534,7 @@ fun AddLoanScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: (
                                 if (!it) isUpdateBankBalanceChecked = false
                             }
                         )
-                        Text("Create loan account", style = MaterialTheme.typography.bodyMedium)
+                        Text(stringResource(R.string.label_create_loan_acc), style = MaterialTheme.typography.bodyMedium)
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(
@@ -540,10 +542,10 @@ fun AddLoanScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: (
                             onCheckedChange = { isUpdateBankBalanceChecked = it },
                             enabled = isCreateAccountChecked
                         )
-                        Text("Update bank balance", style = MaterialTheme.typography.bodyMedium)
+                        Text(stringResource(R.string.label_update_bank_bal), style = MaterialTheme.typography.bodyMedium)
                     }
                     Text(
-                        "Note: If unchecked, this loan is for tracking only and no transactions will be recorded.",
+                        stringResource(R.string.msg_loan_tracking_only_note),
                         style = MaterialTheme.typography.labelSmall,
                         color = Color.Gray,
                         modifier = Modifier.padding(start = 32.dp)
@@ -561,14 +563,14 @@ fun AddLoanScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: (
             Button(
                 onClick = {
                     if (name.isBlank() || selectedMinorHeadId == null) {
-                        Toast.makeText(context, "Please fill all required fields", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, context.getString(R.string.msg_fill_required), Toast.LENGTH_SHORT).show()
                         return@Button
                     }
 
                     if (isNewMode) {
                         val cutoffDate = LocalDate.now().minusMonths(1)
                         if (firstRepaymentDate.isBefore(cutoffDate)) {
-                            Toast.makeText(context, "1st Repayment date is too far in the past. Please use 'Existing Loan' option.", Toast.LENGTH_LONG).show()
+                            Toast.makeText(context, context.getString(R.string.msg_1st_repay_past), Toast.LENGTH_LONG).show()
                             return@Button
                         }
                     }
@@ -577,14 +579,14 @@ fun AddLoanScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: (
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Save Loan")
+                Text(stringResource(R.string.btn_save_loan))
             }
 
             if (showConfirmDialog) {
                 AlertDialog(
                     onDismissRequest = { showConfirmDialog = false },
-                    title = { Text("Confirm Loan Creation") },
-                    text = { Text("Please review the input parameters once again. No further changes or removal can be done once loan is created. Do you want to proceed?") },
+                    title = { Text(stringResource(R.string.title_confirm_loan_creation)) },
+                    text = { Text(stringResource(R.string.msg_confirm_loan_creation_desc)) },
                     confirmButton = {
                         TextButton(
                             onClick = {
@@ -655,12 +657,12 @@ fun AddLoanScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: (
                                 onBack()
                             }
                         ) {
-                            Text("Confirm")
+                            Text(stringResource(R.string.btn_confirm))
                         }
                     },
                     dismissButton = {
                         TextButton(onClick = { showConfirmDialog = false }) {
-                            Text("Cancel")
+                            Text(stringResource(R.string.btn_cancel))
                         }
                     }
                 )

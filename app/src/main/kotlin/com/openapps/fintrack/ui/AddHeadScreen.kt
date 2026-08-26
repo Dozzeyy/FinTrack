@@ -5,6 +5,8 @@
 
 package com.openapps.fintrack.ui
 
+import androidx.compose.ui.res.stringResource
+import com.openapps.fintrack.R
 import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -24,6 +26,8 @@ import com.openapps.fintrack.data.MinorHead
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddHeadScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
+    val context = LocalContext.current
+    val parentMajorHeadMandatoryMsg = stringResource(R.string.msg_parent_major_head_mandatory)
     val editingMajor = viewModel.editingMajorHead
     val editingMinor = viewModel.editingMinorHead
 
@@ -39,17 +43,15 @@ fun AddHeadScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
             selectedMajorId = editingMinor.majorHeadId
         }
     }
-    
-    val context = LocalContext.current
 
     Scaffold(
         modifier = Modifier.imePadding(),
         topBar = {
             TopAppBar(
-                title = { Text(if (editingMajor != null || editingMinor != null) "Edit Header" else "Add Header") },
+                title = { Text(if (editingMajor != null || editingMinor != null) stringResource(R.string.title_edit_header) else stringResource(R.string.title_add_header)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, "Back")
+                        Icon(Icons.Default.ArrowBack, stringResource(R.string.btn_back))
                     }
                 }
             )
@@ -58,8 +60,8 @@ fun AddHeadScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
         Column(modifier = Modifier.padding(padding).padding(16.dp).fillMaxSize().verticalScroll(rememberScrollState())) {
             if (editingMajor == null && editingMinor == null) {
                 TabRow(selectedTabIndex = selectedTab) {
-                    Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("Major") })
-                    Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text("Minor") })
+                    Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text(stringResource(R.string.label_major)) })
+                    Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text(stringResource(R.string.label_minor)) })
                 }
                 Spacer(Modifier.height(16.dp))
             }
@@ -67,19 +69,19 @@ fun AddHeadScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
-                label = { Text("Name") },
+                label = { Text(stringResource(R.string.label_name)) },
                 modifier = Modifier.fillMaxWidth()
             )
 
             if (selectedTab == 1) {
                 var expanded by remember { mutableStateOf(false) }
-                val majorName = majorHeads.find { it.id == selectedMajorId }?.name ?: "Select Major Head"
+                val majorName = majorHeads.find { it.id == selectedMajorId }?.name ?: stringResource(R.string.label_select_major_head)
 
                 Box(modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp)) {
                     OutlinedTextField(
                         value = majorName,
                         onValueChange = {},
-                        label = { Text("Parent Major Head") },
+                        label = { Text(stringResource(R.string.label_parent_major_head)) },
                         readOnly = true,
                         modifier = Modifier.fillMaxWidth().clickable { expanded = true },
                         enabled = false,
@@ -120,7 +122,7 @@ fun AddHeadScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                         viewModel.saveMajorHead(name, isEnabled)
                     } else {
                         if (selectedMajorId == null) {
-                            Toast.makeText(context, "Parent Major Head is mandatory", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, parentMajorHeadMandatoryMsg, Toast.LENGTH_SHORT).show()
                             return@Button
                         }
                         viewModel.saveMinorHead(name, selectedMajorId!!, isEnabled)
@@ -129,7 +131,7 @@ fun AddHeadScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Save")
+                Text(stringResource(R.string.btn_save))
             }
         }
     }

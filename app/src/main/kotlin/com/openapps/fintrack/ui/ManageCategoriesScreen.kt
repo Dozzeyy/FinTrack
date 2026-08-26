@@ -18,6 +18,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.openapps.fintrack.R
 import com.openapps.fintrack.data.Account
 import com.openapps.fintrack.data.Category
 import com.openapps.fintrack.data.Party
@@ -32,7 +34,10 @@ fun ManageCategoriesScreen(
 ) {
     val categories by viewModel.getAllCategories().collectAsState(initial = emptyList())
     val accounts by viewModel.getAllAccounts().collectAsState(initial = emptyList())
-    val filterTypes = remember { mutableStateListOf("Income", "Expense", "Accounts") }
+    val incomeLabel = stringResource(R.string.label_income)
+    val expenseLabel = stringResource(R.string.label_expense)
+    val accountsLabel = stringResource(R.string.label_accounts)
+    val filterTypes = remember { mutableStateListOf(incomeLabel, expenseLabel, accountsLabel) }
     
     var showDeleteConfirm by remember { mutableStateOf<Any?>(null) }
     var isSearchActive by remember { mutableStateOf(false) }
@@ -41,8 +46,8 @@ fun ManageCategoriesScreen(
     if (showDeleteConfirm != null) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = null },
-            title = { Text("Confirm Deletion") },
-            text = { Text("Are you sure you want to delete this? Warning: All existing records for this account or category will be deleted from the transactions list.") },
+            title = { Text(stringResource(R.string.title_confirm_delete)) },
+            text = { Text(stringResource(R.string.msg_delete_cat_acc_confirm)) },
             confirmButton = {
                 Button(
                     onClick = {
@@ -57,10 +62,10 @@ fun ManageCategoriesScreen(
                         showDeleteConfirm = null
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
-                ) { Text("Delete", color = Color.White) }
+                ) { Text(stringResource(R.string.btn_delete), color = Color.White) }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = null }) { Text("Cancel") }
+                TextButton(onClick = { showDeleteConfirm = null }) { Text(stringResource(R.string.btn_cancel)) }
             }
         )
     }
@@ -73,7 +78,7 @@ fun ManageCategoriesScreen(
                         TextField(
                             value = searchQuery,
                             onValueChange = { searchQuery = it },
-                            placeholder = { Text("Search categories/accounts...") },
+                            placeholder = { Text(stringResource(R.string.label_search_cat_acc_placeholder)) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             colors = TextFieldDefaults.colors(
@@ -84,16 +89,16 @@ fun ManageCategoriesScreen(
                     },
                     navigationIcon = {
                         IconButton(onClick = { isSearchActive = false; searchQuery = "" }) {
-                            Icon(Icons.Default.ArrowBack, "Back")
+                            Icon(Icons.Default.ArrowBack, stringResource(R.string.btn_back))
                         }
                     }
                 )
             } else {
                 TopAppBar(
-                    title = { Text("Categories & Accounts") },
+                    title = { Text(stringResource(R.string.title_categories_accounts)) },
                     navigationIcon = {
                         IconButton(onClick = onBack) {
-                            Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                            Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.btn_back))
                         }
                     }
                 )
@@ -106,7 +111,7 @@ fun ManageCategoriesScreen(
                     containerColor = MaterialTheme.colorScheme.secondaryContainer,
                     modifier = Modifier.padding(bottom = 16.dp)
                 ) {
-                    Icon(Icons.Default.Search, "Search")
+                    Icon(Icons.Default.Search, stringResource(R.string.btn_search))
                 }
                 FloatingActionButton(onClick = {
                     viewModel.editingCategory = null
@@ -114,7 +119,7 @@ fun ManageCategoriesScreen(
                     viewModel.editingParty = null
                     onEditCategory()
                 }) {
-                    Icon(Icons.Default.Add, "Add Category/Account")
+                    Icon(Icons.Default.Add, stringResource(R.string.btn_add_cat_acc))
                 }
             }
         }
@@ -122,7 +127,7 @@ fun ManageCategoriesScreen(
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
             if (!isSearchActive) {
                 Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    listOf("Income", "Expense", "Accounts").forEach { type ->
+                    listOf(incomeLabel, expenseLabel, accountsLabel).forEach { type ->
                         val isSelected = filterTypes.contains(type)
                         FilterChip(
                             selected = isSelected,
@@ -140,11 +145,11 @@ fun ManageCategoriesScreen(
                 val list = mutableListOf<Any>()
                 
                 val filteredCategories = categories.filter { 
-                    (filterTypes.contains("Income") && it.type == "income") || 
-                    (filterTypes.contains("Expense") && it.type == "expense")
+                    (filterTypes.contains(incomeLabel) && it.type == "income") || 
+                    (filterTypes.contains(expenseLabel) && it.type == "expense")
                 }.filter { it.name.contains(searchQuery, ignoreCase = true) }
 
-                val filteredAccounts = if (filterTypes.contains("Accounts")) {
+                val filteredAccounts = if (filterTypes.contains(accountsLabel)) {
                     accounts.filter { it.name.contains(searchQuery, ignoreCase = true) }
                 } else emptyList()
 
@@ -170,7 +175,7 @@ fun ManageCategoriesScreen(
                             is Category -> {
                                 CategoryItem(
                                     name = item.name,
-                                    nature = if (item.type == "income") "Income" else "Expense",
+                                    nature = if (item.type == "income") incomeLabel else expenseLabel,
                                     isEnabled = item.isEnabled,
                                     icon = item.icon,
                                     onEdit = {
@@ -186,7 +191,7 @@ fun ManageCategoriesScreen(
                             is Account -> {
                                 CategoryItem(
                                     name = item.name,
-                                    nature = "Account",
+                                    nature = stringResource(R.string.label_account),
                                     isEnabled = item.isEnabled,
                                     icon = item.icon,
                                     onEdit = {
@@ -246,17 +251,17 @@ fun CategoryItem(
                 color = Color.Gray
             )
             if (!isEnabled) {
-                Text(text = "Disabled", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                Text(text = stringResource(R.string.label_disabled), style = MaterialTheme.typography.bodySmall, color = Color.Gray)
             }
         }
         
         Row {
             Switch(checked = isEnabled, onCheckedChange = { onToggle() })
             IconButton(onClick = onEdit) {
-                Icon(Icons.Default.Edit, contentDescription = "Edit")
+                Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.btn_edit))
             }
             IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Delete, contentDescription = "Delete")
+                Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.btn_delete))
             }
         }
     }

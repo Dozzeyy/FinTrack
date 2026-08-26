@@ -33,8 +33,8 @@ android {
         applicationId = "com.openapps.fintrack"
         minSdk = 26
         targetSdk = 37
-        versionCode = 8
-        versionName = "1.0.17"
+        versionCode = 9
+        versionName = "1.0.18"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -68,7 +68,7 @@ android {
         release {
             isMinifyEnabled = false
             isShrinkResources = false
-            signingConfig = null
+            //signingConfig = null
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

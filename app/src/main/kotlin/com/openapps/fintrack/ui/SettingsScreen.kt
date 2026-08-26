@@ -9,6 +9,8 @@ import android.content.Intent
 import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.ui.res.stringResource
+import com.openapps.fintrack.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -45,22 +47,25 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: 
         modifier = Modifier.imePadding(),
         topBar = {
             TopAppBar(
-                title = { Text("Settings") },
+                title = { Text(stringResource(R.string.menu_settings)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.btn_back))
                     }
                 }
             )
         }
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
-            Text("Appearance", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.settings_appearance), style = MaterialTheme.typography.titleMedium)
             
             val themes = listOf("Light", "Dark", "OLED")
             var themeExpanded by remember { mutableStateOf(false) }
             var showColorPicker by remember { mutableStateOf(false) }
             
+            val languages = mapOf("en" to "English", "es" to "Español", "de" to "Deutsch", "zh" to "中文", "ru" to "Русский")
+            var langExpanded by remember { mutableStateOf(false) }
+
             Row(
                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -71,7 +76,7 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: 
                         onClick = { themeExpanded = true },
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Theme: ${viewModel.currentTheme}")
+                        Text(stringResource(R.string.settings_theme) + ": ${viewModel.currentTheme}")
                     }
                     DropdownMenu(expanded = themeExpanded, onDismissRequest = { themeExpanded = false }) {
                         themes.forEach { theme ->
@@ -86,13 +91,37 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: 
                     }
                 }
 
-                OutlinedButton(
-                    onClick = { showColorPicker = true },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Icon(Icons.Default.Palette, null, tint = Color(viewModel.currentPrimaryColor))
-                    Spacer(Modifier.width(8.dp))
-                    Text("Color")
+                Box(modifier = Modifier.weight(1f)) {
+                    OutlinedButton(
+                        onClick = { showColorPicker = true },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Palette, null, tint = Color(viewModel.currentPrimaryColor))
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.settings_color))
+                    }
+                }
+            }
+
+            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(
+                        onClick = { langExpanded = true },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(stringResource(R.string.settings_language) + ": ${languages[viewModel.appLanguage] ?: viewModel.appLanguage}")
+                    }
+                    DropdownMenu(expanded = langExpanded, onDismissRequest = { langExpanded = false }) {
+                        languages.forEach { (code, name) ->
+                            DropdownMenuItem(
+                                text = { Text(name) },
+                                onClick = {
+                                    viewModel.updateLanguage(code)
+                                    langExpanded = false
+                                }
+                            )
+                        }
+                    }
                 }
             }
 
@@ -104,21 +133,21 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: 
 
                 AlertDialog(
                     onDismissRequest = { showColorPicker = false },
-                    title = { Text("Pick Primary Color") },
+                    title = { Text(stringResource(R.string.settings_color_picker_title)) },
                     text = {
                         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Box(modifier = Modifier.size(100.dp, 40.dp).background(currentColor, MaterialTheme.shapes.small).border(1.dp, Color.Gray, MaterialTheme.shapes.small))
                             
                             Column {
-                                Text("Red: ${red.toInt()}", style = MaterialTheme.typography.labelSmall)
+                                Text(stringResource(R.string.settings_red, red.toInt()), style = MaterialTheme.typography.labelSmall)
                                 Slider(value = red, onValueChange = { red = it }, valueRange = 0f..255f)
                             }
                             Column {
-                                Text("Green: ${green.toInt()}", style = MaterialTheme.typography.labelSmall)
+                                Text(stringResource(R.string.settings_green, green.toInt()), style = MaterialTheme.typography.labelSmall)
                                 Slider(value = green, onValueChange = { green = it }, valueRange = 0f..255f)
                             }
                             Column {
-                                Text("Blue: ${blue.toInt()}", style = MaterialTheme.typography.labelSmall)
+                                Text(stringResource(R.string.settings_blue, blue.toInt()), style = MaterialTheme.typography.labelSmall)
                                 Slider(value = blue, onValueChange = { blue = it }, valueRange = 0f..255f)
                             }
                         }
@@ -127,16 +156,16 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: 
                         Button(onClick = {
                             viewModel.updatePrimaryColor(currentColor.toArgb())
                             showColorPicker = false
-                        }) { Text("Apply") }
+                        }) { Text(stringResource(R.string.btn_apply)) }
                     },
                     dismissButton = {
-                        TextButton(onClick = { showColorPicker = false }) { Text("Cancel") }
+                        TextButton(onClick = { showColorPicker = false }) { Text(stringResource(R.string.btn_cancel)) }
                     }
                 )
             }
 
             Spacer(Modifier.height(16.dp))
-            Text("Home Dashboard Accounts (Max 3)", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.settings_dashboard_accounts), style = MaterialTheme.typography.titleMedium)
             
             var accountExpanded by remember { mutableStateOf(false) }
             Box(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
@@ -145,7 +174,7 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: 
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     val selectedNames = accounts.filter { it.id in viewModel.dashboardAccountIds }.joinToString { it.name }
-                    Text(if (selectedNames.isEmpty()) "Select Accounts" else selectedNames)
+                    Text(if (selectedNames.isEmpty()) stringResource(R.string.settings_select_accounts) else selectedNames)
                 }
                 DropdownMenu(expanded = accountExpanded, onDismissRequest = { accountExpanded = false }) {
                     accounts.forEach { account ->
@@ -173,17 +202,18 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: 
             }
 
             Spacer(Modifier.height(16.dp))
-            Text("Home Dashboard Budgets (Max 3)", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.settings_dashboard_budgets), style = MaterialTheme.typography.titleMedium)
             
             val budgets by viewModel.getAllBudgets().collectAsState(initial = emptyList())
             var budgetExpanded by remember { mutableStateOf(false) }
+            val budgetLabel = stringResource(R.string.label_budget)
             Box(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
                 OutlinedButton(
                     onClick = { budgetExpanded = true },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    val selectedNames = budgets.filter { it.id in viewModel.dashboardBudgetIds }.joinToString { it.name ?: "Budget ${it.id}" }
-                    Text(if (selectedNames.isEmpty()) "Select Budgets" else selectedNames)
+                    val selectedNames = budgets.filter { it.id in viewModel.dashboardBudgetIds }.joinToString { it.name ?: "$budgetLabel ${it.id}" }
+                    Text(if (selectedNames.isEmpty()) stringResource(R.string.settings_select_budgets) else selectedNames)
                 }
                 DropdownMenu(expanded = budgetExpanded, onDismissRequest = { budgetExpanded = false }) {
                     budgets.forEach { budget ->
@@ -211,9 +241,14 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: 
             }
 
             Spacer(Modifier.height(16.dp))
-            Text("Bottom Tab Order", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.settings_tab_order), style = MaterialTheme.typography.titleMedium)
             
-            val tabLabels = mapOf("home" to "Home", "analysis" to "Analysis", "transactions" to "Entries", "budgets" to "Budgets")
+            val tabLabels = mapOf(
+                "home" to stringResource(R.string.menu_home),
+                "analysis" to stringResource(R.string.menu_analysis),
+                "transactions" to stringResource(R.string.menu_entries),
+                "budgets" to stringResource(R.string.menu_budgets)
+            )
             viewModel.bottomTabOrder.forEachIndexed { index, tabKey ->
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
@@ -229,7 +264,7 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: 
                                 newOrder[index] = newOrder[index - 1]
                                 newOrder[index - 1] = tmp
                                 viewModel.updateTabOrder(newOrder)
-                            }) { Icon(Icons.Default.ArrowUpward, "Move Up") }
+                            }) { Icon(Icons.Default.ArrowUpward, stringResource(R.string.settings_move_up)) }
                         }
                         if (index < viewModel.bottomTabOrder.size - 1) {
                             IconButton(onClick = {
@@ -238,7 +273,7 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: 
                                 newOrder[index] = newOrder[index + 1]
                                 newOrder[index + 1] = tmp
                                 viewModel.updateTabOrder(newOrder)
-                            }) { Icon(Icons.Default.ArrowDownward, "Move Down") }
+                            }) { Icon(Icons.Default.ArrowDownward, stringResource(R.string.settings_move_down)) }
                         }
                     }
                 }
@@ -246,48 +281,64 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: 
             }
 
             Spacer(Modifier.height(16.dp))
-            Text("Advanced Trackers", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.settings_advanced_trackers), style = MaterialTheme.typography.titleMedium)
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Negotiation Tracker")
-                    Text("Track how much you save through negotiation.", style = MaterialTheme.typography.labelSmall)
+                    Text(stringResource(R.string.settings_negotiation))
+                    Text(stringResource(R.string.settings_negotiation_desc), style = MaterialTheme.typography.labelSmall)
                 }
                 Switch(checked = viewModel.negotiationTrackerEnabled, onCheckedChange = { viewModel.updateNegotiationTrackerEnabled(it) })
             }
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Merchant Tracker")
-                    Text("Track merchant names for cash transactions.", style = MaterialTheme.typography.labelSmall)
+                    Text(stringResource(R.string.settings_merchant))
+                    Text(stringResource(R.string.settings_merchant_desc), style = MaterialTheme.typography.labelSmall)
                 }
                 Switch(checked = viewModel.merchantTrackerEnabled, onCheckedChange = { viewModel.updateMerchantTrackerEnabled(it) })
             }
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Discretionary Spending Tracker")
-                    Text("Identify and track non-essential spending.", style = MaterialTheme.typography.labelSmall)
+                    Text(stringResource(R.string.settings_discretionary))
+                    Text(stringResource(R.string.settings_discretionary_desc), style = MaterialTheme.typography.labelSmall)
                 }
                 Switch(checked = viewModel.discretionarySpendingTrackerEnabled, onCheckedChange = { viewModel.updateDiscretionarySpendingTrackerEnabled(it) })
             }
 
             Spacer(Modifier.height(16.dp))
-            Text("Financial Behavior", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.settings_financial_behavior), style = MaterialTheme.typography.titleMedium)
             
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("I receive Income at month end")
-                    Text("Toggle this on if 90% of income is received at month end (E.g: Salary).", style = MaterialTheme.typography.labelSmall)
+                    Text(stringResource(R.string.settings_income_end_month))
+                    Text(stringResource(R.string.settings_income_end_month_desc), style = MaterialTheme.typography.labelSmall)
                 }
                 Switch(checked = viewModel.incomeAtMonthEnd, onCheckedChange = { viewModel.updateIncomeAtMonthEnd(it) })
             }
 
-            Spacer(Modifier.height(16.dp))
-            Text("Security", style = MaterialTheme.typography.titleMedium)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(stringResource(R.string.settings_invoice_ageing))
+                    Text(stringResource(R.string.settings_invoice_ageing_desc), style = MaterialTheme.typography.labelSmall)
+                }
+                Switch(checked = viewModel.invoiceAgeTrackingEnabled, onCheckedChange = { viewModel.updateInvoiceAgeTrackingEnabled(it) })
+            }
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("App Lock (Biometrics/PIN)")
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(stringResource(R.string.settings_delete_protection))
+                    Text(stringResource(R.string.settings_delete_protection_desc), style = MaterialTheme.typography.labelSmall)
+                }
+                Switch(checked = viewModel.disableTransactionDeletion, onCheckedChange = { viewModel.updateDisableTransactionDeletion(it) })
+            }
+
+            Spacer(Modifier.height(16.dp))
+            Text(stringResource(R.string.settings_security), style = MaterialTheme.typography.titleMedium)
+
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.settings_app_lock))
                 Switch(
                     checked = viewModel.appLockEnabled, 
                     onCheckedChange = { newValue ->
@@ -299,7 +350,7 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: 
             }
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Disable Screenshot")
+                Text(stringResource(R.string.settings_disable_screenshot))
                 Switch(
                     checked = viewModel.disableScreenshots, 
                     onCheckedChange = { viewModel.updateDisableScreenshots(it) }
@@ -308,7 +359,7 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: 
 
             if (viewModel.appLockEnabled) {
                 Spacer(Modifier.height(8.dp))
-                Text("Auto-lock Inactivity Timeout:", style = MaterialTheme.typography.labelSmall)
+                Text(stringResource(R.string.settings_auto_lock_timeout), style = MaterialTheme.typography.labelSmall)
                 var timeoutExpanded by remember { mutableStateOf(false) }
                 val timeouts = listOf("5 seconds", "15 seconds", "30 seconds", "1 minute", "2 minute", "5 minute", "10 minute", "30 minutes", "keep unlocked until app closure")
                 
@@ -331,7 +382,7 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: 
             }
 
             Spacer(Modifier.height(16.dp))
-            Text("Local Server Mode", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.settings_server_mode), style = MaterialTheme.typography.titleMedium)
             
             val isServerRunning by viewModel.isServerRunning.collectAsState()
             val isServerStopping by viewModel.isStopping.collectAsState()
@@ -347,16 +398,16 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: 
             if (showWebWarning) {
                 AlertDialog(
                     onDismissRequest = { showWebWarning = false },
-                    title = { Text("Security Warning") },
-                    text = { Text("This feature is useful if you are trying to use app on another device. This will require your phone and another device to be on same Wi-Fi network and data will be transmitted in plain text (http). Enable this only when needed and do not turn this on when you are connected to public wifi. USE THIS ONLY IF YOU KNOW WHAT YOU ARE DOING") },
+                    title = { Text(stringResource(R.string.settings_web_warning_title)) },
+                    text = { Text(stringResource(R.string.settings_web_warning_desc)) },
                     confirmButton = {
                         TextButton(onClick = { 
                             viewModel.toggleServer(true)
                             showWebWarning = false 
-                        }) { Text("Enable") }
+                        }) { Text(stringResource(R.string.btn_enable)) }
                     },
                     dismissButton = {
-                        TextButton(onClick = { showWebWarning = false }) { Text("Cancel") }
+                        TextButton(onClick = { showWebWarning = false }) { Text(stringResource(R.string.btn_cancel)) }
                     }
                 )
             }
@@ -370,11 +421,11 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: 
             if (showErrorDialog && serverError != null) {
                 AlertDialog(
                     onDismissRequest = { showErrorDialog = false },
-                    title = { Text("Server Error") },
+                    title = { Text(stringResource(R.string.settings_server_error)) },
                     text = { Text(serverError!!) },
                     confirmButton = {
                         TextButton(onClick = { showErrorDialog = false }) {
-                            Text("OK")
+                            Text(stringResource(R.string.btn_ok))
                         }
                     }
                 )
@@ -384,17 +435,17 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: 
                 if (result.contents != null) {
                     val success = viewModel.authorizePairing(result.contents)
                     if (success) {
-                        Toast.makeText(context, "Device Authorized Successfully!", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, context.getString(R.string.settings_device_authorized), Toast.LENGTH_SHORT).show()
                     } else {
-                        Toast.makeText(context, "Invalid Pairing QR", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, context.getString(R.string.settings_invalid_qr), Toast.LENGTH_SHORT).show()
                     }
                 }
             }
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Enable Web Interface")
-                    Text("Access data from other devices.", style = MaterialTheme.typography.labelSmall)
+                    Text(stringResource(R.string.settings_enable_web))
+                    Text(stringResource(R.string.settings_web_desc), style = MaterialTheme.typography.labelSmall)
                 }
                 Switch(
                     checked = isServerRunning,
@@ -411,21 +462,21 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: 
             
             if (isServerRunning) {
                 Text(
-                    "Keep the app open for best server performance. Android may stop the server if the app is in the background.",
+                    stringResource(R.string.settings_server_perf_note),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
                 Column(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
-                    Text("Select connection URL:", style = MaterialTheme.typography.labelSmall)
+                    Text(stringResource(R.string.settings_conn_url), style = MaterialTheme.typography.labelSmall)
                     
                     if (httpUrl != null) {
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                             Text(httpUrl!!, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
                             IconButton(onClick = { 
                                 clipboardManager.setText(AnnotatedString(httpUrl!!))
-                                Toast.makeText(context, "Copied", Toast.LENGTH_SHORT).show()
-                            }) { Icon(Icons.Default.ContentCopy, "Copy") }
+                                Toast.makeText(context, context.getString(R.string.msg_copied), Toast.LENGTH_SHORT).show()
+                            }) { Icon(Icons.Default.ContentCopy, stringResource(R.string.label_copy)) }
                         }
                     }
                     
@@ -434,10 +485,10 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: 
                             Text(httpsUrl!!, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
                             IconButton(onClick = { 
                                 clipboardManager.setText(AnnotatedString(httpsUrl!!))
-                                Toast.makeText(context, "Copied", Toast.LENGTH_SHORT).show()
-                            }) { Icon(Icons.Default.ContentCopy, "Copy") }
+                                Toast.makeText(context, context.getString(R.string.msg_copied), Toast.LENGTH_SHORT).show()
+                            }) { Icon(Icons.Default.ContentCopy, stringResource(R.string.label_copy)) }
                         }
-                        Text("Note: HTTPS uses a self-signed certificate. You may need to accept a security warning in your browser.", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                        Text(stringResource(R.string.settings_https_note), style = MaterialTheme.typography.labelSmall, color = Color.Gray)
                     }
 
                     Spacer(Modifier.height(16.dp))
@@ -446,7 +497,7 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: 
                         onClick = { 
                             val options = ScanOptions()
                             options.setDesiredBarcodeFormats(ScanOptions.QR_CODE)
-                            options.setPrompt("Scan the QR code shown on the Web Client")
+                            options.setPrompt(context.getString(R.string.settings_scan_qr))
                             options.setBeepEnabled(false)
                             options.setOrientationLocked(false)
                             scanLauncher.launch(options)
@@ -455,7 +506,7 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: 
                     ) {
                         Icon(Icons.Default.QrCodeScanner, null)
                         Spacer(Modifier.width(8.dp))
-                        Text("Scan Web QR to Authorize")
+                        Text(stringResource(R.string.settings_scan_qr))
                     }
 
                     val activeClients by viewModel.activeClients.collectAsState()
@@ -463,7 +514,7 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: 
 
                     if (activeClients.isNotEmpty()) {
                         Spacer(Modifier.height(16.dp))
-                        Text("Active Client Connections", style = MaterialTheme.typography.titleSmall)
+                        Text(stringResource(R.string.settings_active_clients), style = MaterialTheme.typography.titleSmall)
                         activeClients.forEach { (ip, connection) ->
                             Surface(
                                 color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
@@ -480,7 +531,7 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: 
                                         Text(connection.userAgent, style = MaterialTheme.typography.labelSmall, maxLines = 1)
                                     }
                                     IconButton(onClick = { viewModel.disconnectClient(ip) }) {
-                                        Icon(Icons.Default.Close, "Disconnect", tint = MaterialTheme.colorScheme.error)
+                                        Icon(Icons.Default.Close, stringResource(R.string.settings_disconnect), tint = MaterialTheme.colorScheme.error)
                                     }
                                 }
                             }
@@ -489,7 +540,7 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: 
 
                     if (terminationLogs.isNotEmpty()) {
                         Spacer(Modifier.height(16.dp))
-                        Text("Recent Termination Logs", style = MaterialTheme.typography.titleSmall)
+                        Text(stringResource(R.string.settings_termination_logs), style = MaterialTheme.typography.titleSmall)
                         terminationLogs.forEach { log ->
                             Surface(
                                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
@@ -510,10 +561,10 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: 
             }
 
             Spacer(Modifier.height(16.dp))
-            Text("Notifications", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.settings_notifications), style = MaterialTheme.typography.titleMedium)
             
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Expense Reminders")
+                Text(stringResource(R.string.settings_expense_reminders))
                 Switch(
                     checked = viewModel.remindersEnabled,
                     onCheckedChange = { viewModel.updateReminderEnabled(it) }
@@ -522,7 +573,7 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: 
 
             if (viewModel.remindersEnabled) {
                 Column(modifier = Modifier.padding(start = 16.dp, top = 8.dp)) {
-                    Text("Frequency", style = MaterialTheme.typography.labelSmall)
+                    Text(stringResource(R.string.settings_frequency), style = MaterialTheme.typography.labelSmall)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         var freqText by remember { mutableStateOf(viewModel.reminderFrequency.toString()) }
                         OutlinedTextField(
@@ -553,7 +604,7 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: 
                     }
                     
                     Spacer(Modifier.height(8.dp))
-                    Text("Time", style = MaterialTheme.typography.labelSmall)
+                    Text(stringResource(R.string.label_time), style = MaterialTheme.typography.labelSmall)
                     val context = androidx.compose.ui.platform.LocalContext.current
                     OutlinedButton(
                         onClick = {
@@ -571,7 +622,7 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: 
                     OutlinedTextField(
                         value = viewModel.reminderMessage,
                         onValueChange = { viewModel.updateReminderMessage(it) },
-                        label = { Text("Notification Message") },
+                        label = { Text(stringResource(R.string.settings_notification_msg)) },
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -580,8 +631,8 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: 
             Spacer(Modifier.height(16.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Alert on credit card due date")
-                    Text("Notify 2 days before payment is due.", style = MaterialTheme.typography.labelSmall)
+                    Text(stringResource(R.string.settings_cc_alert))
+                    Text(stringResource(R.string.settings_cc_alert_desc), style = MaterialTheme.typography.labelSmall)
                 }
                 Switch(
                     checked = viewModel.ccAlertEnabled,
@@ -590,23 +641,23 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: 
             }
 
             Spacer(Modifier.height(16.dp))
-            Text("Regional Settings", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.settings_regional), style = MaterialTheme.typography.titleMedium)
             
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Use Millions/Billions System")
+                Text(stringResource(R.string.settings_millions_system))
                 Switch(checked = viewModel.useMillionsSystem, onCheckedChange = { viewModel.updateNumberSystem(it) })
             }
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Tap to show net position")
+                Text(stringResource(R.string.settings_tap_net_position))
                 Switch(checked = viewModel.tapToShowNetPosition, onCheckedChange = { viewModel.updateTapToShowNetPosition(it) })
             }
 
             Spacer(Modifier.height(16.dp))
-            Text("Data Entry", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.settings_data_entry), style = MaterialTheme.typography.titleMedium)
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Multi-Tag Selection")
+                Text(stringResource(R.string.settings_multi_tag))
                 Switch(checked = viewModel.multiTagEnabled, onCheckedChange = { viewModel.updateMultiTagEnabled(it) })
             }
 
@@ -616,7 +667,7 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: 
             Spacer(Modifier.height(8.dp))
             
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Auto Read Messages")
+                Text(stringResource(R.string.settings_auto_read))
                 Switch(checked = viewModel.autoReadEnabled, onCheckedChange = { viewModel.updateAutoReadEnabled(it) })
             }
             
@@ -626,7 +677,7 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: 
             
             Spacer(Modifier.height(8.dp))
             Text(
-                "Note: This feature is optional and App is not designed to send your SMS data to developers.",
+                stringResource(R.string.settings_auto_read_note),
                 style = MaterialTheme.typography.labelSmall,
                 color = Color.Gray
             )
@@ -646,8 +697,8 @@ fun MultiCurrencySettings(viewModel: ExpenseViewModel) {
 
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
         Column(modifier = Modifier.weight(1f)) {
-            Text("Enable Multi-Currency")
-            Text("Input amounts in any currency and convert to base.", style = MaterialTheme.typography.labelSmall)
+            Text(stringResource(R.string.settings_multi_currency))
+            Text(stringResource(R.string.settings_multi_currency_desc), style = MaterialTheme.typography.labelSmall)
         }
         Switch(
             checked = viewModel.enableMultiCurrency,
@@ -660,7 +711,7 @@ fun MultiCurrencySettings(viewModel: ExpenseViewModel) {
 
     if (viewModel.enableMultiCurrency) {
         Spacer(Modifier.height(8.dp))
-        Text("Base Currency: ${viewModel.baseCurrency}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+        Text(stringResource(R.string.settings_base_currency, viewModel.baseCurrency), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
         
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             OutlinedButton(
@@ -668,7 +719,7 @@ fun MultiCurrencySettings(viewModel: ExpenseViewModel) {
                 modifier = Modifier.weight(1f),
                 enabled = !viewModel.isRefreshingRates
             ) {
-                Text("Change Base Currency")
+                Text(stringResource(R.string.settings_change_base_currency))
             }
             Button(
                 onClick = { viewModel.refreshExchangeRates() },
@@ -678,18 +729,18 @@ fun MultiCurrencySettings(viewModel: ExpenseViewModel) {
                 if (viewModel.isRefreshingRates) {
                     CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
                     Spacer(Modifier.width(8.dp))
-                    Text("Refreshing...")
+                    Text(stringResource(R.string.settings_refreshing))
                 } else {
                     Icon(Icons.Default.Refresh, null)
                     Spacer(Modifier.width(4.dp))
-                    Text("Refresh Rates")
+                    Text(stringResource(R.string.settings_refresh_rates))
                 }
             }
         }
 
         if (viewModel.isRefreshingRates || viewModel.rateRefreshStatus != null) {
             Text(
-                text = "Status: ${viewModel.rateRefreshStatus ?: "Waiting..."}",
+                text = stringResource(R.string.settings_status, viewModel.rateRefreshStatus ?: stringResource(R.string.settings_waiting)),
                 style = MaterialTheme.typography.labelSmall,
                 color = if (viewModel.rateRefreshStatus == "Failed") MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondary,
                 modifier = Modifier.padding(top = 4.dp)
@@ -699,7 +750,7 @@ fun MultiCurrencySettings(viewModel: ExpenseViewModel) {
         viewModel.lastRateRefreshResult.value?.let { result ->
             Text(result, style = MaterialTheme.typography.labelSmall, color = if (result.contains("Successful")) Color(0xFF4CAF50) else Color.Red)
         }
-        Text("Last refresh: ${viewModel.lastRateRefreshTime}", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+        Text(stringResource(R.string.settings_last_refresh, viewModel.lastRateRefreshTime), style = MaterialTheme.typography.labelSmall, color = Color.Gray)
     }
 
     if (showBaseCurrencyDialog) {
@@ -711,13 +762,13 @@ fun MultiCurrencySettings(viewModel: ExpenseViewModel) {
 
         AlertDialog(
             onDismissRequest = { if (viewModel.enableMultiCurrency) showBaseCurrencyDialog = false },
-            title = { Text("Select Base Currency") },
+            title = { Text(stringResource(R.string.settings_select_base_currency)) },
             text = {
                 Column {
                     OutlinedTextField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
-                        label = { Text("Search Currency") },
+                        label = { Text(stringResource(R.string.settings_search_currency)) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
@@ -743,7 +794,7 @@ fun MultiCurrencySettings(viewModel: ExpenseViewModel) {
             confirmButton = {},
             dismissButton = {
                 if (viewModel.enableMultiCurrency) {
-                    TextButton(onClick = { showBaseCurrencyDialog = false }) { Text("Cancel") }
+                    TextButton(onClick = { showBaseCurrencyDialog = false }) { Text(stringResource(R.string.btn_cancel)) }
                 }
             }
         )
@@ -757,7 +808,7 @@ fun AutoReadCriteria(viewModel: ExpenseViewModel, onNavigate: (String) -> Unit) 
         Button(onClick = { onNavigate("rules") }, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Default.Rule, null)
             Spacer(Modifier.width(8.dp))
-            Text("Manage Automation Rules")
+            Text(stringResource(R.string.settings_manage_rules))
         }
         
         Spacer(Modifier.height(16.dp))
@@ -765,11 +816,11 @@ fun AutoReadCriteria(viewModel: ExpenseViewModel, onNavigate: (String) -> Unit) 
         OutlinedTextField(
             value = viewModel.smsCurrencies,
             onValueChange = { viewModel.updateSmsCurrencies(it) },
-            label = { Text("Currencies (comma separated)") },
+            label = { Text(stringResource(R.string.settings_sms_currencies)) },
             modifier = Modifier.fillMaxWidth()
         )
         Text(
-            "Tip: Currencies field is used to detect amount of transaction from SMS.",
+            stringResource(R.string.settings_sms_currencies_tip),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
@@ -778,12 +829,12 @@ fun AutoReadCriteria(viewModel: ExpenseViewModel, onNavigate: (String) -> Unit) 
         OutlinedTextField(
             value = viewModel.smsKeywords,
             onValueChange = { viewModel.updateSmsKeywords(it) },
-            label = { Text("Keywords (comma separated)") },
+            label = { Text(stringResource(R.string.settings_sms_keywords)) },
             modifier = Modifier.fillMaxWidth()
         )
         
         Spacer(Modifier.height(16.dp))
-        Text("Match Criteria:", style = MaterialTheme.typography.labelSmall)
+        Text(stringResource(R.string.settings_match_criteria), style = MaterialTheme.typography.labelSmall)
         
         var criteriaExpanded by remember { mutableStateOf(false) }
         val criteriaOptions = listOf("OR" to "A or B", "AND" to "A and B", "ONLY_A" to "Only A", "ONLY_B" to "Only B")

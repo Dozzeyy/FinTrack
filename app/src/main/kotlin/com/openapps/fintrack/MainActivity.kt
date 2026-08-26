@@ -12,6 +12,7 @@ import android.os.Handler
 import android.os.Looper
 import android.widget.Toast
 import androidx.activity.compose.setContent
+import androidx.appcompat.app.AppCompatActivity
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.compose.animation.*
@@ -34,11 +35,12 @@ import androidx.navigation.compose.rememberNavController
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import android.view.WindowManager
+import androidx.compose.ui.res.stringResource
 import com.openapps.fintrack.ui.*
 import com.openapps.fintrack.ui.theme.FinTrackTheme
 import java.io.File
 
-class MainActivity : FragmentActivity() {
+class MainActivity : AppCompatActivity() {
     private var lockHandler = Handler(Looper.getMainLooper())
     private lateinit var viewModel: ExpenseViewModel
     private val isLockedState = mutableStateOf(false)
@@ -106,7 +108,7 @@ class MainActivity : FragmentActivity() {
                                     if (success) {
                                         isDecryptionRequired.value = false
                                     } else {
-                                        Toast.makeText(this@MainActivity, "Incorrect password or decryption failed!", Toast.LENGTH_LONG).show()
+                                        Toast.makeText(this@MainActivity, getString(R.string.msg_incorrect_password), Toast.LENGTH_LONG).show()
                                     }
                                     isDecrypting.value = false
                                 }
@@ -117,7 +119,7 @@ class MainActivity : FragmentActivity() {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 CircularProgressIndicator(progress = progress)
                                 Spacer(Modifier.height(8.dp))
-                                Text("Decrypting Secure Data... ${(progress * 100).toInt()}%", style = MaterialTheme.typography.labelSmall)
+                                Text(stringResource(R.string.msg_decrypting_secure_data, (progress * 100).toInt()), style = MaterialTheme.typography.labelSmall)
                             }
                         }
                     } else if (!isLocked) {
@@ -224,7 +226,7 @@ class MainActivity : FragmentActivity() {
         if (canAuth != BiometricManager.BIOMETRIC_SUCCESS) {
             Toast.makeText(
                 applicationContext, 
-                "Secure unlock unavailable. Please check device security settings.", 
+                getString(R.string.msg_secure_unlock_unavailable), 
                 Toast.LENGTH_LONG
             ).show()
             return 
@@ -236,7 +238,7 @@ class MainActivity : FragmentActivity() {
                     super.onAuthenticationError(errorCode, errString)
                     if (errorCode != BiometricPrompt.ERROR_USER_CANCELED && 
                         errorCode != BiometricPrompt.ERROR_NEGATIVE_BUTTON) {
-                        Toast.makeText(applicationContext, "Auth Error: $errString", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(applicationContext, getString(R.string.label_auth_error_colon) + " $errString", Toast.LENGTH_SHORT).show()
                     }
                 }
 
@@ -247,13 +249,13 @@ class MainActivity : FragmentActivity() {
 
                 override fun onAuthenticationFailed() {
                     super.onAuthenticationFailed()
-                    Toast.makeText(applicationContext, "Authentication failed.", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(applicationContext, getString(R.string.msg_auth_failed), Toast.LENGTH_SHORT).show()
                 }
             })
 
         val promptInfo = BiometricPrompt.PromptInfo.Builder()
-            .setTitle("FinTrack Secure")
-            .setSubtitle("Confirm your identity")
+            .setTitle(getString(R.string.title_fintrack_secure))
+            .setSubtitle(getString(R.string.msg_confirm_identity))
             .setAllowedAuthenticators(authenticators)
             .build()
 
@@ -275,15 +277,15 @@ fun UnlockScreen(onUnlock: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Text("FinTrack Locked", style = MaterialTheme.typography.headlineMedium)
+        Text(stringResource(R.string.title_fintrack_locked), style = MaterialTheme.typography.headlineMedium)
         Spacer(Modifier.height(16.dp))
 
-        Text("Confirm identity to continue.")
+        Text(stringResource(R.string.msg_confirm_identity_continue))
         Spacer(Modifier.height(16.dp))
         Button(onClick = { 
             (context as MainActivity).authenticate { onUnlock() }
         }, modifier = Modifier.fillMaxWidth()) {
-            Text("Unlock")
+            Text(stringResource(R.string.btn_unlock))
         }
         
         LaunchedEffect(Unit) {
@@ -303,19 +305,19 @@ fun DecryptionScreen(isProcessing: Boolean, progress: Float, onDecrypt: (String)
     ) {
         Icon(Icons.Default.Lock, null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.primary)
         Spacer(Modifier.height(16.dp))
-        Text("Ultra Secure Mode", style = MaterialTheme.typography.headlineMedium)
-        Text("Database is encrypted at rest.", style = MaterialTheme.typography.bodySmall)
+        Text(stringResource(R.string.label_ultra_secure_mode), style = MaterialTheme.typography.headlineMedium)
+        Text(stringResource(R.string.msg_db_encrypted_rest), style = MaterialTheme.typography.bodySmall)
         Spacer(Modifier.height(24.dp))
 
         if (isProcessing) {
             CircularProgressIndicator(progress = progress)
             Spacer(Modifier.height(16.dp))
-            Text("Decrypting... ${(progress * 100).toInt()}%")
+            Text(stringResource(R.string.label_decrypting_val, (progress * 100).toInt()))
         } else {
             OutlinedTextField(
                 value = password,
                 onValueChange = { password = it },
-                label = { Text("Master Password") },
+                label = { Text(stringResource(R.string.label_master_password)) },
                 visualTransformation = PasswordVisualTransformation(),
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
@@ -326,7 +328,7 @@ fun DecryptionScreen(isProcessing: Boolean, progress: Float, onDecrypt: (String)
                 modifier = Modifier.fillMaxWidth(),
                 enabled = password.isNotEmpty()
             ) {
-                Text("Decrypt & Open")
+                Text(stringResource(R.string.btn_decrypt_open))
             }
         }
     }
@@ -350,11 +352,11 @@ fun FinTrackApp(
     if (viewModel.showWhatIsNew) {
         AlertDialog(
             onDismissRequest = { viewModel.showWhatIsNew = false },
-            title = { Text("What's New in This Update") },
+            title = { Text(stringResource(R.string.title_whats_new)) },
             text = { Text(viewModel.keyChanges) },
             confirmButton = {
                 Button(onClick = { viewModel.showWhatIsNew = false }) {
-                    Text("OK")
+                    Text(stringResource(R.string.btn_ok))
                 }
             }
         )
