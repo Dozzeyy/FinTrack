@@ -253,10 +253,12 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
         val lastVersion = prefs.getInt("last_seen_version", 0)
         if (currentVersion > lastVersion) {
             keyChanges = """
-                - Added transaction deletion (long press an entry and delete).
-                - Added language support for Chinese, Spanish, German and Russian (Beta).
-                - Invoice age tracking: Record an invoice for On Account entries and track their due date.
-                - Other bug fixes.
+                - Added app shortcuts to add entries directly from android homescreen.
+                - Added a note type - Statements.
+                - Notebook pages can be pinned and color can be applied.
+                - Added networth numbers in performance screen.
+                - Added custom column grouping in performance view. Also custom frequency selection for budgets.
+                - Few other bug fixes.
             """.trimIndent()
             showWhatIsNew = true
             prefs.edit().putInt("last_seen_version", currentVersion).apply()
@@ -438,14 +440,12 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
             return
         }
         
-        // Only encrypt if we are sure the current DB is the actual data (not a worker-created empty shell)
         if (!isDatabaseDecrypted) {
             Log.w("SecureMode", "Database is not currently decrypted. Skipping encryption to prevent data loss.")
             if (remoteMasterPassword.isEmpty() && storedPass != null) passToUse.fill('\u0000')
             return
         }
 
-        // Priority 1: Prevent UI from accessing DB while encryption is starting
         isDatabaseDecrypted = false
         prefs.edit().putBoolean("db_encrypted_at_rest", true).apply()
 
@@ -856,7 +856,7 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch { dao.upsertBudget(editingBudgetRaw?.copy(name=name, categoryIds=categoryIds, amount=amount, duration=duration, note=note, higherIsBetter=higherIsBetter, accountIds=accountIds) ?: Budget(name=name, categoryIds=categoryIds, amount=amount, duration=duration, note=note, higherIsBetter=higherIsBetter, accountIds=accountIds)); editingBudgetRaw=null; triggerRefresh() }
     }
     suspend fun saveTemplate(t: Template): Boolean { dao.upsertTemplate(t); return true }
-    fun saveNote(title: String, content: String, tags: String?, type: String = "text") {
+    fun saveNote(title: String, content: String, tags: String?, type: String = "text", color: Int? = null) {
         viewModelScope.launch { 
             val noteToSave = editingNote?.copy(
                 title = title, 
@@ -864,17 +864,31 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
                 tags = tags, 
                 type = type, 
                 notebookId = selectedNotebookId,
-                editedAt = System.currentTimeMillis()
+                editedAt = System.currentTimeMillis(),
+                color = color ?: editingNote?.color
             ) ?: Note(
                 title = title, 
                 content = content, 
                 tags = tags, 
                 type = type, 
-                notebookId = selectedNotebookId
+                notebookId = selectedNotebookId,
+                color = color
             )
             dao.upsertNote(noteToSave)
             editingNote = null
             triggerRefresh() 
+        }
+    }
+    fun togglePinNote(note: Note) {
+        viewModelScope.launch {
+            dao.upsertNote(note.copy(isPinned = !note.isPinned, editedAt = System.currentTimeMillis()))
+            triggerRefresh()
+        }
+    }
+    fun updateNoteColor(note: Note, color: Int?) {
+        viewModelScope.launch {
+            dao.upsertNote(note.copy(color = color, editedAt = System.currentTimeMillis()))
+            triggerRefresh()
         }
     }
     fun moveNote(note: Note, targetNotebookId: Int?) {
@@ -966,11 +980,9 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
                 dao.insertTransaction(transaction).toInt()
             }
 
-            // Handle Invoice Clearances for Transfers
             if (type == "transfer" && clearInvIds.isNotEmpty()) {
                 var remainingToClear = amtB ?: amount
                 
-                // Fetch current clearing status for all selected invoices
                 val allTxns = dao.getAllTransactionsWithDetails().first()
                 val selectedInvoices = allTxns.filter { it.transaction.id in clearInvIds }
                     .sortedWith(compareBy({ it.transaction.date }, { it.transaction.time }))
@@ -979,7 +991,7 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
                     if (remainingToClear <= 0) break
                     
                     val invTxn = invDetail.transaction
-                    // Get what was already cleared by OTHER transfers
+            
                     val alreadyCleared = dao.getInvoicesForParty(invTxn.partyId ?: 0, "9999-12-31").first()
                         .find { it.detail.transaction.id == invTxn.id }?.totalCleared ?: 0.0
 
@@ -1077,15 +1089,12 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
                 val firstRepay = Instant.ofEpochMilli(loan.firstRepaymentDate).atZone(ZoneId.of("UTC")).toLocalDate()
                 val schedule = LoanCalculator.generateSchedule(loan.principalAmount, loan.interestRateAnnual/multiplier, loan.periodsTotal, loan.installmentAmount, loan.gapInterest, firstRepay, loan.frequency)
                 
-                // Calculate periods that have actually fallen due up to today
                 val actualPeriodsPassedUntilToday = LoanCalculator.countPassedPeriods(firstRepay, LocalDate.now(ZoneId.of("UTC")), loan.frequency).coerceAtMost(loan.periodsTotal)
                 
                 val balance = if(isExisting) LoanCalculator.calculateOutstandingBalance(loan.principalAmount, loan.interestRateAnnual/multiplier, loan.periodsTotal, loan.installmentAmount, loan.gapInterest, firstRepay, loan.frequency, LocalDate.now(ZoneId.of("UTC"))) else loan.principalAmount
                 
-                // Record history for ALL periods that have passed up to today to ensure balance is correct
                 val passedRows = if(isExisting) schedule.filter{it.period <= actualPeriodsPassedUntilToday} else emptyList()
                 
-                // Calculate next due date correctly
                 var nextDueCalc = firstRepay
                 repeat(actualPeriodsPassedUntilToday) {
                     nextDueCalc = when(loan.frequency) {
@@ -1141,7 +1150,6 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
             try {
                 val results = mutableListOf<InvoiceCrossReference>()
                 
-                // First check if it's a transfer clearing invoices
                 val clearedInvoices = dao.getInvoicesClearedByTransfer(transactionId)
                 if (clearedInvoices.isNotEmpty()) {
                     for (clearing in clearedInvoices) {
@@ -1153,7 +1161,7 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
                         }
                     }
                 } else {
-                    // Check if it's an invoice itself (being cleared)
+            
                     val clearings = dao.getClearingsForInvoice(transactionId)
                     if (clearings.isNotEmpty()) {
                         try {
@@ -1162,7 +1170,7 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
                             Log.e("ExpenseViewModel", "Error fetching invoice ref for id $transactionId", e)
                         }
                     } else {
-                        // Check if it's an invoice that hasn't been cleared yet but has an invoice number
+                    
                         val txn = dao.getTransactionWithDetails(transactionId)
                         if (txn?.transaction?.invoiceNumber != null) {
                             try {
@@ -1440,6 +1448,31 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
 
     private fun getRangeForDuration(date: LocalDate, duration: String): Pair<String, String> {
         val formatter = DateTimeFormatter.ISO_DATE
+        if (duration.startsWith("CUSTOM:")) {
+            val parts = duration.split(":")
+            val value = parts.getOrNull(1)?.toLongOrNull() ?: 1L
+            val unit = parts.getOrNull(2) ?: "month/s"
+            
+            return when (unit) {
+                "day/s" -> Pair(date.minusDays(value - 1).format(formatter), date.format(formatter))
+                "week/s" -> {
+                    val end = date.with(java.time.DayOfWeek.SUNDAY)
+                    val start = end.minusWeeks(value - 1).with(java.time.DayOfWeek.MONDAY)
+                    Pair(start.format(formatter), end.format(formatter))
+                }
+                "month/s" -> {
+                    val end = date.with(TemporalAdjusters.lastDayOfMonth())
+                    val start = date.minusMonths(value - 1).with(TemporalAdjusters.firstDayOfMonth())
+                    Pair(start.format(formatter), end.format(formatter))
+                }
+                "year/s" -> {
+                    val end = date.with(TemporalAdjusters.lastDayOfYear())
+                    val start = date.minusYears(value - 1).with(TemporalAdjusters.firstDayOfYear())
+                    Pair(start.format(formatter), end.format(formatter))
+                }
+                else -> Pair(date.format(formatter), date.format(formatter))
+            }
+        }
         return when (duration.uppercase()) {
             "WEEKLY" -> Pair(date.with(java.time.DayOfWeek.MONDAY).format(formatter), date.with(java.time.DayOfWeek.SUNDAY).format(formatter))
             "MONTHLY" -> Pair(date.with(TemporalAdjusters.firstDayOfMonth()).format(formatter), date.with(TemporalAdjusters.lastDayOfMonth()).format(formatter))
@@ -1741,62 +1774,102 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
         dao.getAllAccounts(),
         dao.getAllMinorHeads(),
         dao.getAllBudgets(),
-        dao.getEnabledCategories()
-    ) { txns, accounts, minorHeads, budgets, categories ->
+        dao.getEnabledCategories(),
+        dao.getAllParties()
+    ) { array ->
+        val txns = array[0] as List<TransactionWithDetails>
+        val accounts = array[1] as List<Account>
+        val minorHeads = array[2] as List<MinorHead>
+        val budgets = array[3] as List<Budget>
+        val categories = array[4] as List<Category>
+        val parties = array[5] as List<Party>
+
         val start = LocalDate.parse(startDate)
         val end = LocalDate.parse(endDate)
-        val months = mutableListOf<String>()
-        var curr = start.withDayOfMonth(1)
+        val days = mutableListOf<String>()
+        var curr = start
         while (!curr.isAfter(end)) {
-            months.add(curr.toString().substring(0, 7))
-            curr = curr.plusMonths(1)
+            days.add(curr.format(DateTimeFormatter.ISO_DATE))
+            curr = curr.plusDays(1)
         }
 
-        // 1. Calculate Monthly Metrics
-        val monthlyInc = txns.filter { it.categoryType == "income" }
-            .groupBy { it.transaction.date.substring(0, 7) }
+        // 1. Calculate Daily Metrics
+        val dailyInc = txns.filter { it.categoryType == "income" }
+            .groupBy { it.transaction.date }
             .mapValues { it.value.sumOf { t -> t.transaction.amount } }
         
-        val monthlyExp = txns.filter { it.categoryType == "expense" }
-            .groupBy { it.transaction.date.substring(0, 7) }
+        val dailyExp = txns.filter { it.categoryType == "expense" }
+            .groupBy { it.transaction.date }
             .mapValues { it.value.sumOf { t -> t.transaction.amount } }
-
-        val savingsRateMap = months.associateWith { m ->
-            val inc = monthlyInc[m] ?: 0.0
-            val exp = monthlyExp[m] ?: 0.0
+            
+        val savingsRateMap = days.associateWith { d ->
+            val inc = dailyInc[d] ?: 0.0
+            val exp = dailyExp[d] ?: 0.0
             if (inc > 0) (inc - exp) / inc * 100 else 0.0
         }
 
         val investmentMajorId = dao.getAllMajorHeads().first().find { it.name.contains("Investment", true) }?.id
-        val monthlyInvest = txns.filter { t ->
+        val dailyInvest = txns.filter { t ->
             t.transaction.categoryId == null && t.transaction.toAccountId != null &&
             minorHeads.find { it.id == accounts.find { acc -> acc.id == t.transaction.toAccountId }?.minorHeadId }?.majorHeadId == investmentMajorId
-        }.groupBy { it.transaction.date.substring(0, 7) }
+        }.groupBy { it.transaction.date }
         .mapValues { it.value.sumOf { t -> t.transaction.amount } }
 
-        val investRateMap = months.associateWith { m ->
-            val inc = monthlyInc[m] ?: 0.0
-            val inv = monthlyInvest[m] ?: 0.0
+        val investRateMap = days.associateWith { d ->
+            val inc = dailyInc[d] ?: 0.0
+            val inv = dailyInvest[d] ?: 0.0
             if (inc > 0) (inv / inc) * 100 else 0.0
         }
 
-        val monthlyDebt = txns.filter { it.transaction.subName?.startsWith("LOAN:") == true }
-            .groupBy { it.transaction.date.substring(0, 7) }
+        val dailyDebt = txns.filter { it.transaction.subName?.startsWith("LOAN:") == true }
+            .groupBy { it.transaction.date }
             .mapValues { it.value.sumOf { t -> t.transaction.amount } }
 
-        val debtToIncomeMap = months.associateWith { m ->
-            val inc = monthlyInc[m] ?: 0.0
-            val debt = monthlyDebt[m] ?: 0.0
+        val debtToIncomeMap = days.associateWith { d ->
+            val inc = dailyInc[d] ?: 0.0
+            val debt = dailyDebt[d] ?: 0.0
             if (inc > 0) (debt / inc) * 100 else 0.0
         }
 
+        // Networth Calculation
+        val initialNetworthBase = accounts.sumOf { if (it.name == "On Account") 0.0 else it.openingBalance } +
+                parties.filter { it.isEnabled }.sumOf { it.openingBalance }
+
+        val networthMap = mutableMapOf<String, Double>()
+        val networthChangePctMap = mutableMapOf<String, Double>()
+
+        var previousDayNetworth = 0.0
+        val baselineDate = start.minusDays(1).toString()
+        val baselineIncome = txns.filter { it.transaction.date <= baselineDate && it.categoryType == "income" }.sumOf { it.transaction.amount }
+        val baselineExpense = txns.filter { it.transaction.date <= baselineDate && it.categoryType == "expense" }.sumOf { it.transaction.amount }
+        previousDayNetworth = initialNetworthBase + baselineIncome - baselineExpense
+
+        for (d in days) {
+            val totalIncome = txns.filter { it.transaction.date <= d && it.categoryType == "income" }.sumOf { it.transaction.amount }
+            val totalExpense = txns.filter { it.transaction.date <= d && it.categoryType == "expense" }.sumOf { it.transaction.amount }
+
+            val currentNetworth = initialNetworthBase + totalIncome - totalExpense
+            networthMap[d] = currentNetworth
+
+            if (previousDayNetworth != 0.0) {
+                networthChangePctMap[d] = (currentNetworth - previousDayNetworth) / previousDayNetworth * 100
+            } else {
+                networthChangePctMap[d] = 0.0
+            }
+            previousDayNetworth = currentNetworth
+        }
+
         val metrics = listOf(
-            PerformanceMetricData("Income", months.associateWith { monthlyInc[it] ?: 0.0 }),
-            PerformanceMetricData("Expense", months.associateWith { monthlyExp[it] ?: 0.0 }),
-            PerformanceMetricData("Savings Rate", savingsRateMap, "%"),
-            PerformanceMetricData("Investment Rate", investRateMap, "%"),
-            PerformanceMetricData("Debt-to-Income", debtToIncomeMap, "%")
+            PerformanceMetricData("Income", days.associateWith { dailyInc[it] ?: 0.0 }),
+            PerformanceMetricData("Expense", days.associateWith { dailyExp[it] ?: 0.0 }),
+            PerformanceMetricData("Networth", networthMap, aggregation = MetricAggregation.LAST),
+            PerformanceMetricData("Savings Rate", savingsRateMap, "%", aggregation = MetricAggregation.AVERAGE),
+            PerformanceMetricData("Networth Change", networthChangePctMap, "%", aggregation = MetricAggregation.AVERAGE),
+            PerformanceMetricData("Investment Rate", investRateMap, "%", aggregation = MetricAggregation.AVERAGE),
+            PerformanceMetricData("Debt-to-Income", debtToIncomeMap, "%", aggregation = MetricAggregation.AVERAGE)
         )
+
+        val months = days.map { it.substring(0, 7) }.distinct()
 
         // 2. Budget Performance (Summarized)
         val budgetPerf = budgets.map { b ->
@@ -1903,10 +1976,13 @@ data class PerformanceDashboardData(
     val categoryTrends: List<CategoryPerformanceData>
 )
 
+enum class MetricAggregation { SUM, AVERAGE, LAST }
+
 data class PerformanceMetricData(
     val name: String,
-    val monthValues: Map<String, Double>, // month -> value
-    val unit: String = ""
+    val periodValues: Map<String, Double>, // date (yyyy-MM-dd) -> value
+    val unit: String = "",
+    val aggregation: MetricAggregation = MetricAggregation.SUM
 )
 
 data class BudgetPerformanceData(

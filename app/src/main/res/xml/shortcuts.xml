@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="add_entry"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_add"
+        android:shortcutShortLabel="@string/shortcut_add_entry_short"
+        android:shortcutLongLabel="@string/shortcut_add_entry_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.openapps.fintrack"
+            android:targetClass="com.openapps.fintrack.MainActivity">
+            <extra
+                android:name="navigate_to"
+                android:value="add_transaction" />
+        </intent>
+        <categories android:name="android.shortcut.conversation" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="quick_entry"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_quick"
+        android:shortcutShortLabel="@string/shortcut_quick_entry_short"
+        android:shortcutLongLabel="@string/shortcut_quick_entry_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.openapps.fintrack"
+            android:targetClass="com.openapps.fintrack.MainActivity">
+            <extra
+                android:name="navigate_to"
+                android:value="quick_entry" />
+        </intent>
+    </shortcut>
+</shortcuts>

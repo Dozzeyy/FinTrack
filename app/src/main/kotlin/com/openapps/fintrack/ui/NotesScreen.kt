@@ -47,6 +47,18 @@ data class ChecklistItem(
 )
 
 @Serializable
+data class StatementRow(
+    val operation: String = "add",
+    val description: String = "",
+    val amount: Double = 0.0
+)
+
+@Serializable
+data class StatementData(
+    val rows: List<StatementRow> = emptyList()
+)
+
+@Serializable
 data class DrawingData(
     val elements: List<DrawingElement> = emptyList()
 )
@@ -99,6 +111,7 @@ fun NotesScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
     var showAddNotebookDialog by remember { mutableStateOf(false) }
     var notebookToDelete by remember { mutableStateOf<Notebook?>(null) }
     var notebookToRename by remember { mutableStateOf<Notebook?>(null) }
+    var showColorPicker by remember { mutableStateOf<Note?>(null) }
 
     val selectedTagIds = remember { mutableStateListOf<Int>() }
     var showTagFilter by remember { mutableStateOf(false) }
@@ -205,6 +218,16 @@ fun NotesScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                             modifier = Modifier.padding(bottom = 72.dp)
                         ) {
+                            ExtendedFloatingActionButton(
+                                onClick = {
+                                    noteTypeToAdd = "statement"
+                                    isAddingNote = true
+                                    showFabMenu = false
+                                },
+                                icon = { Icon(Icons.Default.TableChart, null) },
+                                text = { Text(stringResource(R.string.title_statement)) },
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer
+                            )
                             ExtendedFloatingActionButton(
                                 onClick = {
                                     noteTypeToAdd = "drawing"
@@ -345,42 +368,87 @@ fun NotesScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                                                 onClick = { viewingNote = note },
                                                 onLongClick = { showNoteMenu = true }
                                             ),
-                                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = note.color?.let { Color(it) } ?: MaterialTheme.colorScheme.surfaceVariant
+                                        )
                                     ) {
+                                        val contentColor = if (note.color != null) {
+                                            if (Color(note.color).luminance() > 0.5f) Color.Black else Color.White
+                                        } else MaterialTheme.colorScheme.onSurfaceVariant
+
                                         Column(modifier = Modifier.padding(12.dp)) {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                 Icon(
                                                     imageVector = when(note.type) {
                                                         "checklist" -> Icons.Default.Checklist
                                                         "drawing" -> Icons.Default.Brush
+                                                        "statement" -> Icons.Default.TableChart
                                                         else -> Icons.Default.Notes
                                                     },
                                                     contentDescription = null,
                                                     modifier = Modifier.size(14.dp),
-                                                    tint = MaterialTheme.colorScheme.primary
+                                                    tint = if (note.color != null) contentColor else MaterialTheme.colorScheme.primary
                                                 )
                                                 Spacer(Modifier.width(4.dp))
-                                                Text(text = note.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, maxLines = 1)
+                                                Text(
+                                                    text = note.title, 
+                                                    style = MaterialTheme.typography.bodyMedium, 
+                                                    fontWeight = FontWeight.Bold, 
+                                                    maxLines = 1,
+                                                    color = contentColor
+                                                )
+                                                if (note.isPinned) {
+                                                    Spacer(Modifier.weight(1f))
+                                                    Icon(Icons.Default.PushPin, null, modifier = Modifier.size(14.dp), tint = contentColor.copy(alpha = 0.7f))
+                                                }
                                             }
                                             Spacer(Modifier.height(2.dp))
-                                            Text(
-                                                text = if (note.type == "checklist") {
+                                            val drawingNoteLabel = stringResource(R.string.label_drawing_note)
+                                            val statementTitle = stringResource(R.string.title_statement)
+                                            val displayContent = remember(note.content, note.type) {
+                                                if (note.type == "checklist") {
                                                     try {
                                                         val items = Json.decodeFromString<List<ChecklistItem>>(note.content)
                                                         items.joinToString(", ") { "${it.text} (${it.quantity})" }
                                                     } catch (e: Exception) { note.content }
                                                 } else if (note.type == "drawing") {
-                                                    stringResource(R.string.label_drawing_note)
+                                                    drawingNoteLabel
+                                                } else if (note.type == "statement") {
+                                                    try {
+                                                        val data = Json.decodeFromString<StatementData>(note.content)
+                                                        data.rows.joinToString(", ") { it.description }.ifBlank { statementTitle }
+                                                    } catch (e: Exception) { note.content }
                                                 } else {
                                                     note.content
-                                                },
+                                                }
+                                            }
+                                            Text(
+                                                text = displayContent,
                                                 style = MaterialTheme.typography.bodySmall,
                                                 maxLines = 2,
-                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                                color = contentColor.copy(alpha = 0.8f)
                                             )
                                         }
                                     }
                                     DropdownMenu(expanded = showNoteMenu, onDismissRequest = { showNoteMenu = false }) {
+                                        DropdownMenuItem(
+                                            text = { Text(if (note.isPinned) "Unpin" else "Pin") },
+                                            onClick = {
+                                                showNoteMenu = false
+                                                viewModel.togglePinNote(note)
+                                            },
+                                            leadingIcon = { Icon(if (note.isPinned) Icons.Default.PushPin else Icons.Default.PushPin, null) }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Color") },
+                                            onClick = {
+                                                showNoteMenu = false
+                                                showColorPicker = note
+                                            },
+                                            leadingIcon = { Icon(Icons.Default.Palette, null) }
+                                        )
                                         DropdownMenuItem(
                                             text = { Text(stringResource(R.string.btn_move)) },
                                             onClick = {
@@ -513,6 +581,58 @@ fun NotesScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
             dismissButton = { TextButton(onClick = { noteForAction = null }) { Text("Cancel") } }
         )
     }
+
+    if (showColorPicker != null) {
+        RgbColorPickerDialog(
+            initialColor = showColorPicker!!.color,
+            onColorSelected = { color ->
+                viewModel.updateNoteColor(showColorPicker!!, color)
+                showColorPicker = null
+            },
+            onDismiss = { showColorPicker = null }
+        )
+    }
+}
+
+@Composable
+fun RgbColorPickerDialog(initialColor: Int?, onColorSelected: (Int?) -> Unit, onDismiss: () -> Unit) {
+    var red by remember { mutableFloatStateOf(Color(initialColor ?: 0xFFFFFFFF.toInt()).red * 255f) }
+    var green by remember { mutableFloatStateOf(Color(initialColor ?: 0xFFFFFFFF.toInt()).green * 255f) }
+    var blue by remember { mutableFloatStateOf(Color(initialColor ?: 0xFFFFFFFF.toInt()).blue * 255f) }
+    val currentColor = Color(red.toInt(), green.toInt(), blue.toInt())
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Pick Color") },
+        text = {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(modifier = Modifier.size(100.dp, 40.dp).background(currentColor, MaterialTheme.shapes.small).border(1.dp, Color.Gray, MaterialTheme.shapes.small))
+                
+                Column {
+                    Text("Red: ${red.toInt()}", style = MaterialTheme.typography.labelSmall)
+                    Slider(value = red, onValueChange = { red = it }, valueRange = 0f..255f)
+                }
+                Column {
+                    Text("Green: ${green.toInt()}", style = MaterialTheme.typography.labelSmall)
+                    Slider(value = green, onValueChange = { green = it }, valueRange = 0f..255f)
+                }
+                Column {
+                    Text("Blue: ${blue.toInt()}", style = MaterialTheme.typography.labelSmall)
+                    Slider(value = blue, onValueChange = { blue = it }, valueRange = 0f..255f)
+                }
+                
+                TextButton(onClick = { onColorSelected(null) }) {
+                    Text("Reset to Default")
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = { onColorSelected(currentColor.toArgb()) }) { Text("Apply") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -520,8 +640,8 @@ fun NotesScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
 fun ViewNoteScreen(viewModel: ExpenseViewModel, note: Note, onBack: () -> Unit, onEdit: () -> Unit, onUpdateNote: (Note) -> Unit) {
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
+    var showColorPicker by remember { mutableStateOf(false) }
     val isServerRunning by viewModel.isServerRunning.collectAsState()
-    val scope = rememberCoroutineScope()
     
     val allTags by viewModel.getAllTags().collectAsState(initial = emptyList())
     val noteTags = remember(note.tags, allTags) {
@@ -541,6 +661,13 @@ fun ViewNoteScreen(viewModel: ExpenseViewModel, note: Note, onBack: () -> Unit, 
         } else mutableStateListOf<ChecklistItem>()
     }
 
+    val statementData = remember(note.content, note.type) {
+        if (note.type == "statement") {
+            try { Json.decodeFromString<StatementData>(note.content) }
+            catch (e: Exception) { StatementData() }
+        } else null
+    }
+
     fun saveChecklistChanges() {
         if (note.type == "checklist") {
             val newContent = Json.encodeToString(checklistItems.toList())
@@ -556,7 +683,12 @@ fun ViewNoteScreen(viewModel: ExpenseViewModel, note: Note, onBack: () -> Unit, 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (note.type == "checklist") stringResource(R.string.title_checklist) else if(note.type == "drawing") stringResource(R.string.title_drawing) else stringResource(R.string.title_view_note)) },
+                title = { Text(when(note.type) {
+                    "checklist" -> stringResource(R.string.title_checklist)
+                    "drawing" -> stringResource(R.string.title_drawing)
+                    "statement" -> stringResource(R.string.title_statement)
+                    else -> stringResource(R.string.title_view_note)
+                }) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.btn_back))
@@ -568,6 +700,23 @@ fun ViewNoteScreen(viewModel: ExpenseViewModel, note: Note, onBack: () -> Unit, 
                             Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.label_more))
                         }
                         DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                            DropdownMenuItem(
+                                text = { Text(if (note.isPinned) "Unpin" else "Pin") },
+                                onClick = {
+                                    showMenu = false
+                                    viewModel.togglePinNote(note)
+                                    onUpdateNote(note.copy(isPinned = !note.isPinned))
+                                },
+                                leadingIcon = { Icon(if (note.isPinned) Icons.Default.PushPin else Icons.Default.PushPin, null) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Color") },
+                                onClick = {
+                                    showMenu = false
+                                    showColorPicker = true
+                                },
+                                leadingIcon = { Icon(Icons.Default.Palette, null) }
+                            )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.btn_delete)) },
                                 onClick = {
@@ -599,7 +748,11 @@ fun ViewNoteScreen(viewModel: ExpenseViewModel, note: Note, onBack: () -> Unit, 
                     .padding(16.dp)
                     .verticalScroll(rememberScrollState())
             ) {
-                Text(text = note.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text(
+                    text = note.title, 
+                    style = MaterialTheme.typography.headlineSmall, 
+                    fontWeight = FontWeight.Bold
+                )
                 if (noteTags.isNotEmpty()) {
                     Spacer(Modifier.height(8.dp))
                     Text(
@@ -709,6 +862,10 @@ fun ViewNoteScreen(viewModel: ExpenseViewModel, note: Note, onBack: () -> Unit, 
                             }
                         }
                     }
+                } else if (note.type == "statement") {
+                    statementData?.let { data ->
+                        StatementTableView(data, viewModel)
+                    }
                 } else {
                     Text(text = note.content, style = MaterialTheme.typography.bodyLarge)
                 }
@@ -734,6 +891,18 @@ fun ViewNoteScreen(viewModel: ExpenseViewModel, note: Note, onBack: () -> Unit, 
                     Text(stringResource(R.string.btn_cancel))
                 }
             }
+        )
+    }
+
+    if (showColorPicker) {
+        RgbColorPickerDialog(
+            initialColor = note.color,
+            onColorSelected = { color ->
+                viewModel.updateNoteColor(note, color)
+                onUpdateNote(note.copy(color = color))
+                showColorPicker = false
+            },
+            onDismiss = { showColorPicker = false }
         )
     }
 }
@@ -764,6 +933,19 @@ fun AddEditNoteScreen(viewModel: ExpenseViewModel, note: Note?, initialType: Str
         }
     }
 
+    val statementRows = remember {
+        if (note?.type == "statement") {
+            try {
+                val data = Json.decodeFromString<StatementData>(note.content)
+                data.rows.toMutableStateList()
+            } catch (e: Exception) {
+                mutableStateListOf<StatementRow>(StatementRow())
+            }
+        } else {
+            mutableStateListOf<StatementRow>(StatementRow())
+        }
+    }
+
     var newItemText by remember { mutableStateOf("") }
     var isCanvasFullWorkspace by remember { mutableStateOf(false) }
 
@@ -773,7 +955,12 @@ fun AddEditNoteScreen(viewModel: ExpenseViewModel, note: Note?, initialType: Str
         modifier = Modifier.imePadding(),
         topBar = {
             TopAppBar(
-                title = { Text(if (note == null) (if (initialType == "checklist") stringResource(R.string.title_new_checklist) else if(initialType == "drawing") stringResource(R.string.title_new_drawing) else stringResource(R.string.title_new_note)) else stringResource(R.string.title_edit_note)) },
+                title = { Text(if (note == null) (when(initialType) {
+                    "checklist" -> stringResource(R.string.title_checklist)
+                    "drawing" -> stringResource(R.string.title_drawing)
+                    "statement" -> stringResource(R.string.title_statement)
+                    else -> stringResource(R.string.title_new_note)
+                }) else stringResource(R.string.title_edit_note)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.btn_back))
@@ -866,6 +1053,8 @@ fun AddEditNoteScreen(viewModel: ExpenseViewModel, note: Note?, initialType: Str
                 LaunchedEffect(drawingElements.toList()) {
                     content = Json.encodeToString(DrawingData(drawingElements.toList()))
                 }
+            } else if (initialType == "statement") {
+                StatementEditor(statementRows, viewModel)
             } else {
                 OutlinedTextField(
                     value = content,
@@ -898,10 +1087,10 @@ fun AddEditNoteScreen(viewModel: ExpenseViewModel, note: Note?, initialType: Str
                             viewModel.editingNote = note
                             val tagsString = if (selectedTagIds.isEmpty()) null else selectedTagIds.joinToString(",")
                             
-                            val finalContent = if (initialType == "checklist") {
-                                Json.encodeToString(checklistItems.toList())
-                            } else {
-                                content
+                            val finalContent = when(initialType) {
+                                "checklist" -> Json.encodeToString(checklistItems.toList())
+                                "statement" -> Json.encodeToString(StatementData(statementRows.toList()))
+                                else -> content
                             }
                             
                             viewModel.saveNote(title, finalContent, tagsString, initialType)
@@ -1133,4 +1322,184 @@ fun drawElement(drawScope: androidx.compose.ui.graphics.drawscope.DrawScope, ele
             }
         }
     }
+}
+
+@Composable
+fun StatementEditor(rows: SnapshotStateList<StatementRow>, viewModel: ExpenseViewModel) {
+    val results = remember(rows.toList()) { calculateStatementRows(rows) }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.label_operation), modifier = Modifier.weight(0.25f), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.label_note), modifier = Modifier.weight(0.45f), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.label_amount), modifier = Modifier.weight(0.3f), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.End)
+        }
+        
+        rows.forEachIndexed { index, row ->
+            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                
+                Box(modifier = Modifier.weight(0.25f)) {
+                    var expanded by remember { mutableStateOf(false) }
+                    val ops = listOf(
+                        "add" to stringResource(R.string.label_add_op),
+                        "less" to stringResource(R.string.label_less_op),
+                        "multiply" to stringResource(R.string.label_multiply_op),
+                        "divide" to stringResource(R.string.label_divide_op),
+                        "subtotal" to stringResource(R.string.label_subtotal),
+                        "grand_total" to stringResource(R.string.label_grand_total)
+                    )
+                    Text(
+                        text = ops.find { it.first == row.operation }?.second ?: row.operation,
+                        modifier = Modifier.clickable { expanded = true }.padding(4.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                        ops.forEach { (key, label) ->
+                            DropdownMenuItem(text = { Text(label) }, onClick = {
+                                rows[index] = row.copy(operation = key)
+                                expanded = false
+                            })
+                        }
+                    }
+                }
+
+                OutlinedTextField(
+                    value = row.description,
+                    onValueChange = { rows[index] = row.copy(description = it) },
+                    modifier = Modifier.weight(0.45f),
+                    textStyle = MaterialTheme.typography.bodySmall,
+                    placeholder = { Text("...", style = MaterialTheme.typography.bodySmall) }
+                )
+
+                if (row.operation == "subtotal" || row.operation == "grand_total") {
+                    Text(
+                        text = viewModel.formatAmount(results[index]),
+                        modifier = Modifier.weight(0.3f),
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.End
+                    )
+                } else {
+                    var amtText by remember(row.amount) { mutableStateOf(if (row.amount == 0.0) "" else row.amount.toString()) }
+                    OutlinedTextField(
+                        value = amtText,
+                        onValueChange = { 
+                            amtText = it
+                            it.toDoubleOrNull()?.let { d -> rows[index] = row.copy(amount = d) }
+                        },
+                        modifier = Modifier.weight(0.3f),
+                        textStyle = MaterialTheme.typography.bodySmall.copy(textAlign = androidx.compose.ui.text.style.TextAlign.End),
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal),
+                        singleLine = true
+                    )
+                }
+                
+                IconButton(onClick = { rows.removeAt(index) }, modifier = Modifier.size(24.dp)) {
+                    Icon(Icons.Default.Delete, null, tint = Color.Red, modifier = Modifier.size(16.dp))
+                }
+            }
+        }
+        
+        Button(
+            onClick = { rows.add(StatementRow()) },
+            modifier = Modifier.padding(top = 8.dp),
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+        ) {
+            Icon(Icons.Default.Add, null, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(4.dp))
+            Text(stringResource(R.string.btn_add), style = MaterialTheme.typography.labelSmall)
+        }
+    }
+}
+
+@Composable
+fun StatementTableView(data: StatementData, viewModel: ExpenseViewModel) {
+    val results = remember(data.rows) { calculateStatementRows(data.rows) }
+
+    Column(modifier = Modifier.fillMaxWidth().border(1.dp, Color.Gray.copy(alpha = 0.3f))) {
+        
+        Row(modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant).padding(8.dp)) {
+            Text(stringResource(R.string.label_operation), modifier = Modifier.weight(0.25f), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.label_note), modifier = Modifier.weight(0.45f), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.label_amount), modifier = Modifier.weight(0.3f), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.End)
+        }
+
+        data.rows.forEachIndexed { index, row ->
+            val isTotal = row.operation == "subtotal" || row.operation == "grand_total"
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(if (isTotal) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f) else Color.Transparent)
+                    .padding(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val opLabel = when(row.operation) {
+                    "add" -> stringResource(R.string.label_add_op)
+                    "less" -> stringResource(R.string.label_less_op)
+                    "multiply" -> stringResource(R.string.label_multiply_op)
+                    "divide" -> stringResource(R.string.label_divide_op)
+                    "subtotal" -> stringResource(R.string.label_subtotal)
+                    "grand_total" -> stringResource(R.string.label_grand_total)
+                    else -> row.operation
+                }
+                Text(opLabel, modifier = Modifier.weight(0.25f), style = MaterialTheme.typography.bodyMedium)
+                Text(row.description, modifier = Modifier.weight(0.45f), style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = viewModel.formatAmount(if (isTotal) results[index] else row.amount),
+                    modifier = Modifier.weight(0.3f),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = if (isTotal) FontWeight.Bold else FontWeight.Normal,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.End
+                )
+            }
+            Divider(color = Color.Gray.copy(alpha = 0.2f))
+        }
+    }
+}
+
+fun calculateStatementRows(rows: List<StatementRow>): List<Double> {
+    val results = MutableList(rows.size) { 0.0 }
+    var currentGrandTotalSum = 0.0
+    
+    var runningValue = 0.0
+    var hasStarted = false
+
+    for (i in rows.indices) {
+        val row = rows[i]
+        when (row.operation) {
+            "add" -> {
+                if (!hasStarted) { runningValue = row.amount; hasStarted = true }
+                else runningValue += row.amount
+            }
+            "less" -> {
+                if (!hasStarted) { runningValue = -row.amount; hasStarted = true }
+                else runningValue -= row.amount
+            }
+            "multiply" -> {
+                if (!hasStarted) { runningValue = 0.0; hasStarted = true }
+                else runningValue *= row.amount
+            }
+            "divide" -> {
+                if (!hasStarted) { runningValue = 0.0; hasStarted = true }
+                else if (row.amount != 0.0) runningValue /= row.amount
+            }
+            "subtotal" -> {
+                results[i] = runningValue
+                currentGrandTotalSum += runningValue
+                runningValue = 0.0
+                hasStarted = false
+                continue
+            }
+            "grand_total" -> {
+                results[i] = currentGrandTotalSum
+                currentGrandTotalSum = 0.0
+                runningValue = 0.0
+                hasStarted = false
+                continue
+            }
+        }
+        results[i] = row.amount
+    }
+    return results
 }

@@ -1,3 +1,9 @@
+<!--
+ FinTrack
+ SPDX-License-Identifier: GPL-3.0-or-later
+ Copyright (C) 2026 Bhuvan
+-->
+
 <resources>
     <string name="app_name">FinTrack</string>
 
@@ -17,6 +23,14 @@
     <string name="menu_rules">自动化规则</string>
     <string name="menu_assets">资产</string>
     <string name="menu_subscriptions">订阅</string>
+
+    <string name="label_operation">操作</string>
+    <string name="label_add_op">加</string>
+    <string name="label_less_op">减</string>
+    <string name="label_multiply_op">乘</string>
+    <string name="label_divide_op">除</string>
+    <string name="label_subtotal">小计</string>
+    <string name="label_grand_total">总计</string>
 
     <string name="btn_add">添加</string>
     <string name="btn_save">保存</string>
@@ -180,7 +194,6 @@
     <string name="title_settings">设置</string>
     <string name="settings_appearance">外观</string>
     <string name="settings_theme">主题</string>
-    <string name="settings_primary_color">主题色</string>
     <string name="settings_security">安全</string>
     <string name="settings_app_lock">应用锁 (生物识别/PIN)</string>
     <string name="settings_timeout">无操作超时</string>
@@ -288,6 +301,11 @@
     <string name="label_quarterly">每季度</string>
     <string name="label_half_yearly">每半年</string>
     <string name="label_yearly">每年</string>
+    <string name="label_custom">自定义</string>
+    <string name="label_days">天</string>
+    <string name="label_weeks">周</string>
+    <string name="label_months">月</string>
+    <string name="label_years">年</string>
     <string name="label_var_amt">差异额</string>
     <string name="label_var_pct">差异 %</string>
     <string name="label_metric">指标</string>
@@ -583,7 +601,7 @@
     <string name="label_toggle">切换</string>
     <string name="settings_language">语言</string>
     <string name="settings_color">颜色</string>
-    <string name="settings_color_picker_title">选择主题色</string>
+    <string name="settings_color_picker_title">选择颜色</string>
     <string name="settings_red">红色</string>
     <string name="settings_green">绿色</string>
     <string name="settings_blue">蓝色</string>
@@ -706,6 +724,7 @@
     <string name="label_none_general">无 (常规)</string>
     <string name="title_checklist">清单</string>
     <string name="title_drawing">绘图</string>
+    <string name="title_statement">报表</string>
     <string name="title_view_note">查看笔记</string>
     <string name="btn_edit_note">编辑笔记</string>
     <string name="label_tags_colon">标签: %1$s</string>
@@ -715,6 +734,7 @@
     <string name="msg_delete_note_confirm">确定要删除该笔记吗？</string>
     <string name="title_new_checklist">新建清单</string>
     <string name="title_new_drawing">新建绘图</string>
+    <string name="title_new_statement">新建报表</string>
     <string name="title_new_note">新建笔记</string>
     <string name="title_edit_note">编辑笔记</string>
     <string name="label_header">标题</string>
@@ -816,4 +836,10 @@
     <string name="label_uncategorized">未分类</string>
     <string name="label_other">其他</string>
     <string name="label_advanced_filters">高级筛选</string>
+
+    <string name="shortcut_add_entry_short">添加分录</string>
+    <string name="shortcut_add_entry_long">添加新交易</string>
+    <string name="shortcut_quick_entry_short">快速分录</string>
+    <string name="shortcut_quick_entry_long">记录快速交易</string>
+    <string name="btn_save_and_new">保存并新增</string>
 </resources>

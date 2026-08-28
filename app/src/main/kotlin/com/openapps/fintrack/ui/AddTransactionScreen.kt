@@ -1331,7 +1331,7 @@ fun MultiEntryRowItem(
                             state.multiEntryRows[index] = row.copy(accountId = it)
                             state.accountError = null
                         },
-                        onOnAccountSelected = {}, // Multi-account doesn't support On Account for now for simplicity
+                        onOnAccountSelected = {}, 
                         isOnAccountSelected = false,
                         hasOnAccountOption = false,
                         enabled = !readOnly,
@@ -1690,7 +1690,7 @@ fun validateAndSave(
     }
 
     if (isTemplateMode) {
-        // This shouldn't be reached if UI logic is correct, but added as safety
+        // Added as safety - This shouldn't be reached if UI logic is correct.
         Toast.makeText(context, context.getString(R.string.msg_cannot_save_template_mode), Toast.LENGTH_SHORT).show()
         return false
     }
@@ -1732,7 +1732,6 @@ fun validateAndSave(
             viewModel.addMultiEntryTransactionExtended(state.date, state.time, state.selectedAccountId ?: 0, entries, tagsString, state.type, state.selectedPartyId, state.subName, state.subFrequency.toIntOrNull(), updateId)
         }
         
-        // Remove from pending import if applicable
         viewModel.currentRecordingImportTxnKey?.let { key ->
             viewModel.pendingTransactions = viewModel.pendingTransactions.filter { 
                 (it.description + it.date.toString() + it.amount.toString()) != key 
@@ -1772,7 +1771,6 @@ fun validateAndSave(
             viewModel.addTransaction(state.date, state.time, state.selectedAccountId!!, state.selectedCategoryId, amtBase, state.note, null, tagsString, state.type, state.selectedPartyId, null, subNameVal, subFreqVal, amtOriginal, state.foreignCurrency, amtBase, updateId = updateId, isNegotiated = state.isNegotiated, negotiationAmountOriginal = state.negotiationAmountOriginal.toDoubleOrNull(), merchantName = state.merchantName, isDiscretionary = state.isDiscretionary, invoiceNumber = if (viewModel.invoiceAgeTrackingEnabled) state.invoiceNumber else null, dueDays = if (viewModel.invoiceAgeTrackingEnabled) state.dueDays.toIntOrNull() else null)
         }
 
-        // Remove from pending import if applicable
         viewModel.currentRecordingImportTxnKey?.let { key ->
             viewModel.pendingTransactions = viewModel.pendingTransactions.filter { 
                 (it.description + it.date.toString() + it.amount.toString()) != key 
@@ -1948,7 +1946,6 @@ fun MultiCurrencyAmountSection(
 
         Spacer(Modifier.height(8.dp))
 
-        // Conversion Rate Field
         OutlinedTextField(
             value = manualRateInput,
             onValueChange = { if (!readOnly) onManualRateChange(it) },

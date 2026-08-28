@@ -7,6 +7,7 @@
 package com.openapps.fintrack
 
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -32,6 +33,7 @@ import kotlinx.coroutines.launch
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import android.view.WindowManager
@@ -48,9 +50,11 @@ class MainActivity : AppCompatActivity() {
     private val isDecrypting = mutableStateOf(false)
     private val decryptionProgress = mutableStateOf(0f)
     private var lastInteractionTime: Long = System.currentTimeMillis()
+    private val currentExtras = mutableStateOf<Bundle?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        currentExtras.value = intent.extras
         
         viewModel = ViewModelProvider(this)[ExpenseViewModel::class.java]
         
@@ -69,7 +73,10 @@ class MainActivity : AppCompatActivity() {
         val prefs = getSharedPreferences("app_settings", Context.MODE_PRIVATE)
         val appLockEnabledOnStart = prefs.getBoolean("app_lock_enabled", false)
         
-        isLockedState.value = appLockEnabledOnStart
+        val navigateTo = intent.extras?.getString("navigate_to")
+        val isQuickEntry = navigateTo == "quick_entry"
+        
+        isLockedState.value = appLockEnabledOnStart && !isQuickEntry
 
         setContent {
             val isLocked by isLockedState
@@ -80,7 +87,6 @@ class MainActivity : AppCompatActivity() {
             val primaryColor = viewModel.currentPrimaryColor
 
             FinTrackTheme(theme = themeToUse, primaryColor = primaryColor) {
-                // Handle screenshot disabling
                 val disableScreenshots = viewModel.disableScreenshots
                 LaunchedEffect(disableScreenshots) {
                     if (disableScreenshots) {
@@ -122,13 +128,15 @@ class MainActivity : AppCompatActivity() {
                                 Text(stringResource(R.string.msg_decrypting_secure_data, (progress * 100).toInt()), style = MaterialTheme.typography.labelSmall)
                             }
                         }
-                    } else if (!isLocked) {
+                    } else if (!isLocked || (currentExtras.value?.getString("navigate_to") == "quick_entry")) {
                         FinTrackApp(
                             viewModel = viewModel, 
-                            extras = intent.extras,
+                            extras = currentExtras.value,
                             onRequireAuth = { onAuthSuccess ->
                                 authenticate(onAuthSuccess)
-                            }
+                            },
+                            isLocked = isLocked,
+                            onUnlock = { isLockedState.value = false }
                         )
                     } else {
                         UnlockScreen(
@@ -146,13 +154,26 @@ class MainActivity : AppCompatActivity() {
         resetLockTimer()
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val extras = intent.extras
+        currentExtras.value = extras
+        if (extras?.getString("navigate_to") == "quick_entry") {
+            isLockedState.value = false
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         val elapsed = System.currentTimeMillis() - lastInteractionTime
         val timeoutStr = viewModel.inactivityTimeout
         val timeoutMillis = getTimeoutMillis(timeoutStr)
         
-        if (viewModel.appLockEnabled && timeoutStr != "keep unlocked until app closure" && elapsed > timeoutMillis) {
+        val navigateTo = currentExtras.value?.getString("navigate_to")
+        val isQuickEntry = navigateTo == "quick_entry"
+        
+        if (viewModel.appLockEnabled && timeoutStr != "keep unlocked until app closure" && elapsed > timeoutMillis && !isQuickEntry) {
             isLockedState.value = true
         }
         resetLockTimer()
@@ -208,7 +229,9 @@ class MainActivity : AppCompatActivity() {
 
         lockHandler.postDelayed({
             val now = System.currentTimeMillis()
-            if (viewModel.appLockEnabled && (now - lastInteractionTime >= millis)) {
+            val navigateTo = currentExtras.value?.getString("navigate_to")
+            val isQuickEntry = navigateTo == "quick_entry"
+            if (viewModel.appLockEnabled && (now - lastInteractionTime >= millis) && !isQuickEntry) {
                 isLockedState.value = true
             }
         }, millis)
@@ -339,9 +362,14 @@ fun FinTrackApp(
     viewModel: ExpenseViewModel, 
     startRoute: String = "home", 
     extras: Bundle? = null,
-    onRequireAuth: (() -> Unit) -> Unit
+    onRequireAuth: (() -> Unit) -> Unit,
+    isLocked: Boolean = false,
+    onUnlock: () -> Unit = {}
 ) {
     val navController = rememberNavController()
+    val currentBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = currentBackStackEntry?.destination?.route
+    
     val context = LocalContext.current
     val isSetupComplete = remember {
         context.getSharedPreferences("app_settings", Context.MODE_PRIVATE).getBoolean("setup_complete", false)
@@ -369,169 +397,186 @@ fun FinTrackApp(
         }
     }
 
-    NavHost(
-        navController = navController, 
-        startDestination = initialRoute,
-        enterTransition = { fadeIn() + slideInHorizontally { it } },
-        exitTransition = { fadeOut() + slideOutHorizontally { -it } },
-        popEnterTransition = { fadeIn() + slideInHorizontally { -it } },
-        popExitTransition = { fadeOut() + slideOutHorizontally { it } }
-    ) {
-        composable("setup") {
-            SetupScreen(viewModel = viewModel, onComplete = {
-                navController.navigate("permissions") {
-                    popUpTo("setup") { inclusive = true }
-                }
-            })
-        }
-        composable("home") {
-            HomeScreen(
-                viewModel = viewModel,
-                onNavigate = { route -> 
-                    navController.navigate(route) {
-                        launchSingleTop = true
+    Box(Modifier.fillMaxSize()) {
+        NavHost(
+            navController = navController, 
+            startDestination = initialRoute,
+            enterTransition = { fadeIn() + slideInHorizontally { it } },
+            exitTransition = { fadeOut() + slideOutHorizontally { -it } },
+            popEnterTransition = { fadeIn() + slideInHorizontally { -it } },
+            popExitTransition = { fadeOut() + slideOutHorizontally { it } }
+        ) {
+            composable("setup") {
+                SetupScreen(viewModel = viewModel, onComplete = {
+                    navController.navigate("permissions") {
+                        popUpTo("setup") { inclusive = true }
                     }
-                }
-            )
-        }
-        composable("add_transaction") {
-            AddTransactionScreen(
-                viewModel = viewModel, 
-                onBack = { navController.popBackStack() },
-                onNavigate = { navController.navigate(it) },
-                initialData = extras
-            )
-        }
-        composable("add_transaction_template") {
-            val bundle = Bundle().apply { putBoolean("template_mode", true) }
-            AddTransactionScreen(
-                viewModel = viewModel, 
-                onBack = { navController.popBackStack() },
-                onNavigate = { navController.navigate(it) },
-                initialData = bundle
-            )
-        }
-        composable("templates") {
-            TemplatesScreen(
-                viewModel = viewModel,
-                onNavigate = { route, _ -> navController.navigate(route) },
-                onBack = { navController.popBackStack() }
-            )
-        }
-        composable("add_category") {
-            AddCategoryScreen(
-                viewModel = viewModel, 
-                onNavigate = { route -> navController.navigate(route) },
-                onBack = { navController.popBackStack() }
-            )
-        }
-        composable("manage_categories") {
-            ManageCategoriesScreen(
-                viewModel = viewModel,
-                onEditCategory = { navController.navigate("add_category") },
-                onEditAccount = { navController.navigate("add_category") },
-                onBack = { navController.popBackStack() }
-            )
-        }
-        composable("manage_heads") {
-            ManageHeadsScreen(
-                viewModel = viewModel,
-                onEditMajor = { navController.navigate("add_head") },
-                onEditMinor = { navController.navigate("add_head") },
-                onBack = { navController.popBackStack() }
-            )
-        }
-        composable("add_head") {
-            AddHeadScreen(
-                viewModel = viewModel,
-                onBack = { navController.popBackStack() }
-            )
-        }
-        composable("tags_main") {
-            TagsMainScreen(
-                onNavigate = { navController.navigate(it) },
-                onBack = { navController.popBackStack() }
-            )
-        }
-        composable("add_tag") {
-            AddTagScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
-        }
-        composable("manage_tags") {
-            ManageTagsScreen(
-                viewModel = viewModel,
-                onEditTag = { navController.navigate("add_tag") },
-                onBack = { navController.popBackStack() }
-            )
-        }
-        composable("summary_by_tags") {
-            TagSummaryScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
-        }
-        composable("summary") {
-            SummaryScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
-        }
-        composable("credit_cards") {
-            CreditCardDashboard(viewModel = viewModel, onBack = { navController.popBackStack() })
-        }
-        composable("subscriptions") {
-            SubscriptionDashboard(viewModel = viewModel, onBack = { navController.popBackStack() }, onNavigate = { navController.navigate(it) })
-        }
-        composable("settings") {
-            SettingsScreen(viewModel = viewModel, onBack = { navController.popBackStack() }, onNavigate = { navController.navigate(it) }, onRequireAuth = onRequireAuth)
-        }
-        composable("permissions") {
-            PermissionsScreen(onBack = { 
-                if (navController.previousBackStackEntry == null) {
-                    navController.navigate("home") {
-                        popUpTo("permissions") { inclusive = true }
+                })
+            }
+            composable("home") {
+                HomeScreen(
+                    viewModel = viewModel,
+                    onNavigate = { route -> 
+                        navController.navigate(route) {
+                            launchSingleTop = true
+                        }
                     }
-                } else {
-                    navController.popBackStack()
-                }
-            })
+                )
+            }
+            composable("add_transaction") {
+                AddTransactionScreen(
+                    viewModel = viewModel, 
+                    onBack = { navController.popBackStack() },
+                    onNavigate = { navController.navigate(it) },
+                    initialData = extras
+                )
+            }
+            composable("add_transaction_template") {
+                val bundle = Bundle().apply { putBoolean("template_mode", true) }
+                AddTransactionScreen(
+                    viewModel = viewModel, 
+                    onBack = { navController.popBackStack() },
+                    onNavigate = { navController.navigate(it) },
+                    initialData = bundle
+                )
+            }
+            composable("templates") {
+                TemplatesScreen(
+                    viewModel = viewModel,
+                    onNavigate = { route, _ -> navController.navigate(route) },
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            composable("add_category") {
+                AddCategoryScreen(
+                    viewModel = viewModel, 
+                    onNavigate = { route -> navController.navigate(route) },
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            composable("manage_categories") {
+                ManageCategoriesScreen(
+                    viewModel = viewModel,
+                    onEditCategory = { navController.navigate("add_category") },
+                    onEditAccount = { navController.navigate("add_category") },
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            composable("manage_heads") {
+                ManageHeadsScreen(
+                    viewModel = viewModel,
+                    onEditMajor = { navController.navigate("add_head") },
+                    onEditMinor = { navController.navigate("add_head") },
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            composable("add_head") {
+                AddHeadScreen(
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            composable("tags_main") {
+                TagsMainScreen(
+                    onNavigate = { navController.navigate(it) },
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            composable("add_tag") {
+                AddTagScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+            }
+            composable("manage_tags") {
+                ManageTagsScreen(
+                    viewModel = viewModel,
+                    onEditTag = { navController.navigate("add_tag") },
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            composable("summary_by_tags") {
+                TagSummaryScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+            }
+            composable("summary") {
+                SummaryScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+            }
+            composable("credit_cards") {
+                CreditCardDashboard(viewModel = viewModel, onBack = { navController.popBackStack() })
+            }
+            composable("subscriptions") {
+                SubscriptionDashboard(viewModel = viewModel, onBack = { navController.popBackStack() }, onNavigate = { navController.navigate(it) })
+            }
+            composable("settings") {
+                SettingsScreen(viewModel = viewModel, onBack = { navController.popBackStack() }, onNavigate = { navController.navigate(it) }, onRequireAuth = onRequireAuth)
+            }
+            composable("permissions") {
+                PermissionsScreen(onBack = { 
+                    if (navController.previousBackStackEntry == null) {
+                        navController.navigate("home") {
+                            popUpTo("permissions") { inclusive = true }
+                        }
+                    } else {
+                        navController.popBackStack()
+                    }
+                })
+            }
+            composable("database") {
+                DatabaseScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+            }
+            composable("contact") {
+                ContactScreen(onBack = { navController.popBackStack() })
+            }
+            composable("performance") {
+                PerformanceScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+            }
+            composable("import_statement") {
+                ImportStatementScreen(
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() },
+                    onNavigate = { navController.navigate(it) }
+                )
+            }
+            composable("budgets_main") {
+                BudgetsMainScreen(
+                    onNavigate = { navController.navigate(it) },
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            composable("manage_budgets") {
+                ManageBudgetsScreen(
+                    viewModel = viewModel,
+                    onEditBudget = { navController.navigate("add_budget") },
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            composable("add_budget") {
+                AddBudgetScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+            }
+            composable("budget_vs_actual") {
+                BudgetComparisonScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+            }
+            composable("notes") {
+                NotesScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+            }
+            composable("tutorial") {
+                TutorialScreen(onBack = { navController.popBackStack() })
+            }
+            composable("rules") {
+                RulesScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+            }
+            composable("quick_entry") {
+                QuickEntryScreen(
+                    viewModel = viewModel,
+                    onExit = { (context as MainActivity).finish() }
+                )
+            }
         }
-        composable("database") {
-            DatabaseScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
-        }
-        composable("contact") {
-            ContactScreen(onBack = { navController.popBackStack() })
-        }
-        composable("performance") {
-            PerformanceScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
-        }
-        composable("import_statement") {
-            ImportStatementScreen(
-                viewModel = viewModel,
-                onBack = { navController.popBackStack() },
-                onNavigate = { navController.navigate(it) }
-            )
-        }
-        composable("budgets_main") {
-            BudgetsMainScreen(
-                onNavigate = { navController.navigate(it) },
-                onBack = { navController.popBackStack() }
-            )
-        }
-        composable("manage_budgets") {
-            ManageBudgetsScreen(
-                viewModel = viewModel,
-                onEditBudget = { navController.navigate("add_budget") },
-                onBack = { navController.popBackStack() }
-            )
-        }
-        composable("add_budget") {
-            AddBudgetScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
-        }
-        composable("budget_vs_actual") {
-            BudgetComparisonScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
-        }
-        composable("notes") {
-            NotesScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
-        }
-        composable("tutorial") {
-            TutorialScreen(onBack = { navController.popBackStack() })
-        }
-        composable("rules") {
-            RulesScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+        
+        if (isLocked && currentRoute != "quick_entry") {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = MaterialTheme.colorScheme.background
+            ) {
+                UnlockScreen(onUnlock = onUnlock)
+            }
         }
     }
 }

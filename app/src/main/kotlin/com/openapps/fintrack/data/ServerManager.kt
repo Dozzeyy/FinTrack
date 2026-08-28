@@ -405,7 +405,6 @@ class ServerManager(private val context: Context, private val dao: ExpenseDao) {
                                         dao.insertTransaction(dto.toEntity().copy(transactionNumber = txnNumber))
                                     }
                                     
-                                    // Notify UI to refresh charts
                                     withContext(Dispatchers.Main) {
                                         onDatabaseChange?.invoke()
                                     }

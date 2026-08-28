@@ -230,7 +230,7 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: 
                                 val current = viewModel.dashboardBudgetIds.toMutableList()
                                 if (isSelected) {
                                     current.remove(budget.id)
-                                } else if (current.size < 3) {
+                                } else if (current.size < 10) {
                                     current.add(budget.id)
                                 }
                                 viewModel.updateDashboardBudgets(current)

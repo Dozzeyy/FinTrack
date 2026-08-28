@@ -383,7 +383,7 @@ fun ImportStatementScreen(
                                         .fillMaxWidth()
                                         .padding(vertical = 4.dp)
                                         .clickable {
-                                            // Pre-fill Add Transaction screen
+                                        
                                             viewModel.currentRecordingImportTxnKey = key
                                             viewModel.draftTransaction = DraftTransaction(
                                                 type = if (txn.isCredit) "income" else "expense",

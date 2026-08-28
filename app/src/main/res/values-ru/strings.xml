@@ -1,3 +1,9 @@
+<!--
+ FinTrack
+ SPDX-License-Identifier: GPL-3.0-or-later
+ Copyright (C) 2026 Bhuvan
+-->
+
 <resources>
     <string name="app_name">FinTrack</string>
 
@@ -17,6 +23,14 @@
     <string name="menu_rules">Правила автоматизации</string>
     <string name="menu_assets">Активы</string>
     <string name="menu_subscriptions">Подписки</string>
+
+    <string name="label_operation">Операция</string>
+    <string name="label_add_op">Плюс</string>
+    <string name="label_less_op">Минус</string>
+    <string name="label_multiply_op">Умножить</string>
+    <string name="label_divide_op">Разделить</string>
+    <string name="label_subtotal">Подытог</string>
+    <string name="label_grand_total">Общий итог</string>
 
     <string name="btn_add">Добавить</string>
     <string name="btn_save">Сохранить</string>
@@ -180,7 +194,6 @@
     <string name="title_settings">Настройки</string>
     <string name="settings_appearance">Внешний вид</string>
     <string name="settings_theme">Тема</string>
-    <string name="settings_primary_color">Основной цвет</string>
     <string name="settings_security">Безопасность</string>
     <string name="settings_app_lock">Блокировка (биометрия/PIN)</string>
     <string name="settings_timeout">Тайм-аут бездействия</string>
@@ -288,6 +301,11 @@
     <string name="label_quarterly">Ежеквартально</string>
     <string name="label_half_yearly">Раз в полгода</string>
     <string name="label_yearly">Ежегодно</string>
+    <string name="label_custom">Настроить</string>
+    <string name="label_days">День/Дни</string>
+    <string name="label_weeks">Неделя/Недели</string>
+    <string name="label_months">Месяц/Месяцы</string>
+    <string name="label_years">Год/Годы</string>
     <string name="label_var_amt">Откл. (сумма)</string>
     <string name="label_var_pct">Откл. (%)</string>
     <string name="label_metric">Показатель</string>
@@ -706,6 +724,7 @@
     <string name="label_none_general">Нет (Общее)</string>
     <string name="title_checklist">Чек-лист</string>
     <string name="title_drawing">Рисование</string>
+    <string name="title_statement">Выписка</string>
     <string name="title_view_note">Просмотр</string>
     <string name="btn_edit_note">Правка заметки</string>
     <string name="label_tags_colon">Теги: %1$s</string>
@@ -715,6 +734,7 @@
     <string name="msg_delete_note_confirm">Удалить эту заметку?</string>
     <string name="title_new_checklist">Новый список</string>
     <string name="title_new_drawing">Новый рисунок</string>
+    <string name="title_new_statement">Новая выписка</string>
     <string name="title_new_note">Новая заметка</string>
     <string name="title_edit_note">Правка заметки</string>
     <string name="label_header">Заголовок</string>
@@ -754,7 +774,7 @@
     <string name="label_youtube">Youtube</string>
     <string name="msg_facing_issues">Проблемы с приложением?</string>
     <string name="msg_send_logs_desc">Отправьте логи для диагностики.</string>
-    <string name="btn_export_logs">Экспорт логов</string>
+    <string name="btn_export_logs">Export Logs</string>
     <string name="msg_logs_exported">Логи экспортированы</string>
     <string name="msg_log_export_failed">Ошибка экспорта логов</string>
     <string name="msg_delete_confirm_txn">Удалить транзакцию навсегда?</string>
@@ -816,4 +836,10 @@
     <string name="label_uncategorized">Без категории</string>
     <string name="label_other">Прочее</string>
     <string name="label_advanced_filters">Расширенные фильтры</string>
+
+    <string name="shortcut_add_entry_short">Добавить запись</string>
+    <string name="shortcut_add_entry_long">Добавить новую транзакцию</string>
+    <string name="shortcut_quick_entry_short">Быстрая запись</string>
+    <string name="shortcut_quick_entry_long">Записать быструю транзакцию</string>
+    <string name="btn_save_and_new">Сохранить и создать</string>
 </resources>

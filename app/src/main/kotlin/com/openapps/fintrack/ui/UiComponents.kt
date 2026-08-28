@@ -457,9 +457,13 @@ fun LineChart(
     
     val textMeasurer = rememberTextMeasurer()
     val onSurfaceColor = MaterialTheme.colorScheme.onSurface
-    val labelStyle = MaterialTheme.typography.labelSmall.copy(color = onSurfaceColor, fontSize = 10.sp)
+    val labelStyle = MaterialTheme.typography.labelSmall.copy(
+        color = onSurfaceColor, 
+        fontSize = 10.sp,
+        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+    )
 
-    // Calculate needed width to maintain gap
+    //Width to maintain gap
     val minGap = 60.dp
     val scrollState = rememberScrollState()
     
@@ -468,7 +472,8 @@ fun LineChart(
             .widthIn(min = 300.dp)
             .width(maxOf(300.dp, (data.size * 60).dp))
             .fillMaxHeight()
-            .padding(horizontal = 32.dp, vertical = 32.dp)
+            .padding(horizontal = 32.dp)
+            .padding(top = 32.dp, bottom = 48.dp)
         ) {
             val width = size.width
             val height = size.height

@@ -72,7 +72,7 @@ fun PermissionsScreen(onBack: () -> Unit) {
         }
     ) { padding ->
         Column(modifier = Modifier.padding(padding)) {
-            // Note for Restricted Settings
+
             Surface(
                 color = MaterialTheme.colorScheme.secondaryContainer,
                 modifier = Modifier.fillMaxWidth().padding(16.dp),

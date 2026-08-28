@@ -182,7 +182,9 @@ data class Note(
     val notebookId: Int? = null,
     val createdAt: Long = System.currentTimeMillis(),
     val tags: String? = null, // Comma separated tag IDs
-    val editedAt: Long? = null
+    val editedAt: Long? = null,
+    val isPinned: Boolean = false,
+    val color: Int? = null
 )
 
 @Entity(tableName = "loans")

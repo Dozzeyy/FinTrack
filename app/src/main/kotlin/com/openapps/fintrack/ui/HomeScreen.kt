@@ -193,7 +193,7 @@ fun HomeScreen(
                     }
                     
                     Text(
-                        "v1.0.18",
+                        "v1.0.19",
                         modifier = Modifier.padding(16.dp),
                         style = MaterialTheme.typography.labelSmall,
                         color = Color.Gray
@@ -817,7 +817,17 @@ fun HomeView(
                 Spacer(Modifier.height(12.dp))
                 val budgetVsActual by viewModel.getBudgetVsActual(endDate).collectAsState(initial = emptyList())
                 val selectedBudgetsRaw by viewModel.getAllBudgets().collectAsState(initial = emptyList())
-                val selectedBudgets = selectedBudgetsRaw.filter { it.id in viewModel.dashboardBudgetIds }
+                
+                val selectedBudgets = remember(selectedBudgetsRaw, budgetVsActual, viewModel.dashboardBudgetIds) {
+                    selectedBudgetsRaw.filter { it.id in viewModel.dashboardBudgetIds }
+                        .sortedBy { budget ->
+                            val performance = budgetVsActual.find { it.categoryName == budget.name || (budget.name == null && it.categoryName.contains(budget.categoryIds.split(",")[0])) }
+                            val actual = performance?.actualAmount ?: 0.0
+                            val limit = budget.amount
+                            val isGoalMet = if (budget.higherIsBetter) actual >= limit else actual <= limit
+                            if (isGoalMet) 1 else 0
+                        }
+                }
 
                 if (selectedBudgets.isNotEmpty()) {
                     Text(stringResource(R.string.label_budget_performance), style = MaterialTheme.typography.titleMedium)

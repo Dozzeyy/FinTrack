@@ -1,3 +1,9 @@
+<!--
+ FinTrack
+ SPDX-License-Identifier: GPL-3.0-or-later
+ Copyright (C) 2026 Bhuvan
+-->
+
 <resources>
     <string name="app_name">FinTrack</string>
 
@@ -17,6 +23,14 @@
     <string name="menu_rules">Reglas de Automatización</string>
     <string name="menu_assets">Activos</string>
     <string name="menu_subscriptions">Suscripciones</string>
+
+    <string name="label_operation">Operación</string>
+    <string name="label_add_op">Suma</string>
+    <string name="label_less_op">Resta</string>
+    <string name="label_multiply_op">Multiplica</string>
+    <string name="label_divide_op">Divide</string>
+    <string name="label_subtotal">Subtotal</string>
+    <string name="label_grand_total">Gran Total</string>
 
     <string name="btn_add">Añadir</string>
     <string name="btn_save">Guardar</string>
@@ -180,7 +194,6 @@
     <string name="title_settings">Ajustes</string>
     <string name="settings_appearance">Apariencia</string>
     <string name="settings_theme">Tema</string>
-    <string name="settings_primary_color">Color Primario</string>
     <string name="settings_security">Seguridad</string>
     <string name="settings_app_lock">Bloqueo de App (Biométrico/PIN)</string>
     <string name="settings_timeout">Tiempo de inactividad</string>
@@ -288,6 +301,11 @@
     <string name="label_quarterly">Trimestral</string>
     <string name="label_half_yearly">Semestral</string>
     <string name="label_yearly">Anual</string>
+    <string name="label_custom">Personalizado</string>
+    <string name="label_days">Día/s</string>
+    <string name="label_weeks">Semana/s</string>
+    <string name="label_months">Mes/es</string>
+    <string name="label_years">Año/s</string>
     <string name="label_var_amt">Var Monto</string>
     <string name="label_var_pct">Var %</string>
     <string name="label_metric">Métrica</string>
@@ -583,7 +601,7 @@
     <string name="label_toggle">Alternar</string>
     <string name="settings_language">Idioma</string>
     <string name="settings_color">Color</string>
-    <string name="settings_color_picker_title">Elegir Color Primario</string>
+    <string name="settings_color_picker_title">Elegir Color</string>
     <string name="settings_red">Rojo</string>
     <string name="settings_green">Verde</string>
     <string name="settings_blue">Azul</string>
@@ -706,6 +724,7 @@
     <string name="label_none_general">Ninguno (General)</string>
     <string name="title_checklist">Lista de tareas</string>
     <string name="title_drawing">Dibujo</string>
+    <string name="title_statement">Estado</string>
     <string name="title_view_note">Ver Nota</string>
     <string name="btn_edit_note">Editar Nota</string>
     <string name="label_tags_colon">Etiquetas: %1$s</string>
@@ -715,6 +734,7 @@
     <string name="msg_delete_note_confirm">¿Está seguro de querer borrar esta nota?</string>
     <string name="title_new_checklist">Nueva Lista</string>
     <string name="title_new_drawing">Nuevo Dibujo</string>
+    <string name="title_new_statement">Nuevo Estado</string>
     <string name="title_new_note">Nueva Nota</string>
     <string name="title_edit_note">Editar Nota</string>
     <string name="label_header">Encabezado</string>
@@ -822,4 +842,10 @@
     <string name="label_uncategorized">Sin categoría</string>
     <string name="label_other">Otro</string>
     <string name="label_advanced_filters">Filtros Avanzados</string>
+
+    <string name="shortcut_add_entry_short">Agregar entrada</string>
+    <string name="shortcut_add_entry_long">Añadir una nueva transacción</string>
+    <string name="shortcut_quick_entry_short">Entrada rápida</string>
+    <string name="shortcut_quick_entry_long">Registrar una transacción rápida</string>
+    <string name="btn_save_and_new">Guardar y Nuevo</string>
 </resources>

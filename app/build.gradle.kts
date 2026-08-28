@@ -33,8 +33,8 @@ android {
         applicationId = "com.openapps.fintrack"
         minSdk = 26
         targetSdk = 37
-        versionCode = 9
-        versionName = "1.0.18"
+        versionCode = 10
+        versionName = "1.0.19"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -57,7 +57,7 @@ android {
             enableV2Signing = true
             enableV3Signing = true
             
-            //or declare directly - if you are building locally. 
+            //or can be declared directly - if building locally. 
             //storePassword = "yourpwd"
             //keyAlias = "your-alias"
             //keyPassword = "yourpwd"

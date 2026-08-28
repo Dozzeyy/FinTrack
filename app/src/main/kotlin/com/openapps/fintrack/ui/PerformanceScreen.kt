@@ -6,6 +6,7 @@
 
 package com.openapps.fintrack.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.res.stringResource
 import com.openapps.fintrack.R
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -38,11 +39,13 @@ enum class ColumnGrouping(val labelRes: Int) {
     MONTHLY(R.string.label_monthly),
     QUARTERLY(R.string.label_quarterly),
     HALF_YEARLY(R.string.label_half_yearly),
-    YEARLY(R.string.label_yearly)
+    YEARLY(R.string.label_yearly),
+    CUSTOM(R.string.label_custom)
 }
 
 data class GroupedColumn(
     val label: String,
+    val chartLabel: String,
     val months: List<String>
 )
 
@@ -56,6 +59,10 @@ fun PerformanceScreen(
     var endDate by remember { mutableStateOf(LocalDate.now().format(DateTimeFormatter.ISO_DATE)) }
     var showFilter by remember { mutableStateOf(false) }
     var grouping by remember { mutableStateOf(ColumnGrouping.MONTHLY) }
+    var customValue by remember { mutableStateOf("1") }
+    var customUnit by remember { mutableStateOf("month/s") }
+    var showCustomDialog by remember { mutableStateOf(false) }
+    
     var selectedTab by remember { mutableIntStateOf(0) }
     var selectedBudgetId by remember { mutableIntStateOf(-1) }
     var selectedCategoryId by remember { mutableIntStateOf(-1) }
@@ -85,7 +92,14 @@ fun PerformanceScreen(
                             ColumnGrouping.entries.forEach { g ->
                                 DropdownMenuItem(
                                     text = { Text(stringResource(g.labelRes)) },
-                                    onClick = { grouping = g; showGroupingMenu = false },
+                                    onClick = {
+                                        if (g == ColumnGrouping.CUSTOM) {
+                                            showCustomDialog = true
+                                        } else {
+                                            grouping = g
+                                        }
+                                        showGroupingMenu = false
+                                    },
                                     trailingIcon = { if (grouping == g) Icon(Icons.Default.Check, null) }
                                 )
                             }
@@ -104,74 +118,185 @@ fun PerformanceScreen(
                 Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text(stringResource(R.string.label_charts)) })
             }
 
+            if (showCustomDialog) {
+                var tempValue by remember { mutableStateOf(customValue) }
+                var tempUnit by remember { mutableStateOf(customUnit) }
+                
+                AlertDialog(
+                    onDismissRequest = { showCustomDialog = false },
+                    title = { Text(stringResource(R.string.label_custom)) },
+                    text = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = tempValue,
+                                onValueChange = { tempValue = it },
+                                modifier = Modifier.width(80.dp),
+                                label = { Text("No.") },
+                                singleLine = true,
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
+                            )
+                            
+                            var unitExpanded by remember { mutableStateOf(false) }
+                            val unitOptions = listOf("day/s" to R.string.label_days, "week/s" to R.string.label_weeks, "month/s" to R.string.label_months, "year/s" to R.string.label_years)
+                            
+                            Box(modifier = Modifier.weight(1f)) {
+                                OutlinedTextField(
+                                    value = stringResource(unitOptions.find { it.first == tempUnit }?.second ?: R.string.label_months),
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    modifier = Modifier.fillMaxWidth().clickable { unitExpanded = true },
+                                    enabled = false,
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                                        disabledBorderColor = MaterialTheme.colorScheme.outline,
+                                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    ),
+                                    trailingIcon = { Icon(Icons.Default.ArrowDropDown, "") }
+                                )
+                                DropdownMenu(expanded = unitExpanded, onDismissRequest = { unitExpanded = false }) {
+                                    unitOptions.forEach { (key, res) ->
+                                        DropdownMenuItem(text = { Text(stringResource(res)) }, onClick = { tempUnit = key; unitExpanded = false })
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        Button(onClick = {
+                            customValue = tempValue
+                            customUnit = tempUnit
+                            grouping = ColumnGrouping.CUSTOM
+                            showCustomDialog = false
+                        }) { Text(stringResource(R.string.btn_apply)) }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showCustomDialog = false }) { Text(stringResource(R.string.btn_cancel)) }
+                    }
+                )
+            }
+
             if (showFilter) {
                 DateRangeFilterDialog(onDismiss = { showFilter = false }, onApply = { s, e -> startDate = s; endDate = e; showFilter = false })
             }
 
+            val cVal = customValue.toIntOrNull() ?: 1
             if (selectedTab == 0) {
-                NumbersView(metrics, budgets, budgetTrends, categoryTrends, selectedBudgetId, selectedCategoryId, { selectedBudgetId = it }, { selectedCategoryId = it }, grouping, viewModel)
+                NumbersView(metrics, budgets, budgetTrends, categoryTrends, selectedBudgetId, selectedCategoryId, { selectedBudgetId = it }, { selectedCategoryId = it }, grouping, cVal, customUnit, viewModel)
             } else {
-                ChartsView(metrics, budgets, grouping, viewModel)
+                ChartsView(metrics, budgets, grouping, cVal, customUnit, viewModel)
             }
         }
     }
 }
 
-fun getGroupedColumns(months: List<String>, grouping: ColumnGrouping): List<GroupedColumn> {
+fun getGroupedColumns(days: List<String>, grouping: ColumnGrouping, customValue: Int = 1, customUnit: String = "month/s"): List<GroupedColumn> {
+    if (days.isEmpty()) return emptyList()
+    val sortedDays = days.sorted()
+
     if (grouping == ColumnGrouping.MONTHLY) {
+        val months = sortedDays.map { it.substring(0, 7) }.distinct()
         return months.map { m ->
             val label = try {
                 LocalDate.parse("$m-01").format(DateTimeFormatter.ofPattern("MMM-yy"))
             } catch (e: Exception) { m }
-            GroupedColumn(label, listOf(m))
+            GroupedColumn(label, label, days.filter { it.startsWith(m) })
         }
     }
 
-    val groups = mutableListOf<GroupedColumn>()
-    val sortedMonths = months.sorted()
-    if (sortedMonths.isEmpty()) return emptyList()
+    if (grouping == ColumnGrouping.CUSTOM) {
+        val groups = mutableListOf<GroupedColumn>()
+        val start = LocalDate.parse(sortedDays.first())
+        val end = LocalDate.parse(sortedDays.last())
+        
+        var currentStart = start
+        while (!currentStart.isAfter(end)) {
+            val currentEnd = when (customUnit) {
+                "day/s" -> currentStart.plusDays(customValue.toLong() - 1)
+                "week/s" -> currentStart.plusWeeks(customValue.toLong()).minusDays(1)
+                "month/s" -> currentStart.plusMonths(customValue.toLong()).minusDays(1)
+                "year/s" -> currentStart.plusYears(customValue.toLong()).minusDays(1)
+                else -> currentStart.plusMonths(1).minusDays(1)
+            }
+            
+            val periodDays = sortedDays.filter { 
+                val d = LocalDate.parse(it)
+                !d.isBefore(currentStart) && !d.isAfter(currentEnd)
+            }
+            
+            if (periodDays.isNotEmpty()) {
+                val label = if (customUnit == "day/s" && customValue == 1) {
+                    currentStart.format(DateTimeFormatter.ofPattern("dd-MMM"))
+                } else {
+                    "${currentStart.format(DateTimeFormatter.ofPattern("dd-MMM"))} to ${currentEnd.coerceAtMost(end).format(DateTimeFormatter.ofPattern("dd-MMM-yy"))}"
+                }
+                
+                val chartLabel = if (customUnit == "day/s" && customValue == 1) {
+                    currentStart.format(DateTimeFormatter.ofPattern("dd-MMM"))
+                } else {
+                    val startMonth = currentStart.format(DateTimeFormatter.ofPattern("MMM-yy"))
+                    val endMonth = currentEnd.coerceAtMost(end).format(DateTimeFormatter.ofPattern("MMM-yy"))
+                    if (startMonth == endMonth) startMonth else "$startMonth\nto\n$endMonth"
+                }
+                
+                groups.add(GroupedColumn(label, chartLabel, periodDays))
+            }
+            
+            currentStart = when (customUnit) {
+                "day/s" -> currentStart.plusDays(customValue.toLong())
+                "week/s" -> currentStart.plusWeeks(customValue.toLong())
+                "month/s" -> currentStart.plusMonths(customValue.toLong())
+                "year/s" -> currentStart.plusYears(customValue.toLong())
+                else -> currentStart.plusMonths(1)
+            }
+        }
+        return groups
+    }
 
-    var currentGroupMonths = mutableListOf<String>()
+    val groups = mutableListOf<GroupedColumn>()
+    var currentGroupDays = mutableListOf<String>()
     var currentGroupKey = ""
 
-    for (m in sortedMonths) {
-        val date = try { LocalDate.parse("$m-01") } catch(e: Exception) { null } ?: continue
+    for (dStr in sortedDays) {
+        val date = LocalDate.parse(dStr)
         val key = when (grouping) {
             ColumnGrouping.QUARTERLY -> "${date.year}-Q${(date.monthValue - 1) / 3 + 1}"
             ColumnGrouping.HALF_YEARLY -> "${date.year}-H${if (date.monthValue <= 6) 1 else 2}"
             ColumnGrouping.YEARLY -> "${date.year}"
-            else -> m
+            else -> dStr.substring(0, 7)
         }
 
         if (currentGroupKey == "") {
             currentGroupKey = key
-            currentGroupMonths.add(m)
+            currentGroupDays.add(dStr)
         } else if (currentGroupKey == key) {
-            currentGroupMonths.add(m)
+            currentGroupDays.add(dStr)
         } else {
-            groups.add(createGroupedColumn(currentGroupMonths, grouping))
+            groups.add(createGroupedColumn(currentGroupDays, grouping))
             currentGroupKey = key
-            currentGroupMonths = mutableListOf(m)
+            currentGroupDays = mutableListOf(dStr)
         }
     }
-    if (currentGroupMonths.isNotEmpty()) {
-        groups.add(createGroupedColumn(currentGroupMonths, grouping))
+    if (currentGroupDays.isNotEmpty()) {
+        groups.add(createGroupedColumn(currentGroupDays, grouping))
     }
 
     return groups
 }
 
-private fun createGroupedColumn(months: List<String>, grouping: ColumnGrouping): GroupedColumn {
-    val first = LocalDate.parse("${months.first()}-01")
-    val last = LocalDate.parse("${months.last()}-01")
-    val label = if (months.size == 1) {
+private fun createGroupedColumn(days: List<String>, grouping: ColumnGrouping): GroupedColumn {
+    val first = LocalDate.parse(days.first())
+    val last = LocalDate.parse(days.last())
+    val label = if (days.size <= 31 && grouping != ColumnGrouping.YEARLY) {
         first.format(DateTimeFormatter.ofPattern("MMM-yy"))
     } else {
-        val firstPart = first.format(DateTimeFormatter.ofPattern("MMM"))
+        val firstPart = first.format(DateTimeFormatter.ofPattern("MMM-yy"))
         val lastPart = last.format(DateTimeFormatter.ofPattern("MMM-yy"))
-        "$firstPart-$lastPart"
+        if (firstPart == lastPart) firstPart else "$firstPart-$lastPart"
     }
-    return GroupedColumn(label, months)
+    return GroupedColumn(label, label, days)
 }
 
 @Composable
@@ -185,14 +310,13 @@ fun NumbersView(
     onBudgetSelected: (Int) -> Unit,
     onCategorySelected: (Int) -> Unit,
     grouping: ColumnGrouping,
+    customValue: Int,
+    customUnit: String,
     viewModel: ExpenseViewModel
 ) {
-    val months = metrics.firstOrNull()?.monthValues?.keys?.sorted() ?: emptyList()
-    val displayMonths = months.map { 
-        try { LocalDate.parse("$it-01").format(DateTimeFormatter.ofPattern("MMM-yy")) } catch(e: Exception) { it }
-    }
+    val days = metrics.firstOrNull()?.periodValues?.keys?.sorted() ?: emptyList()
     
-    val groupedColumns = remember(months, grouping) { getGroupedColumns(months, grouping) }
+    val groupedColumns = remember(days, grouping, customValue, customUnit) { getGroupedColumns(days, grouping, customValue, customUnit) }
     
     val monthScrollState = rememberScrollState()
     val budgetSummaryScrollState = rememberScrollState()
@@ -226,9 +350,9 @@ fun NumbersView(
             stickyHeader {
                 Row(Modifier.background(MaterialTheme.colorScheme.surfaceVariant).padding(vertical = 4.dp)) {
                     TableCell(stringResource(R.string.label_item), width = 140.dp, isHeader = true)
-                    Box(Modifier.horizontalScroll(budgetSummaryScrollState)) {
+                    Box(Modifier.horizontalScroll(monthScrollState)) {
                         Row {
-                            TableCell(stringResource(R.string.label_period), width = 100.dp, isHeader = true)
+                            TableCell(stringResource(R.string.label_period), width = 120.dp, isHeader = true)
                             TableCell(stringResource(R.string.label_budget), width = 100.dp, isHeader = true)
                             TableCell(stringResource(R.string.label_actual), width = 100.dp, isHeader = true)
                             TableCell(stringResource(R.string.label_var_amt), width = 100.dp, isHeader = true)
@@ -240,9 +364,9 @@ fun NumbersView(
             items(budgets) { b ->
                 Row(Modifier.padding(vertical = 4.dp)) {
                     TableCell(b.name, width = 140.dp, isHeader = true)
-                    Box(Modifier.horizontalScroll(budgetSummaryScrollState)) {
+                    Box(Modifier.horizontalScroll(monthScrollState)) {
                         Row {
-                            TableCell(b.duration, width = 100.dp)
+                            TableCell(b.duration, width = 120.dp)
                             TableCell(viewModel.formatAmount(b.budget), width = 100.dp)
                             TableCell(viewModel.formatAmount(b.actual), width = 100.dp)
                             TableCell(viewModel.formatAmount(b.variance), width = 100.dp, color = if (b.variance >= 0) Color(0xFF4CAF50) else Color.Red)
@@ -260,8 +384,8 @@ fun NumbersView(
                         TableCell(stringResource(R.string.label_metric), width = 140.dp, isHeader = true)
                         Box(Modifier.horizontalScroll(monthScrollState)) {
                             Row {
-                                displayMonths.forEach { m ->
-                                    TableCell(m, width = 100.dp, isHeader = true)
+                                groupedColumns.forEach { g ->
+                                    TableCell(g.label, width = 120.dp, isHeader = true)
                                 }
                             }
                         }
@@ -280,17 +404,25 @@ fun NumbersView(
                         TableCell(metricLabel, width = 140.dp, isHeader = true)
                         Box(Modifier.horizontalScroll(monthScrollState)) {
                             Row {
-                                months.forEach { month ->
-                                    val data = trend.monthData[month]
+                                groupedColumns.forEach { g ->
+
+                                    val monthsInGroup = g.months.map { it.substring(0, 7) }.distinct()
+                                    val dataList = monthsInGroup.mapNotNull { trend.monthData[it] }
+                                    
+                                    val budget = dataList.sumOf { it.budget }
+                                    val actual = dataList.sumOf { it.actual }
+                                    val variance = budget - actual
+                                    val varPct = if (budget > 0) (variance / budget) * 100 else 0.0
+
                                     val value = when(metric) {
-                                        "Budget" -> viewModel.formatAmount(data?.budget ?: 0.0)
-                                        "Actual" -> viewModel.formatAmount(data?.actual ?: 0.0)
-                                        "Var Amt" -> viewModel.formatAmount(data?.variance ?: 0.0)
-                                        "Var %" -> String.format(Locale.US, "%.1f%%", data?.variancePercent ?: 0.0)
+                                        "Budget" -> viewModel.formatAmount(budget)
+                                        "Actual" -> viewModel.formatAmount(actual)
+                                        "Var Amt" -> viewModel.formatAmount(variance)
+                                        "Var %" -> String.format(Locale.US, "%.1f%%", varPct)
                                         else -> ""
                                     }
-                                    val color = if ((metric == "Var Amt" || metric == "Var %") && (data?.variance ?: 0.0) < 0) Color.Red else if ((metric == "Var Amt" || metric == "Var %") && (data?.variance ?: 0.0) > 0) Color(0xFF4CAF50) else Color.Unspecified
-                                    TableCell(value, width = 100.dp, color = color)
+                                    val color = if ((metric == "Var Amt" || metric == "Var %") && variance < 0) Color.Red else if ((metric == "Var Amt" || metric == "Var %") && variance > 0) Color(0xFF4CAF50) else Color.Unspecified
+                                    TableCell(value, width = 120.dp, color = color)
                                 }
                             }
                         }
@@ -333,7 +465,7 @@ fun NumbersView(
                     Box(Modifier.horizontalScroll(monthScrollState)) {
                         Row {
                             groupedColumns.forEach { g ->
-                                TableCell(g.label, width = 100.dp, isHeader = true)
+                                TableCell(g.label, width = 120.dp, isHeader = true)
                             }
                         }
                     }
@@ -345,8 +477,9 @@ fun NumbersView(
                     Box(Modifier.horizontalScroll(monthScrollState)) {
                         Row {
                             groupedColumns.forEach { g ->
-                                val total = g.months.sumOf { ct.monthData[it]?.amount ?: 0.0 }
-                                TableCell(viewModel.formatAmount(total), width = 100.dp)
+                                val monthsInGroup = g.months.map { it.substring(0, 7) }.distinct()
+                                val total = monthsInGroup.sumOf { ct.monthData[it]?.amount ?: 0.0 }
+                                TableCell(viewModel.formatAmount(total), width = 120.dp)
                             }
                         }
                     }
@@ -362,7 +495,7 @@ fun NumbersView(
                         Box(Modifier.horizontalScroll(monthScrollState)) {
                             Row {
                                 groupedColumns.forEach { g ->
-                                    TableCell(g.label, width = 100.dp, isHeader = true)
+                                    TableCell(g.label, width = 120.dp, isHeader = true)
                                 }
                             }
                         }
@@ -383,7 +516,8 @@ fun NumbersView(
                         Box(Modifier.horizontalScroll(monthScrollState)) {
                             Row {
                                 groupedColumns.forEach { g ->
-                                    val dataList = g.months.mapNotNull { trend.monthData[it] }
+                                    val monthsInGroup = g.months.map { it.substring(0, 7) }.distinct()
+                                    val dataList = monthsInGroup.mapNotNull { trend.monthData[it] }
                                     val amount = dataList.sumOf { it.amount }
                                     val momChange = dataList.sumOf { it.momChange }
                                     val yoyAmount = dataList.sumOf { it.yoyAmount }
@@ -408,7 +542,7 @@ fun NumbersView(
                                         else if (yoyChange > 0 && metric.startsWith("YoY")) Color.Red
                                         else Color.Unspecified
                                     } else Color.Unspecified
-                                    TableCell(value, width = 100.dp, color = color)
+                                    TableCell(value, width = 120.dp, color = color)
                                 }
                             }
                         }
@@ -432,7 +566,7 @@ fun NumbersView(
                 Box(Modifier.horizontalScroll(monthScrollState)) {
                     Row {
                         groupedColumns.forEach { g ->
-                            TableCell(g.label, width = 100.dp, isHeader = true)
+                            TableCell(g.label, width = 120.dp, isHeader = true)
                         }
                     }
                 }
@@ -444,12 +578,21 @@ fun NumbersView(
                 Box(Modifier.horizontalScroll(monthScrollState)) {
                     Row {
                         groupedColumns.forEach { g ->
-                            val total = g.months.sumOf { m.monthValues[it] ?: 0.0 }
+                            val value = when(m.aggregation) {
+                                MetricAggregation.SUM -> g.months.sumOf { m.periodValues[it] ?: 0.0 }
+                                MetricAggregation.AVERAGE -> {
+                                    val sum = g.months.sumOf { m.periodValues[it] ?: 0.0 }
+                                    if (g.months.isNotEmpty()) sum / g.months.size else 0.0
+                                }
+                                MetricAggregation.LAST -> {
+                                    val lastDay = g.months.lastOrNull()
+                                    if (lastDay != null) m.periodValues[lastDay] ?: 0.0 else 0.0
+                                }
+                            }
                             val displayValue = if (m.unit == "%") {
-                                val avg = if (g.months.isNotEmpty()) total / g.months.size else 0.0
-                                String.format(Locale.US, "%.1f%%", avg)
-                            } else viewModel.formatAmount(total)
-                            TableCell(displayValue, width = 100.dp)
+                                String.format(Locale.US, "%.1f%%", value)
+                            } else viewModel.formatAmount(value)
+                            TableCell(displayValue, width = 120.dp)
                         }
                     }
                 }
@@ -466,19 +609,30 @@ fun ChartsView(
     metrics: List<PerformanceMetricData>,
     budgets: List<BudgetPerformanceData>,
     grouping: ColumnGrouping,
+    customValue: Int,
+    customUnit: String,
     viewModel: ExpenseViewModel
 ) {
     LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
         metrics.forEach { m ->
             item {
-                val months = m.monthValues.keys.sorted()
-                val grouped = getGroupedColumns(months, grouping)
+                val days = m.periodValues.keys.sorted()
+                val grouped = getGroupedColumns(days, grouping, customValue, customUnit)
                 
                 val dataPoints = grouped.map { g ->
-                    val total = g.months.sumOf { m.monthValues[it] ?: 0.0 }
-                    if (m.unit == "%" && g.months.isNotEmpty()) total / g.months.size else total
+                    when(m.aggregation) {
+                        MetricAggregation.SUM -> g.months.sumOf { m.periodValues[it] ?: 0.0 }
+                        MetricAggregation.AVERAGE -> {
+                            val sum = g.months.sumOf { m.periodValues[it] ?: 0.0 }
+                            if (g.months.isNotEmpty()) sum / g.months.size else 0.0
+                        }
+                        MetricAggregation.LAST -> {
+                            val lastDay = g.months.lastOrNull()
+                            if (lastDay != null) m.periodValues[lastDay] ?: 0.0 else 0.0
+                        }
+                    }
                 }
-                val labels = grouped.map { it.label }
+                val labels = grouped.map { it.chartLabel }
 
                 if (dataPoints.isNotEmpty()) {
                     Column {

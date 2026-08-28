@@ -217,7 +217,7 @@ fun SubscriptionDashboard(viewModel: ExpenseViewModel, onBack: () -> Unit, onNav
         val loan = showLoanDeleteConfirm!!
         AlertDialog(
             onDismissRequest = { showLoanDeleteConfirm = null },
-            title = { Text(stringResource(R.string.title_delete_notebook)) }, // Using notebook delete title for consistency or add specific
+            title = { Text(stringResource(R.string.title_delete_notebook)) },
             text = { Text(stringResource(R.string.msg_delete_loan_desc)) },
             confirmButton = {
                 Button(
@@ -471,7 +471,7 @@ fun SubscriptionDashboard(viewModel: ExpenseViewModel, onBack: () -> Unit, onNav
 
                     if (filteredSubs.isEmpty()) {
                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text(stringResource(R.string.msg_no_active_loans)) // Using loans as placeholder or generic
+                            Text(stringResource(R.string.msg_no_active_loans))
                         }
                     } else {
                         LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {

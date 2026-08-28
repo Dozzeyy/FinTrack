@@ -112,13 +112,26 @@ fun ManageBudgetsScreen(
                     .mapNotNull { id -> categories.find { it.id == id.toIntOrNull() }?.name }
                     .joinToString(", ")
                 
-                val durationLabel = when (budget.duration) {
-                    "Daily" -> stringResource(R.string.label_daily)
-                    "Weekly" -> stringResource(R.string.label_weekly)
-                    "Monthly" -> stringResource(R.string.label_monthly)
-                    "Half Yearly" -> stringResource(R.string.label_half_yearly)
-                    "Yearly" -> stringResource(R.string.label_yearly)
-                    else -> budget.duration
+                val durationLabel = if (budget.duration.startsWith("CUSTOM:")) {
+                    val parts = budget.duration.split(":")
+                    val value = parts[1]
+                    val unit = when(parts[2]) {
+                        "day/s" -> stringResource(R.string.label_days)
+                        "week/s" -> stringResource(R.string.label_weeks)
+                        "month/s" -> stringResource(R.string.label_months)
+                        "year/s" -> stringResource(R.string.label_years)
+                        else -> parts[2]
+                    }
+                    "$value $unit"
+                } else {
+                    when (budget.duration) {
+                        "Daily" -> stringResource(R.string.label_daily)
+                        "Weekly" -> stringResource(R.string.label_weekly)
+                        "Monthly" -> stringResource(R.string.label_monthly)
+                        "Half Yearly" -> stringResource(R.string.label_half_yearly)
+                        "Yearly" -> stringResource(R.string.label_yearly)
+                        else -> budget.duration
+                    }
                 }
                 
                 ListItem(
@@ -165,10 +178,21 @@ fun AddBudgetScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
     }
     var amount by remember { mutableStateOf(viewModel.editingBudgetRaw?.amount?.toString() ?: "") }
     var duration by remember { mutableStateOf(viewModel.editingBudgetRaw?.duration ?: "Monthly") }
+    
+    var customDurationValue by remember {
+        mutableStateOf(if (duration.startsWith("CUSTOM:")) duration.split(":")[1] else "1")
+    }
+    var customDurationUnit by remember {
+        mutableStateOf(if (duration.startsWith("CUSTOM:")) duration.split(":")[2] else "month/s")
+    }
+    val effectiveDuration = if (duration.startsWith("CUSTOM:")) "Custom" else duration
+
     var note by remember { mutableStateOf(viewModel.editingBudgetRaw?.note ?: "") }
     var higherIsBetter by remember { mutableStateOf(viewModel.editingBudgetRaw?.higherIsBetter ?: false) }
 
     var showCategoryDialog by remember { mutableStateOf(false) }
+
+    var showCustomDurationDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -227,12 +251,13 @@ fun AddBudgetScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                 "Weekly" to stringResource(R.string.label_weekly),
                 "Monthly" to stringResource(R.string.label_monthly),
                 "Half Yearly" to stringResource(R.string.label_half_yearly),
-                "Yearly" to stringResource(R.string.label_yearly)
+                "Yearly" to stringResource(R.string.label_yearly),
+                "Custom" to stringResource(R.string.label_custom)
             )
             
             Box(modifier = Modifier.fillMaxWidth()) {
                 OutlinedTextField(
-                    value = durationOptions.find { it.first == duration }?.second ?: duration,
+                    value = durationOptions.find { it.first == effectiveDuration }?.second ?: effectiveDuration,
                     onValueChange = {},
                     label = { Text(stringResource(R.string.label_duration)) },
                     readOnly = true,
@@ -247,9 +272,92 @@ fun AddBudgetScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                 )
                 DropdownMenu(expanded = durationExpanded, onDismissRequest = { durationExpanded = false }) {
                     durationOptions.forEach { (key, display) ->
-                        DropdownMenuItem(text = { Text(display) }, onClick = { duration = key; durationExpanded = false })
+                        DropdownMenuItem(text = { Text(display) }, onClick = { 
+                            if (key == "Custom") {
+                                showCustomDurationDialog = true
+                            } else {
+                                duration = key
+                            }
+                            durationExpanded = false 
+                        })
                     }
                 }
+            }
+
+            if (showCustomDurationDialog) {
+                var tempValue by remember { mutableStateOf(customDurationValue) }
+                var tempUnit by remember { mutableStateOf(customDurationUnit) }
+                
+                AlertDialog(
+                    onDismissRequest = { showCustomDurationDialog = false },
+                    title = { Text(stringResource(R.string.label_custom)) },
+                    text = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = tempValue,
+                                onValueChange = { tempValue = it },
+                                modifier = Modifier.width(80.dp),
+                                label = { Text("No.") },
+                                singleLine = true,
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
+                            )
+                            
+                            var unitExpanded by remember { mutableStateOf(false) }
+                            val unitOptions = listOf("day/s" to R.string.label_days, "week/s" to R.string.label_weeks, "month/s" to R.string.label_months, "year/s" to R.string.label_years)
+                            
+                            Box(modifier = Modifier.weight(1f)) {
+                                OutlinedTextField(
+                                    value = stringResource(unitOptions.find { it.first == tempUnit }?.second ?: R.string.label_months),
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    modifier = Modifier.fillMaxWidth().clickable { unitExpanded = true },
+                                    enabled = false,
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                                        disabledBorderColor = MaterialTheme.colorScheme.outline,
+                                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    ),
+                                    trailingIcon = { Icon(Icons.Default.ArrowDropDown, "") }
+                                )
+                                DropdownMenu(expanded = unitExpanded, onDismissRequest = { unitExpanded = false }) {
+                                    unitOptions.forEach { (key, res) ->
+                                        DropdownMenuItem(text = { Text(stringResource(res)) }, onClick = { tempUnit = key; unitExpanded = false })
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        Button(onClick = {
+                            customDurationValue = tempValue
+                            customDurationUnit = tempUnit
+                            duration = "Custom" 
+                            showCustomDurationDialog = false
+                        }) { Text(stringResource(R.string.btn_apply)) }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showCustomDurationDialog = false }) { Text(stringResource(R.string.btn_cancel)) }
+                    }
+                )
+            }
+
+            if (duration == "Custom" || duration.startsWith("CUSTOM:")) {
+                val unitLabel = when(customDurationUnit) {
+                    "day/s" -> stringResource(R.string.label_days)
+                    "week/s" -> stringResource(R.string.label_weeks)
+                    "month/s" -> stringResource(R.string.label_months)
+                    "year/s" -> stringResource(R.string.label_years)
+                    else -> customDurationUnit
+                }
+                Text(
+                    text = "Selected: $customDurationValue $unitLabel",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(vertical = 4.dp).clickable { showCustomDurationDialog = true },
+                    color = MaterialTheme.colorScheme.primary
+                )
             }
 
             Spacer(Modifier.height(16.dp))
@@ -278,11 +386,15 @@ fun AddBudgetScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                 onClick = {
                     val amt = amount.toDoubleOrNull() ?: 0.0
                     if (selectedCategoryIds.isNotEmpty() || selectedAccountIds.isNotEmpty()) {
+                        val finalDuration = if (duration == "Custom" || duration.startsWith("CUSTOM:")) {
+                            "CUSTOM:$customDurationValue:$customDurationUnit"
+                        } else duration
+                        
                         viewModel.saveBudgetRaw(
                             budgetName.takeIf { it.isNotBlank() },
                             selectedCategoryIds.joinToString(","),
                             amt, 
-                            duration, 
+                            finalDuration, 
                             note,
                             higherIsBetter,
                             selectedAccountIds.joinToString(",")
@@ -523,25 +635,29 @@ fun BudgetComparisonRow(item: com.openapps.fintrack.ui.BudgetVsActual, viewModel
             val totalDays = java.time.temporal.ChronoUnit.DAYS.between(start, end).coerceAtLeast(1) + 1
             val daysElapsed = java.time.temporal.ChronoUnit.DAYS.between(start, today).coerceAtLeast(1)
             
-            val avgText = when (item.duration) {
-                "Daily" -> avgDailyLabel.format(viewModel.formatAmount(item.actualAmount))
-                "Weekly" -> {
-                    val dayOfWeek = today.dayOfWeek.value
-                    avgDailyLabel.format(viewModel.formatAmount(item.actualAmount / dayOfWeek))
+            val avgText = if (item.duration.startsWith("CUSTOM:")) {
+                "" // Custom average logic can be complex, keeping it empty as of now - Adding to my To do. look into it later.
+            } else {
+                when (item.duration) {
+                    "Daily" -> avgDailyLabel.format(viewModel.formatAmount(item.actualAmount))
+                    "Weekly" -> {
+                        val dayOfWeek = today.dayOfWeek.value
+                        avgDailyLabel.format(viewModel.formatAmount(item.actualAmount / dayOfWeek))
+                    }
+                    "Monthly" -> {
+                        val dayOfMonth = today.dayOfMonth
+                        avgDailyLabel.format(viewModel.formatAmount(item.actualAmount / dayOfMonth))
+                    }
+                    "Half Yearly" -> {
+                        val monthOfHalfYear = if (today.monthValue <= 6) today.monthValue else today.monthValue - 6
+                        avgMonthlyLabel.format(viewModel.formatAmount(item.actualAmount / monthOfHalfYear))
+                    }
+                    "Yearly" -> {
+                        val monthOfYear = today.monthValue
+                        avgMonthlyLabel.format(viewModel.formatAmount(item.actualAmount / monthOfYear))
+                    }
+                    else -> ""
                 }
-                "Monthly" -> {
-                    val dayOfMonth = today.dayOfMonth
-                    avgDailyLabel.format(viewModel.formatAmount(item.actualAmount / dayOfMonth))
-                }
-                "Half Yearly" -> {
-                    val monthOfHalfYear = if (today.monthValue <= 6) today.monthValue else today.monthValue - 6
-                    avgMonthlyLabel.format(viewModel.formatAmount(item.actualAmount / monthOfHalfYear))
-                }
-                "Yearly" -> {
-                    val monthOfYear = today.monthValue
-                    avgMonthlyLabel.format(viewModel.formatAmount(item.actualAmount / monthOfYear))
-                }
-                else -> ""
             }
 
             val forecasted = (item.actualAmount / daysElapsed) * totalDays
@@ -645,13 +761,18 @@ fun BudgetPeriodSummary(duration: String, budgets: List<com.openapps.fintrack.ui
     val totalActual = budgets.sumOf { it.actualAmount }
     val available = totalBudget - totalActual
     
-    val durationDisplay = when (duration) {
-        "Daily" -> stringResource(R.string.label_daily)
-        "Weekly" -> stringResource(R.string.label_weekly)
-        "Monthly" -> stringResource(R.string.label_monthly)
-        "Half Yearly" -> stringResource(R.string.label_half_yearly)
-        "Yearly" -> stringResource(R.string.label_yearly)
-        else -> duration
+    val durationDisplay = if (duration.startsWith("CUSTOM:")) {
+        val parts = duration.split(":")
+        "${parts[1]} ${parts[2]}"
+    } else {
+        when (duration) {
+            "Daily" -> stringResource(R.string.label_daily)
+            "Weekly" -> stringResource(R.string.label_weekly)
+            "Monthly" -> stringResource(R.string.label_monthly)
+            "Half Yearly" -> stringResource(R.string.label_half_yearly)
+            "Yearly" -> stringResource(R.string.label_yearly)
+            else -> duration
+        }
     }
 
     val chartData = budgets.map { it.categoryName to it.budgetAmount }

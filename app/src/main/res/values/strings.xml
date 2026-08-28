@@ -1,3 +1,9 @@
+<!--
+ FinTrack
+ SPDX-License-Identifier: GPL-3.0-or-later
+ Copyright (C) 2026 Bhuvan
+-->
+
 <resources>
     <string name="app_name">FinTrack</string>
 
@@ -18,6 +24,14 @@
     <string name="menu_assets">Assets</string>
     <string name="menu_subscriptions">Subscriptions</string>
 
+    <string name="label_operation">Operation</string>
+    <string name="label_add_op">Add</string>
+    <string name="label_less_op">Less</string>
+    <string name="label_multiply_op">Multiply</string>
+    <string name="label_divide_op">Divide</string>
+    <string name="label_subtotal">Subtotal</string>
+    <string name="label_grand_total">Grand Total</string>
+
     <string name="btn_add">Add</string>
     <string name="btn_save">Save</string>
     <string name="btn_cancel">Cancel</string>
@@ -31,6 +45,12 @@
     <string name="btn_clear">Clear</string>
     <string name="btn_record">Record</string>
     <string name="btn_duplicate">Duplicate</string>
+
+    <string name="shortcut_add_entry_short">Add Entry</string>
+    <string name="shortcut_add_entry_long">Add a new transaction</string>
+    <string name="shortcut_quick_entry_short">Quick Entry</string>
+    <string name="shortcut_quick_entry_long">Record a quick transaction</string>
+    <string name="btn_save_and_new">Save and New</string>
 
     <string name="label_income">Income</string>
     <string name="label_expense">Expense</string>
@@ -180,7 +200,6 @@
     <string name="title_settings">Settings</string>
     <string name="settings_appearance">Appearance</string>
     <string name="settings_theme">Theme</string>
-    <string name="settings_primary_color">Primary Color</string>
     <string name="settings_security">Security</string>
     <string name="settings_app_lock">App Lock (Biometric/PIN)</string>
     <string name="settings_timeout">Inactivity Timeout</string>
@@ -288,6 +307,11 @@
     <string name="label_quarterly">Quarterly</string>
     <string name="label_half_yearly">Half Yearly</string>
     <string name="label_yearly">Yearly</string>
+    <string name="label_custom">Custom</string>
+    <string name="label_days">Day/s</string>
+    <string name="label_weeks">Week/s</string>
+    <string name="label_months">Month/s</string>
+    <string name="label_years">Year/s</string>
     <string name="label_var_amt">Var Amt</string>
     <string name="label_var_pct">Var %</string>
     <string name="label_metric">Metric</string>
@@ -583,7 +607,7 @@
     <string name="label_toggle">Toggle</string>
     <string name="settings_language">Language</string>
     <string name="settings_color">Color</string>
-    <string name="settings_color_picker_title">Pick Primary Color</string>
+    <string name="settings_color_picker_title">Pick Color</string>
     <string name="settings_red">Red</string>
     <string name="settings_green">Green</string>
     <string name="settings_blue">Blue</string>
@@ -707,6 +731,7 @@
     <string name="label_none_general">None (General)</string>
     <string name="title_checklist">Checklist</string>
     <string name="title_drawing">Drawing</string>
+    <string name="title_statement">Statement</string>
     <string name="title_view_note">View Note</string>
     <string name="btn_edit_note">Edit Note</string>
     <string name="label_tags_colon">Tags: %1$s</string>
@@ -716,6 +741,7 @@
     <string name="msg_delete_note_confirm">Are you sure you want to delete this note?</string>
     <string name="title_new_checklist">New Checklist</string>
     <string name="title_new_drawing">New Drawing</string>
+    <string name="title_new_statement">New Statement</string>
     <string name="title_new_note">New Note</string>
     <string name="title_edit_note">Edit Note</string>
     <string name="label_header">Header</string>

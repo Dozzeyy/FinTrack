@@ -80,15 +80,32 @@
     <string name="label_total_tenure">Laufzeit</string>
     <string name="label_annual_rate_pct">Zinssatz</string>
     <string name="label_frequency">Häufigkeit</string>
+    <string name="label_monthly">Monatlich</string>
+    <string name="label_quarterly">Vierteljährlich</string>
+    <string name="label_half_yearly">Halbjährlich</string>
+    <string name="label_yearly">Jährlich</string>
+    <string name="label_custom">Individuell</string>
+    <string name="label_days">Tag/e</string>
+    <string name="label_weeks">Woche/n</string>
+    <string name="label_months">Monat/e</string>
+    <string name="label_years">Jahr/e</string>
     <string name="label_periodic_emi">Monatliche Rate</string>
     <string name="label_borrowing">Kreditaufnahme</string>
     <string name="label_lending">Kreditvergabe</string>
     <string name="label_principal">Kapital</string>
 
+    <string name="label_operation">Operation</string>
+    <string name="label_add_op">Addieren</string>
+    <string name="label_less_op">Abziehen</string>
+    <string name="label_multiply_op">Multiplizieren</string>
+    <string name="label_divide_op">Dividieren</string>
+    <string name="label_subtotal">Zwischensumme</string>
+    <string name="label_grand_total">Gesamtsumme</string>
+
     <!-- Settings -->
     <string name="settings_appearance">Erscheinungsbild</string>
     <string name="settings_theme">Thema</string>
-    <string name="settings_color">Primärfarbe</string>
+    <string name="settings_color">Farbe</string>
     <string name="settings_language">Sprache</string>
     <string name="settings_advanced_trackers">Erweiterte Tracker</string>
     <string name="settings_negotiation">Verhandlungs-Tracker</string>
@@ -106,6 +123,7 @@
     <string name="title_error">Fehler</string>
     <string name="title_budgets">Budgets</string>
     <string name="title_templates">Vorlagen</string>
+    <string name="title_statement">Aufstellung</string>
     <string name="title_loans">Kredite</string>
     <string name="title_add_rule">Automatisierungsregel hinzufügen</string>
     <string name="title_automation_rules">Automatisierungsregeln</string>
@@ -117,4 +135,10 @@
     <string name="msg_no_templates">Keine Vorlagen gefunden.</string>
     <string name="msg_no_active_loans">Keine aktiven Kredite gefunden.</string>
     <string name="msg_no_data">Keine Daten für den ausgewählten Zeitraum.</string>
+
+    <string name="shortcut_add_entry_short">Eintrag hinzufügen</string>
+    <string name="shortcut_add_entry_long">Eine neue Transaktion hinzufügen</string>
+    <string name="shortcut_quick_entry_short">Schnell-Eintrag</string>
+    <string name="shortcut_quick_entry_long">Eine schnelle Transaktion aufzeichnen</string>
+    <string name="btn_save_and_new">Speichern und Neu</string>
 </resources>
