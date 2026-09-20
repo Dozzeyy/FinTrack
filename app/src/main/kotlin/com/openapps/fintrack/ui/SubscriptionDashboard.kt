@@ -1,6 +1,17 @@
 /*
+ * FinTrack
+ * Copyright (C) 2026 Bhuvan (app.upstream242@passmail.com)
  * SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (C) 2026 Bhuvan
+
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
  */
 
 package com.openapps.fintrack.ui
@@ -40,6 +51,7 @@ import com.openapps.fintrack.data.AmortizationRow
 import com.openapps.fintrack.data.Loan
 import com.openapps.fintrack.data.LoanCalculator
 import com.openapps.fintrack.data.TransactionWithDetails
+import com.openapps.fintrack.domain.model.SubscriptionSuggestion
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import java.time.Instant
@@ -50,7 +62,14 @@ import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-fun SubscriptionDashboard(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: (String) -> Unit) {
+fun SubscriptionDashboard(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: (String) -> Unit, isEmbedded: Boolean = false) {
+    val localContext = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(Unit) {
+        val workRequest = androidx.work.OneTimeWorkRequestBuilder<com.openapps.fintrack.data.CcAlertWorker>().build()
+        androidx.work.WorkManager.getInstance(localContext).enqueue(workRequest)
+        viewModel.triggerRefresh()
+    }
+
     val allTransactions by viewModel.allTransactions.collectAsState(initial = emptyList())
     val subscriptionStatuses by viewModel.getAllSubscriptionStatuses().collectAsState(initial = emptyList())
     val activeLoans by viewModel.activeLoans.collectAsState(initial = emptyList())
@@ -81,7 +100,7 @@ fun SubscriptionDashboard(viewModel: ExpenseViewModel, onBack: () -> Unit, onNav
                 val totalPaid = txns.sumOf { it.transaction.amount }
                 val status = statuses.find { it.subName == name }
                 val isStopped = status?.isStopped ?: false
-                val isAutoRecord = status?.isAutoRecordEnabled ?: false
+                val isAutoRecord = status?.isAutoRecordEnabled ?: true
                 
                 SubscriptionInfo(
                     name = name,
@@ -434,24 +453,30 @@ fun SubscriptionDashboard(viewModel: ExpenseViewModel, onBack: () -> Unit, onNav
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.title_recurring_payments)) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.btn_back)) } }
-            )
+            if (!isEmbedded) {
+                TopAppBar(
+                    title = { Text(stringResource(R.string.title_recurring_payments)) },
+                    navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.btn_back)) } }
+                )
+            }
         },
         floatingActionButton = {
-            if (selectedTabIndex in 0..1) {
-                FloatingActionButton(onClick = { showAddSubscriptionDialog = true }) {
-                    Icon(Icons.Default.Add, stringResource(R.string.btn_add_subscription))
-                }
-            } else if (selectedTabIndex == 2) {
-                FloatingActionButton(onClick = { showLoanTypeDialog = true }) {
-                    Icon(Icons.Default.Add, stringResource(R.string.title_add_loan))
+            if (!isEmbedded) {
+                if (selectedTabIndex in 0..1) {
+                    FloatingActionButton(onClick = { showAddSubscriptionDialog = true }) {
+                        Icon(Icons.Default.Add, stringResource(R.string.btn_add_subscription))
+                    }
+                } else if (selectedTabIndex == 2) {
+                    FloatingActionButton(onClick = { showLoanTypeDialog = true }) {
+                        Icon(Icons.Default.Add, stringResource(R.string.title_add_loan))
+                    }
                 }
             }
         }
     ) { padding ->
-        Column(modifier = Modifier.padding(padding)) {
+        val contentPadding = if (isEmbedded) PaddingValues(0.dp) else padding
+        val bottomPadding = if (isEmbedded) 88.dp else 16.dp
+        Column(modifier = Modifier.padding(contentPadding)) {
             TabRow(selectedTabIndex = selectedTabIndex) {
                 tabTitles.forEachIndexed { index, title ->
                     Tab(
@@ -474,7 +499,13 @@ fun SubscriptionDashboard(viewModel: ExpenseViewModel, onBack: () -> Unit, onNav
                             Text(stringResource(R.string.msg_no_active_loans))
                         }
                     } else {
-                        LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = bottomPadding)
+                        ) {
+                            if (selectedTabIndex == 0) {
+                                item { SubscriptionSuggestionsSection(viewModel) }
+                            }
                             items(filteredSubs) { sub ->
                                 SubscriptionCard(
                                     sub = sub,
@@ -492,7 +523,10 @@ fun SubscriptionDashboard(viewModel: ExpenseViewModel, onBack: () -> Unit, onNav
                             Text(stringResource(R.string.msg_no_active_loans))
                         }
                     } else {
-                        LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = bottomPadding)
+                        ) {
                             items(activeLoans) { loan ->
                                 LoanCard(
                                     loan = loan,
@@ -690,6 +724,42 @@ fun SubscriptionCard(sub: SubscriptionInfo, viewModel: ExpenseViewModel, onClick
             }
             
             Spacer(Modifier.height(8.dp))
+
+            val pendingMissingDates = remember(sub) { viewModel.getMissingSubscriptionDates(sub.name) }
+            var showCatchupDialog by remember { mutableStateOf(false) }
+
+            if (pendingMissingDates.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                Button(
+                    onClick = { showCatchupDialog = true },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD97706)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.Update, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.btn_catchup_missing_entries, pendingMissingDates.size))
+                }
+            }
+
+            if (showCatchupDialog) {
+                AlertDialog(
+                    onDismissRequest = { showCatchupDialog = false },
+                    title = { Text(stringResource(R.string.title_catchup_missing_entries)) },
+                    text = { Text(stringResource(R.string.msg_catchup_missing_entries, pendingMissingDates.size, sub.name)) },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                viewModel.catchupSubscriptionEntries(sub.name)
+                                showCatchupDialog = false
+                            }
+                        ) { Text(stringResource(R.string.btn_catch_up)) }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showCatchupDialog = false }) { Text(stringResource(R.string.btn_cancel)) }
+                    }
+                )
+            }
+
             Text(stringResource(R.string.msg_click_view_history), style = MaterialTheme.typography.labelSmall, color = textColor.copy(alpha = 0.6f), modifier = Modifier.align(Alignment.CenterHorizontally))
         }
     }
@@ -707,3 +777,28 @@ data class SubscriptionInfo(
     val isTransfer: Boolean = false,
     val isAutoRecordEnabled: Boolean = false
 )
+
+@Composable
+fun SubscriptionSuggestionsSection(viewModel: ExpenseViewModel) {
+    val suggestions by viewModel.subscriptionSuggestions.collectAsState(initial = emptyList())
+    
+    if (suggestions.isNotEmpty()) {
+        Column(modifier = Modifier.padding(bottom = 16.dp)) {
+            Text(stringResource(R.string.title_suggested_subscriptions), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+            suggestions.forEach { suggestion ->
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+                ) {
+                    Row(Modifier.padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(suggestion.merchantName, fontWeight = FontWeight.Bold)
+                            Text(stringResource(R.string.msg_detected_monthly_expense, viewModel.formatAmount(suggestion.amount)), style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

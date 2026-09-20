@@ -1,12 +1,24 @@
 /*
+ * FinTrack
+ * Copyright (C) 2026 Bhuvan (app.upstream242@passmail.com)
  * SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (C) 2026 Bhuvan
+
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
  */
 
 package com.openapps.fintrack.ui
 
 import androidx.compose.ui.res.stringResource
 import com.openapps.fintrack.R
+import com.openapps.fintrack.domain.model.BudgetVsActual
 import android.app.DatePickerDialog
 import android.content.Context
 import android.widget.Toast
@@ -81,8 +93,7 @@ fun ManageBudgetsScreen(
     onEditBudget: () -> Unit,
     onBack: () -> Unit
 ) {
-    val budgets by viewModel.getAllBudgets().collectAsState(initial = emptyList())
-    val categories by viewModel.getAllCategories().collectAsState(initial = emptyList())
+    val budgets by viewModel.getAllBudgetsDetailed().collectAsState(initial = emptyList())
     
     Scaffold(
         topBar = {
@@ -107,10 +118,11 @@ fun ManageBudgetsScreen(
         }
     ) { padding ->
         LazyColumn(modifier = Modifier.padding(padding).fillMaxSize()) {
-            items(budgets) { budget ->
-                val catNames = budget.categoryIds.split(",")
-                    .mapNotNull { id -> categories.find { it.id == id.toIntOrNull() }?.name }
-                    .joinToString(", ")
+            items(budgets) { budgetWithRelations ->
+                val budget = budgetWithRelations.budget
+                val catNames = budgetWithRelations.categories.joinToString(", ") { it.name }
+                val accNames = budgetWithRelations.accounts.joinToString(", ") { it.name }
+                val displayName = budget.name ?: listOfNotNull(catNames.takeIf { it.isNotEmpty() }, accNames.takeIf { it.isNotEmpty() }).joinToString(" | ")
                 
                 val durationLabel = if (budget.duration.startsWith("CUSTOM:")) {
                     val parts = budget.duration.split(":")
@@ -135,19 +147,19 @@ fun ManageBudgetsScreen(
                 }
                 
                 ListItem(
-                    headlineContent = { Text(budget.name ?: catNames) },
+                    headlineContent = { Text(displayName) },
                     supportingContent = { 
                         Text("$durationLabel | ${viewModel.formatAmount(budget.amount)}") 
                     },
                     trailingContent = {
                         Row {
                             IconButton(onClick = { 
-                                viewModel.editingBudgetRaw = budget
+                                viewModel.editingBudgetRaw = budgetWithRelations
                                 onEditBudget() 
                             }) {
                                 Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.btn_edit))
                             }
-                            IconButton(onClick = { viewModel.deleteBudget(budget) }) {
+                            IconButton(onClick = { viewModel.deleteBudget(budgetWithRelations) }) {
                                 Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.btn_delete))
                             }
                         }
@@ -165,19 +177,19 @@ fun AddBudgetScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
     val categories by viewModel.getEnabledCategories().collectAsState(initial = emptyList())
     val ccAccounts by viewModel.getCreditCardAccounts().collectAsState(initial = emptyList())
     
-    var budgetName by remember { mutableStateOf(viewModel.editingBudgetRaw?.name ?: "") }
+    var budgetName by remember { mutableStateOf(viewModel.editingBudgetRaw?.budget?.name ?: "") }
     val selectedCategoryIds = remember { 
         val list = mutableStateListOf<Int>()
-        viewModel.editingBudgetRaw?.categoryIds?.split(",")?.mapNotNull { it.toIntOrNull() }?.let { list.addAll(it) }
+        viewModel.editingBudgetRaw?.categories?.map { it.id }?.let { list.addAll(it) }
         list
     }
     val selectedAccountIds = remember {
         val list = mutableStateListOf<Int>()
-        viewModel.editingBudgetRaw?.accountIds?.split(",")?.mapNotNull { it.toIntOrNull() }?.let { list.addAll(it) }
+        viewModel.editingBudgetRaw?.accounts?.map { it.id }?.let { list.addAll(it) }
         list
     }
-    var amount by remember { mutableStateOf(viewModel.editingBudgetRaw?.amount?.toString() ?: "") }
-    var duration by remember { mutableStateOf(viewModel.editingBudgetRaw?.duration ?: "Monthly") }
+    var amount by remember { mutableStateOf(viewModel.editingBudgetRaw?.budget?.amount?.toString() ?: "") }
+    var duration by remember { mutableStateOf(viewModel.editingBudgetRaw?.budget?.duration ?: "Monthly") }
     
     var customDurationValue by remember {
         mutableStateOf(if (duration.startsWith("CUSTOM:")) duration.split(":")[1] else "1")
@@ -187,8 +199,9 @@ fun AddBudgetScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
     }
     val effectiveDuration = if (duration.startsWith("CUSTOM:")) "Custom" else duration
 
-    var note by remember { mutableStateOf(viewModel.editingBudgetRaw?.note ?: "") }
-    var higherIsBetter by remember { mutableStateOf(viewModel.editingBudgetRaw?.higherIsBetter ?: false) }
+    var note by remember { mutableStateOf(viewModel.editingBudgetRaw?.budget?.note ?: "") }
+    var higherIsBetter by remember { mutableStateOf(viewModel.editingBudgetRaw?.budget?.higherIsBetter ?: false) }
+    var rolloverEnabled by remember { mutableStateOf(viewModel.editingBudgetRaw?.budget?.rolloverEnabled ?: false) }
 
     var showCategoryDialog by remember { mutableStateOf(false) }
 
@@ -372,6 +385,13 @@ fun AddBudgetScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
 
             Spacer(Modifier.height(16.dp))
 
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(checked = rolloverEnabled, onCheckedChange = { rolloverEnabled = it })
+                Text(stringResource(R.string.label_enable_rollover), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.clickable { rolloverEnabled = !rolloverEnabled })
+            }
+
+            Spacer(Modifier.height(16.dp))
+
             OutlinedTextField(
                 value = note,
                 onValueChange = { note = it },
@@ -390,15 +410,16 @@ fun AddBudgetScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                             "CUSTOM:$customDurationValue:$customDurationUnit"
                         } else duration
                         
-                        viewModel.saveBudgetRaw(
-                            budgetName.takeIf { it.isNotBlank() },
-                            selectedCategoryIds.joinToString(","),
-                            amt, 
-                            finalDuration, 
-                            note,
-                            higherIsBetter,
-                            selectedAccountIds.joinToString(",")
-                        )
+            viewModel.saveBudgetRaw(
+                budgetName.takeIf { it.isNotBlank() },
+                selectedCategoryIds.joinToString(","),
+                amt, 
+                finalDuration, 
+                note,
+                higherIsBetter,
+                selectedAccountIds.joinToString(","),
+                rolloverEnabled
+            )
                         onBack()
                     }
                 },
@@ -531,8 +552,8 @@ fun BudgetComparisonScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, isTa
         )
     } else {
         val content: @Composable (PaddingValues) -> Unit = { padding ->
-            Column(modifier = Modifier.padding(padding).fillMaxSize().padding(horizontal = 16.dp)) {
-                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.padding(padding).fillMaxSize().padding(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 0.dp)) {
+                Row(modifier = Modifier.fillMaxWidth().padding(start = 0.dp, top = 0.dp, end = 0.dp, bottom = 4.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text(stringResource(R.string.label_as_of_colon, asOfDate), style = MaterialTheme.typography.labelMedium)
                     if (isTab) {
                         Row {
@@ -616,7 +637,7 @@ fun BudgetComparisonScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, isTa
 }
 
 @Composable
-fun BudgetComparisonRow(item: com.openapps.fintrack.ui.BudgetVsActual, viewModel: ExpenseViewModel, onClick: () -> Unit) {
+fun BudgetComparisonRow(item: BudgetVsActual, viewModel: ExpenseViewModel, onClick: () -> Unit) {
     val isGoalMet = if (item.higherIsBetter) {
         item.actualAmount >= item.budgetAmount
     } else {
@@ -685,6 +706,14 @@ fun BudgetComparisonRow(item: com.openapps.fintrack.ui.BudgetVsActual, viewModel
                 )
                 Text(item.duration, style = MaterialTheme.typography.labelSmall)
             }
+
+            if (item.rolloverEnabled && item.rolloverAmount > 0) {
+                Text(
+                    stringResource(R.string.label_rollover_applied, viewModel.formatAmount(item.rolloverAmount)),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color(0xFF4CAF50)
+                )
+            }
             
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 if (stats.first.isNotEmpty()) {
@@ -735,7 +764,7 @@ fun BudgetComparisonRow(item: com.openapps.fintrack.ui.BudgetVsActual, viewModel
     }
 }
 
-fun exportBudgetVsActual(context: Context, data: List<com.openapps.fintrack.ui.BudgetVsActual>, asOfDate: String) {
+fun exportBudgetVsActual(context: Context, data: List<BudgetVsActual>, asOfDate: String) {
     val fileName = "budget_report_$asOfDate.csv"
     val path = File(context.getExternalFilesDir(null), fileName)
     
@@ -756,7 +785,7 @@ fun exportBudgetVsActual(context: Context, data: List<com.openapps.fintrack.ui.B
 fun String.title() = this.lowercase().replaceFirstChar { it.uppercase() }
 
 @Composable
-fun BudgetPeriodSummary(duration: String, budgets: List<com.openapps.fintrack.ui.BudgetVsActual>, viewModel: ExpenseViewModel) {
+fun BudgetPeriodSummary(duration: String, budgets: List<BudgetVsActual>, viewModel: ExpenseViewModel) {
     val totalBudget = budgets.sumOf { it.budgetAmount }
     val totalActual = budgets.sumOf { it.actualAmount }
     val available = totalBudget - totalActual

@@ -1,6 +1,17 @@
 /*
+ * FinTrack
+ * Copyright (C) 2026 Bhuvan (app.upstream242@passmail.com)
  * SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (C) 2026 Bhuvan
+
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
  */
 
 package com.openapps.fintrack.ui
@@ -191,7 +202,7 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: 
                                 val current = viewModel.dashboardAccountIds.toMutableList()
                                 if (isSelected) {
                                     current.remove(account.id)
-                                } else if (current.size < 3) {
+                                } else if (current.size < 15) {
                                     current.add(account.id)
                                 }
                                 viewModel.updateDashboardAccounts(current)
@@ -204,7 +215,7 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: 
             Spacer(Modifier.height(16.dp))
             Text(stringResource(R.string.settings_dashboard_budgets), style = MaterialTheme.typography.titleMedium)
             
-            val budgets by viewModel.getAllBudgets().collectAsState(initial = emptyList())
+            val budgets by viewModel.getAllBudgetsDetailed().collectAsState(initial = emptyList())
             var budgetExpanded by remember { mutableStateOf(false) }
             val budgetLabel = stringResource(R.string.label_budget)
             Box(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
@@ -212,18 +223,20 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: 
                     onClick = { budgetExpanded = true },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    val selectedNames = budgets.filter { it.id in viewModel.dashboardBudgetIds }.joinToString { it.name ?: "$budgetLabel ${it.id}" }
+                    val selectedNames = budgets.filter { it.budget.id in viewModel.dashboardBudgetIds }.joinToString { it.budget.name ?: "$budgetLabel ${it.budget.id}" }
                     Text(if (selectedNames.isEmpty()) stringResource(R.string.settings_select_budgets) else selectedNames)
                 }
                 DropdownMenu(expanded = budgetExpanded, onDismissRequest = { budgetExpanded = false }) {
-                    budgets.forEach { budget ->
+                    budgets.forEach { budgetWithRelations ->
+                        val budget = budgetWithRelations.budget
                         val isSelected = budget.id in viewModel.dashboardBudgetIds
                         DropdownMenuItem(
                             text = { 
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Checkbox(checked = isSelected, onCheckedChange = null)
                                     Spacer(Modifier.width(8.dp))
-                                    Text(budget.name ?: "Budget ${budget.id}")
+                                    val catNames = budgetWithRelations.categories.joinToString(", ") { it.name }
+                                    Text(budget.name ?: catNames)
                                 }
                             },
                             onClick = {
@@ -243,41 +256,154 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: 
             Spacer(Modifier.height(16.dp))
             Text(stringResource(R.string.settings_tab_order), style = MaterialTheme.typography.titleMedium)
             
-            val tabLabels = mapOf(
-                "home" to stringResource(R.string.menu_home),
-                "analysis" to stringResource(R.string.menu_analysis),
+            val availableTabOptions = listOf(
                 "transactions" to stringResource(R.string.menu_entries),
-                "budgets" to stringResource(R.string.menu_budgets)
+                "analysis" to stringResource(R.string.menu_analysis),
+                "budgets" to stringResource(R.string.menu_budgets),
+                "credit_cards" to stringResource(R.string.menu_credit_cards),
+                "goals" to stringResource(R.string.menu_goals),
+                "notes" to stringResource(R.string.menu_notes),
+                "performance" to stringResource(R.string.menu_performance),
+                "subscriptions" to stringResource(R.string.menu_subscriptions),
+                "fd" to stringResource(R.string.menu_fixed_deposits),
+                "summary" to stringResource(R.string.menu_summary)
             )
-            viewModel.bottomTabOrder.forEachIndexed { index, tabKey ->
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(tabLabels[tabKey] ?: tabKey)
-                    Row {
-                        if (index > 0) {
-                            IconButton(onClick = {
-                                val newOrder = viewModel.bottomTabOrder.toMutableList()
-                                val tmp = newOrder[index]
-                                newOrder[index] = newOrder[index - 1]
-                                newOrder[index - 1] = tmp
-                                viewModel.updateTabOrder(newOrder)
-                            }) { Icon(Icons.Default.ArrowUpward, stringResource(R.string.settings_move_up)) }
+
+            val currentTabOrder = viewModel.bottomTabOrder.take(4)
+            val fullTabList = if (currentTabOrder.size < 4) {
+                val defaults = listOf("home", "transactions", "analysis", "budgets")
+                (currentTabOrder + defaults).distinct().take(4)
+            } else currentTabOrder
+
+            fullTabList.forEachIndexed { index, currentKey ->
+                if (index == 0) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                            OutlinedButton(
+                                onClick = { },
+                                enabled = false,
+                                modifier = Modifier.fillMaxWidth(),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.settings_tab_home_fixed, stringResource(R.string.menu_home)),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
                         }
-                        if (index < viewModel.bottomTabOrder.size - 1) {
-                            IconButton(onClick = {
-                                val newOrder = viewModel.bottomTabOrder.toMutableList()
-                                val tmp = newOrder[index]
-                                newOrder[index] = newOrder[index + 1]
-                                newOrder[index + 1] = tmp
-                                viewModel.updateTabOrder(newOrder)
-                            }) { Icon(Icons.Default.ArrowDownward, stringResource(R.string.settings_move_down)) }
+
+                        Row {
+                            IconButton(onClick = {}, enabled = false) {
+                                Icon(Icons.Default.ArrowUpward, stringResource(R.string.settings_move_up))
+                            }
+                            IconButton(onClick = {}, enabled = false) {
+                                Icon(Icons.Default.ArrowDownward, stringResource(R.string.settings_move_down))
+                            }
                         }
                     }
+                    Divider()
+                } else {
+                    var expanded by remember { mutableStateOf(false) }
+                    val currentLabel = availableTabOptions.find { it.first == currentKey }?.second ?: currentKey
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                            OutlinedButton(
+                                onClick = { expanded = true },
+                                modifier = Modifier.fillMaxWidth(),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.settings_tab_format, index + 1, currentLabel),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        maxLines = 1
+                                    )
+                                    Icon(
+                                        imageVector = Icons.Default.ArrowDropDown,
+                                        contentDescription = null
+                                    )
+                                }
+                            }
+
+                            DropdownMenu(
+                                expanded = expanded,
+                                onDismissRequest = { expanded = false }
+                            ) {
+                                availableTabOptions.forEach { (key, label) ->
+                                    DropdownMenuItem(
+                                        text = { Text(label) },
+                                        onClick = {
+                                            expanded = false
+                                            val newOrder = viewModel.bottomTabOrder.toMutableList()
+                                            while (newOrder.size < 4) newOrder.add("transactions")
+                                            if (index < newOrder.size) {
+                                                newOrder[index] = key
+                                            }
+                                            viewModel.updateTabOrder(newOrder)
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        Row {
+                            IconButton(
+                                onClick = {
+                                    if (index > 1) {
+                                        val newOrder = viewModel.bottomTabOrder.toMutableList()
+                                        val tmp = newOrder[index]
+                                        newOrder[index] = newOrder[index - 1]
+                                        newOrder[index - 1] = tmp
+                                        viewModel.updateTabOrder(newOrder)
+                                    }
+                                },
+                                enabled = index > 1
+                            ) {
+                                Icon(Icons.Default.ArrowUpward, stringResource(R.string.settings_move_up))
+                            }
+
+                            IconButton(
+                                onClick = {
+                                    if (index < fullTabList.size - 1) {
+                                        val newOrder = viewModel.bottomTabOrder.toMutableList()
+                                        val tmp = newOrder[index]
+                                        newOrder[index] = newOrder[index + 1]
+                                        newOrder[index + 1] = tmp
+                                        viewModel.updateTabOrder(newOrder)
+                                    }
+                                },
+                                enabled = index < fullTabList.size - 1
+                            ) {
+                                Icon(Icons.Default.ArrowDownward, stringResource(R.string.settings_move_down))
+                            }
+                        }
+                    }
+                    Divider()
                 }
-                Divider()
             }
 
             Spacer(Modifier.height(16.dp))
@@ -394,6 +520,65 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: 
 
             var showErrorDialog by remember { mutableStateOf(false) }
             var showWebWarning by remember { mutableStateOf(false) }
+            var showPortDialog by remember { mutableStateOf(false) }
+
+            if (showPortDialog) {
+                var portInput by remember { mutableStateOf(viewModel.serverPort.toString()) }
+                var portError by remember { mutableStateOf<String?>(null) }
+
+                AlertDialog(
+                    onDismissRequest = { showPortDialog = false },
+                    title = { Text(stringResource(R.string.settings_custom_port_title)) },
+                    text = {
+                        Column {
+                            OutlinedTextField(
+                                value = portInput,
+                                onValueChange = { input ->
+                                    portInput = input
+                                    val parsed = input.toIntOrNull()
+                                    portError = if (parsed == null || parsed !in 1024..65535) {
+                                        "Enter a valid port (1024-65535)"
+                                    } else null
+                                },
+                                label = { Text(stringResource(R.string.label_port)) },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                isError = portError != null,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            if (portError != null) {
+                                Text(
+                                    portError!!,
+                                    color = MaterialTheme.colorScheme.error,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                val parsed = portInput.toIntOrNull()
+                                if (parsed != null && parsed in 1024..65535) {
+                                    viewModel.updateServerPort(parsed)
+                                    showPortDialog = false
+                                } else {
+                                    portError = "Enter a valid port (1024-65535)"
+                                }
+                            },
+                            enabled = portError == null && portInput.isNotBlank()
+                        ) {
+                            Text(stringResource(R.string.btn_confirm))
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showPortDialog = false }) {
+                            Text(stringResource(R.string.btn_cancel))
+                        }
+                    }
+                )
+            }
 
             if (showWebWarning) {
                 AlertDialog(
@@ -467,6 +652,27 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: 
                     color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showPortDialog = true }
+                        .padding(vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.settings_custom_port), style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            stringResource(R.string.settings_custom_port_desc, viewModel.serverPort),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    OutlinedButton(onClick = { showPortDialog = true }) {
+                        Text("${viewModel.serverPort}")
+                    }
+                }
                 Column(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
                     Text(stringResource(R.string.settings_conn_url), style = MaterialTheme.typography.labelSmall)
                     
@@ -646,6 +852,27 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text(stringResource(R.string.settings_millions_system))
                 Switch(checked = viewModel.useMillionsSystem, onCheckedChange = { viewModel.updateNumberSystem(it) })
+            }
+
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.settings_decimal_places))
+                var decimalExpanded by remember { mutableStateOf(false) }
+                Box {
+                    TextButton(onClick = { decimalExpanded = true }) {
+                        Text("${viewModel.decimalPlaces} " + stringResource(R.string.settings_decimal_suffix))
+                    }
+                    DropdownMenu(expanded = decimalExpanded, onDismissRequest = { decimalExpanded = false }) {
+                        (0..5).forEach { opt ->
+                            DropdownMenuItem(
+                                text = { Text(opt.toString()) },
+                                onClick = {
+                                    viewModel.updateDecimalPlaces(opt)
+                                    decimalExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
             }
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {

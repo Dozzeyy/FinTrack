@@ -1,7 +1,17 @@
 /*
  * FinTrack
- * Copyright (C) 2026 Dozzeyy
+ * Copyright (C) 2026 Bhuvan (app.upstream242@passmail.com)
  * SPDX-License-Identifier: GPL-3.0-or-later
+
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
  */
 
 package com.openapps.fintrack
@@ -17,12 +27,14 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.compose.animation.*
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -37,14 +49,17 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import android.view.WindowManager
+import androidx.activity.viewModels
 import androidx.compose.ui.res.stringResource
 import com.openapps.fintrack.ui.*
 import com.openapps.fintrack.ui.theme.FinTrackTheme
+import dagger.hilt.android.AndroidEntryPoint
 import java.io.File
 
+@AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
     private var lockHandler = Handler(Looper.getMainLooper())
-    private lateinit var viewModel: ExpenseViewModel
+    private val viewModel: ExpenseViewModel by viewModels()
     private val isLockedState = mutableStateOf(false)
     private val isDecryptionRequired = mutableStateOf(false)
     private val isDecrypting = mutableStateOf(false)
@@ -55,8 +70,6 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         currentExtras.value = intent.extras
-        
-        viewModel = ViewModelProvider(this)[ExpenseViewModel::class.java]
         
         try {
             val pInfo = packageManager.getPackageInfo(packageName, 0)
@@ -113,6 +126,7 @@ class MainActivity : AppCompatActivity() {
                                     }
                                     if (success) {
                                         isDecryptionRequired.value = false
+                                        viewModel.triggerRefresh()
                                     } else {
                                         Toast.makeText(this@MainActivity, getString(R.string.msg_incorrect_password), Toast.LENGTH_LONG).show()
                                     }
@@ -181,19 +195,21 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
-        if (viewModel.secureModeEnabled && !viewModel.isPickingFile) {
+        if (viewModel.secureModeEnabled && !viewModel.isPickingFile && !viewModel.isImportingDatabase && !isChangingConfigurations) {
             viewModel.encryptDatabaseAtRest()
         }
     }
 
     override fun onStart() {
         super.onStart()
-        if (viewModel.secureModeEnabled && !isDecrypting.value) {
+        if (!isDecrypting.value) {
             val required = viewModel.checkDatabaseEncryptionStatus()
             isDecryptionRequired.value = required
             
             if (!required && !viewModel.isDatabaseDecrypted) {
-                viewModel.refreshDatabase(false)
+                lifecycleScope.launch {
+                    viewModel.refreshDatabase(false)
+                }
             }
         }
     }
@@ -220,7 +236,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun resetLockTimer() {
-        if (!::viewModel.isInitialized) return
         lockHandler.removeCallbacksAndMessages(null)
         val timeoutStr = viewModel.inactivityTimeout
         if (timeoutStr == "keep unlocked until app closure") return
@@ -322,20 +337,41 @@ fun DecryptionScreen(isProcessing: Boolean, progress: Float, onDecrypt: (String)
     var password by remember { mutableStateOf("") }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(32.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Icon(Icons.Default.Lock, null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.primary)
+        Icon(
+            Icons.Default.Lock, 
+            null, 
+            modifier = Modifier.size(64.dp), 
+            tint = MaterialTheme.colorScheme.primary
+        )
         Spacer(Modifier.height(16.dp))
-        Text(stringResource(R.string.label_ultra_secure_mode), style = MaterialTheme.typography.headlineMedium)
-        Text(stringResource(R.string.msg_db_encrypted_rest), style = MaterialTheme.typography.bodySmall)
+        Text(
+            stringResource(R.string.label_ultra_secure_mode), 
+            style = MaterialTheme.typography.headlineMedium,
+            color = MaterialTheme.colorScheme.onBackground,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            stringResource(R.string.msg_db_encrypted_rest), 
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+        )
         Spacer(Modifier.height(24.dp))
 
         if (isProcessing) {
-            CircularProgressIndicator(progress = progress)
+            CircularProgressIndicator(progress = progress, color = MaterialTheme.colorScheme.primary)
             Spacer(Modifier.height(16.dp))
-            Text(stringResource(R.string.label_decrypting_val, (progress * 100).toInt()))
+            Text(
+                stringResource(R.string.label_decrypting_val, (progress * 100).toInt()),
+                color = MaterialTheme.colorScheme.onBackground
+            )
         } else {
             OutlinedTextField(
                 value = password,
@@ -423,6 +459,13 @@ fun FinTrackApp(
                     }
                 )
             }
+            composable("sms_inbox") {
+                SmsInboxScreen(
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() },
+                    onNavigate = { route -> navController.navigate(route) }
+                )
+            }
             composable("add_transaction") {
                 AddTransactionScreen(
                     viewModel = viewModel, 
@@ -504,6 +547,12 @@ fun FinTrackApp(
             composable("subscriptions") {
                 SubscriptionDashboard(viewModel = viewModel, onBack = { navController.popBackStack() }, onNavigate = { navController.navigate(it) })
             }
+            composable("investments") {
+                InvestmentsScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+            }
+            composable("fixed_deposits") {
+                FixedDepositsScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+            }
             composable("settings") {
                 SettingsScreen(viewModel = viewModel, onBack = { navController.popBackStack() }, onNavigate = { navController.navigate(it) }, onRequireAuth = onRequireAuth)
             }
@@ -561,6 +610,9 @@ fun FinTrackApp(
             }
             composable("rules") {
                 RulesScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+            }
+            composable("goals") {
+                GoalsScreen(viewModel = viewModel, onBack = { navController.popBackStack() }, onNavigate = { navController.navigate(it) })
             }
             composable("quick_entry") {
                 QuickEntryScreen(

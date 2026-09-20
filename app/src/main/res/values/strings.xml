@@ -1,7 +1,17 @@
 <!--
- FinTrack
- SPDX-License-Identifier: GPL-3.0-or-later
- Copyright (C) 2026 Bhuvan
+ * FinTrack
+ * Copyright (C) 2026 Bhuvan (app.upstream242@passmail.com)
+ * SPDX-License-Identifier: GPL-3.0-or-later
+
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
 -->
 
 <resources>
@@ -13,6 +23,16 @@
     <string name="menu_accounts">Accounts</string>
     <string name="menu_categories">Categories</string>
     <string name="menu_summary">Summary</string>
+    <string name="title_sms_inbox" translatable="false">Review SMS</string>
+    <string name="msg_sms_inbox_empty" translatable="false">No pending SMS for review.</string>
+    <string name="btn_record_transaction" translatable="false">Record Transaction</string>
+    <string name="msg_confirm_sms_record" translatable="false">Confirm recording transaction of %1$s?</string>
+    <string name="btn_dismiss" translatable="false">Dismiss</string>
+    <string name="label_reconciled" translatable="false">Verified</string>
+    <string name="title_suggested_subscriptions" translatable="false">Suggested Subscriptions</string>
+    <string name="msg_detected_monthly_expense" translatable="false">Detected monthly expense of %1$s</string>
+    <string name="label_enable_rollover" translatable="false">Enable Rollover (Carry forward surplus)</string>
+    <string name="label_rollover_applied" translatable="false">Rollover Applied: %1$s</string>
     <string name="menu_analysis">Analysis</string>
     <string name="menu_templates">Templates</string>
     <string name="menu_settings">Settings</string>
@@ -23,6 +43,17 @@
     <string name="menu_rules">Automation Rules</string>
     <string name="menu_assets">Assets</string>
     <string name="menu_subscriptions">Subscriptions</string>
+    <string name="menu_investments">Investments</string>
+
+    <string name="label_current_value">Current Value</string>
+    <string name="label_difference">Difference</string>
+    <string name="label_adjustment_category">Adjustment Category</string>
+    <string name="btn_save_and_record">Save and Record</string>
+    <string name="msg_investment_record_confirm">Differences will be booked as income or expense entries and the account balances will be updated to match the current values entered. Do you want to proceed?</string>
+    <string name="msg_adjustment_category_missing">Please select a category for all rows with a difference. Rows with no category will be skipped.</string>
+    <string name="title_select_adjustment_categories">Select Adjustment Categories</string>
+    <string name="label_expense_category">Expense Category</string>
+    <string name="label_income_category">Income Category</string>
 
     <string name="label_operation">Operation</string>
     <string name="label_add_op">Add</string>
@@ -138,7 +169,7 @@
     <string name="label_amount_local_code">Amount (%1$s)</string>
     <string name="label_conversion_rate_tip">Rate (%1$s to %2$s)</string>
     <string name="label_stale_rate">Stale Rate</string>
-    <string name="label_select_tags">Select Tags</string>
+    <string name="label_select_tags">Tags</string>
     <string name="label_balance_export">Balance Export</string>
     <string name="msg_saved_success">Transaction saved successfully!</string>
     <string name="msg_no_pending_invoices">No pending invoices</string>
@@ -218,6 +249,8 @@
     <string name="settings_regional">Regional Settings</string>
     <string name="settings_millions_system">Use Millions/Billions System</string>
     <string name="settings_tap_net_position">Tap to show net position</string>
+    <string name="settings_decimal_places">Decimal Places</string>
+    <string name="settings_decimal_suffix">places</string>
     <string name="settings_data_entry">Data Entry</string>
     <string name="settings_multi_tag">Multi-Tag Selection</string>
     <string name="settings_auto_read">Auto Read Messages</string>
@@ -640,7 +673,7 @@
     <string name="settings_server_error">Server Error</string>
     <string name="settings_device_authorized">Device Authorized</string>
     <string name="settings_invalid_qr">Invalid QR Code</string>
-    <string name="settings_enable_web">Enable Web Access</string>
+    <string name="settings_enable_web">Enable Web Access (Beta)</string>
     <string name="settings_web_desc">Access FinTrack from your browser.</string>
     <string name="settings_server_perf_note">Performance might be affected while server is running.</string>
     <string name="settings_conn_url">Connection URL</string>
@@ -849,4 +882,116 @@
     <string name="label_uncategorized">Uncategorized</string>
     <string name="label_other">Other</string>
     <string name="label_advanced_filters">Advanced Filters</string>
+
+    <string name="greeting_good_morning">Good morning</string>
+    <string name="greeting_good_afternoon">Good afternoon</string>
+    <string name="greeting_good_evening">Good evening</string>
+    <string name="msg_credit_card_tip_days">Tip: Use \'%1$s\' instead to maximize your interest-free credit period (%2$d days vs %3$d days).</string>
+
+    <string name="settings_custom_port" translatable="false">Custom Port</string>
+    <string name="settings_custom_port_desc" translatable="false">Current server port: %1$d</string>
+    <string name="settings_custom_port_title" translatable="false">Set Custom Server Port</string>
+    <string name="label_port" translatable="false">Port Number</string>
+
+    <string name="label_transaction_status">Transaction Status</string>
+    <string name="status_pending">Pending</string>
+    <string name="status_verified">Verified</string>
+    <string name="status_void">Void</string>
+    <string name="btn_mark_as_verified">Mark as Verified</string>
+    <string name="btn_mark_as_void">Mark as Void</string>
+    <string name="btn_modify">Modify</string>
+
+    <!-- Financial Goals -->
+    <string name="goal_title_financial_goals">Financial Goals</string>
+    <string name="goal_recurring_rules">Recurring Rules</string>
+    <string name="goal_add_goal">Add Goal</string>
+    <string name="goal_total_savings_progress">Total Savings Progress</string>
+    <string name="goal_saved_format">Saved: %1$s</string>
+    <string name="goal_target_format">Target: %1$s</string>
+    <string name="goal_no_goals_created">No financial goals created yet. Tap \'+\' to add one!</string>
+    <string name="goal_no_deadline">No deadline</string>
+    <string name="goal_expired">Expired</string>
+    <string name="goal_due_today">Due today</string>
+    <string name="goal_days_left">%1$d days left</string>
+    <string name="goal_months_left">%1$d months left</string>
+    <string name="goal_years_left">%1$d years left</string>
+    <string name="goal_delete_goal">Delete Goal</string>
+    <string name="goal_options">Options</string>
+    <string name="goal_create_financial_goal">Create Financial Goal</string>
+    <string name="goal_name_hint">Goal Name (e.g. New Car)</string>
+    <string name="goal_target_amount">Target Amount</string>
+    <string name="goal_target_date_hint">Target Date (YYYY-MM-DD)</string>
+    <string name="goal_accounts_funding">Accounts Funding This Goal</string>
+    <string name="goal_no_funds_allocated">No funds allocated from accounts yet.</string>
+    <string name="goal_allocation_history">Allocation History</string>
+    <string name="goal_allocation_history_desc">History of manual allocations, recurring rules, and transactions.</string>
+    <string name="goal_no_allocation_history">No allocation history recorded.</string>
+    <string name="goal_allocation_transaction">Allocation Transaction</string>
+    <string name="goal_transaction_visibility">Transaction Visibility</string>
+    <string name="goal_tap_transaction_details">Tap any transaction to view details.</string>
+    <string name="goal_no_transactions_linked">No transactions linked to this goal yet.</string>
+    <string name="goal_allocate_funds">Allocate Funds from Accounts</string>
+    <string name="goal_allocate_funds_title">Allocate Funds to %1$s</string>
+    <string name="goal_amount_to_allocate">Amount to Allocate</string>
+    <string name="goal_recurring_auto_contributions">Recurring Auto-Contributions</string>
+    <string name="goal_add_rule">Add Rule</string>
+    <string name="goal_no_rules_set">No recurring contribution rules set.</string>
+    <string name="goal_unknown_goal">Unknown Goal</string>
+    <string name="goal_add_recurring_contribution">Add Recurring Goal Contribution</string>
+    <string name="goal_select_goal">Select Goal</string>
+    <string name="goal_frequency_format">Frequency: %1$s (Day %2$d)</string>
+    <string name="goal_trigger_day_hint">Trigger Day / Date (e.g. 1)</string>
+    <string name="goal_save_rule">Save Rule</string>
+    <string name="goal_checkbox_this_is_for_goal">This is for Goal</string>
+    <string name="label_transaction" translatable="false">Transaction</string>
+    <string name="goal_select_account">Select Account</string>
+    <string name="goal_btn_allocate">Allocate</string>
+    <string name="goal_unknown">Unknown</string>
+    <string name="btn_catchup_missing_entries">Catchup %1$d Missing Entries</string>
+    <string name="title_catchup_missing_entries">Catchup Missing Entries</string>
+    <string name="msg_catchup_missing_entries">Found %1$d missing period(s) since last entry for \'%2$s\'. Do you want to book these missing entries?</string>
+    <string name="msg_catchup_success">Successfully recorded %1$d catch-up entry(ies) for %2$s</string>
+    <string name="msg_catchup_already_uptodate">Subscription \'%1$s\' is already up to date. No missing entries to catch up.</string>
+    <string name="btn_catch_up">Catch Up</string>
+
+    <!-- Fixed Deposits -->
+    <string name="fd_title_dashboard">Fixed Deposits Dashboard</string>
+    <string name="fd_no_active_fds">No active Fixed Deposits recorded yet.</string>
+    <string name="fd_acc_last_4">FD A/c Last 4: %1$s</string>
+    <string name="fd_minor_head">Minor Head: %1$s</string>
+    <string name="fd_maturity_days_left">Maturity: %1$s (%2$d days left)</string>
+    <string name="fd_maturity_date">Maturity: %1$s</string>
+    <string name="fd_na">N/A</string>
+    <string name="fd_initial">Initial: %1$s</string>
+    <string name="fd_outstanding">Outstanding: %1$s</string>
+    <string name="menu_fixed_deposits">Fixed Deposits</string>
+
+    <!-- Goals Localization -->
+    <string name="menu_goals">Goals</string>
+    <string name="goal_see_account_balances">See Account Balances</string>
+    <string name="goal_transfer_funds_between_accounts">Transfer Funds Between Accounts</string>
+    <string name="goal_actual_balance">Actual Balance: %1$s</string>
+    <string name="goal_allocated_to_goal">Allocated to Goal: %1$s</string>
+    <string name="goal_true_balance_available">True Balance (Available): %1$s</string>
+    <string name="goal_source_allocation">%1$s Allocation</string>
+    <string name="goal_history_date_account">%1$s | Account: %2$s</string>
+    <string name="goal_txn_date_account">%1$s | Account: %2$s</string>
+    <string name="goal_transfer_allocation_title">Transfer Allocation for %1$s</string>
+    <string name="goal_from_account_allocated">From Account (Allocated: %1$s)</string>
+    <string name="goal_select_source_account">Select Source Account</string>
+    <string name="goal_account_allocated_format">%1$s (Allocated: %2$s)</string>
+    <string name="goal_to_account">To Account</string>
+    <string name="goal_select_destination_account">Select Destination Account</string>
+    <string name="goal_transfer_amount">Transfer Amount</string>
+    <string name="goal_btn_transfer">Transfer</string>
+    <string name="goal_account_balance_format">%1$s (Balance: %2$s)</string>
+    <string name="goal_rule_account_amt">Account: %1$s | Amt: %2$s</string>
+    <string name="goal_rule_freq_day">Frequency: %1$s (Day %2$d)</string>
+    <string name="goal_frequency_label">Frequency: %1$s</string>
+    <string name="goal_account_balances_allocations_title">Account Balances &amp; Goal Allocations</string>
+    <string name="goal_actual_account_balance">Actual Account Balance: %1$s</string>
+    <string name="goal_allocations_label">Allocations:</string>
+    <string name="goal_true_available_balance">True Available Balance: %1$s</string>
+    <string name="settings_tab_home_fixed">Tab 1: %1$s (Fixed)</string>
+    <string name="settings_tab_format">Tab %1$d: %2$s</string>
 </resources>

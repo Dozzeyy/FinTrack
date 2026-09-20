@@ -1,7 +1,17 @@
 <!--
- FinTrack
- SPDX-License-Identifier: GPL-3.0-or-later
- Copyright (C) 2026 Bhuvan
+ * FinTrack
+ * Copyright (C) 2026 Bhuvan (app.upstream242@passmail.com)
+ * SPDX-License-Identifier: GPL-3.0-or-later
+
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
 -->
 
 <resources>
@@ -212,6 +222,8 @@
     <string name="settings_regional">Региональные настройки</string>
     <string name="settings_millions_system">Система млн/млрд</string>
     <string name="settings_tap_net_position">Показать чистую позицию</string>
+    <string name="settings_decimal_places">Десятичные знаки</string>
+    <string name="settings_decimal_suffix">знака(ов)</string>
     <string name="settings_data_entry">Ввод данных</string>
     <string name="settings_multi_tag">Множество тегов</string>
     <string name="settings_auto_read">Чтение SMS</string>
@@ -842,4 +854,117 @@
     <string name="shortcut_quick_entry_short">Быстрая запись</string>
     <string name="shortcut_quick_entry_long">Записать быструю транзакцию</string>
     <string name="btn_save_and_new">Сохранить и создать</string>
+    <string name="menu_investments">Инвестиции</string>
+    <string name="label_current_value">Текущая стоимость</string>
+    <string name="label_adjustment_category">Категория корректировки</string>
+    <string name="msg_investment_record_confirm">Разница будет записана как доход или расход, а остатки на счетах будут обновлены в соответствии с введенными текущими значениями. Продолжить?</string>
+    <string name="msg_adjustment_category_missing">Пожалуйста, выберите категорию для всех строк с разницей. Строки без категории будут пропущены.</string>
+    <string name="greeting_good_morning">Доброе утро</string>
+    <string name="greeting_good_afternoon">Добрый день</string>
+    <string name="greeting_good_evening">Добрый вечер</string>
+    <string name="msg_credit_card_tip_days">Совет: Используйте «%1$s» для максимального беспроцентного периода (%2$d дн. против %3$d дн.).</string>
+
+    <string name="label_transaction_status">Статус транзакции</string>
+    <string name="status_pending">В ожидании</string>
+    <string name="status_verified">Проверено (Сверено)</string>
+    <string name="status_void">Аннулировано</string>
+    <string name="btn_mark_as_verified">Отметить как проверенное</string>
+    <string name="btn_mark_as_void">Отметить как аннулированное</string>
+    <string name="btn_modify">Изменить</string>
+
+    <!-- Financial Goals -->
+    <string name="goal_title_financial_goals">Финансовые цели</string>
+    <string name="goal_recurring_rules">Регулярные правила</string>
+    <string name="goal_add_goal">Добавить цель</string>
+    <string name="goal_total_savings_progress">Общий прогресс сбережений</string>
+    <string name="goal_saved_format">Сэкономлено: %1$s</string>
+    <string name="goal_target_format">Цель: %1$s</string>
+    <string name="goal_no_goals_created">Финансовые цели еще не созданы. Нажмите «+», чтобы добавить!</string>
+    <string name="goal_no_deadline">Без срока</string>
+    <string name="goal_expired">Просрочено</string>
+    <string name="goal_due_today">Срок сегодня</string>
+    <string name="goal_days_left">Осталось %1$d дней</string>
+    <string name="goal_months_left">Осталось %1$d месяцев</string>
+    <string name="goal_years_left">Осталось %1$d лет</string>
+    <string name="goal_delete_goal">Удалить цель</string>
+    <string name="goal_options">Опции</string>
+    <string name="goal_create_financial_goal">Создать финансовую цель</string>
+    <string name="goal_name_hint">Название цели (напр. Новый автомобиль)</string>
+    <string name="goal_target_amount">Целевая сумма</string>
+    <string name="goal_target_date_hint">Целевая дата (ГГГГ-ММ-ДД)</string>
+    <string name="goal_accounts_funding">Счета, финансирующие эту цель</string>
+    <string name="goal_no_funds_allocated">Средства со счетов еще не выделены.</string>
+    <string name="goal_allocation_history">История распределения</string>
+    <string name="goal_allocation_history_desc">История ручных распределений, регулярных правил и транзакций.</string>
+    <string name="goal_no_allocation_history">История распределения не записана.</string>
+    <string name="goal_allocation_transaction">Транзакция распределения</string>
+    <string name="goal_transaction_visibility">Видимость транзакций</string>
+    <string name="goal_tap_transaction_details">Нажмите на транзакцию для просмотра деталей.</string>
+    <string name="goal_no_transactions_linked">С этой целью пока не связано ни одной транзакции.</string>
+    <string name="goal_allocate_funds">Выделить средства со счетов</string>
+    <string name="goal_allocate_funds_title">Выделить средства для %1$s</string>
+    <string name="goal_amount_to_allocate">Сумма выделения</string>
+    <string name="goal_recurring_auto_contributions">Регулярные авто-взносы</string>
+    <string name="goal_add_rule">Добавить правило</string>
+    <string name="goal_no_rules_set">Правила регулярных взносов не заданы.</string>
+    <string name="goal_unknown_goal">Неизвестная цель</string>
+    <string name="goal_add_recurring_contribution">Добавить регулярный взнос</string>
+    <string name="goal_select_goal">Выберите цель</string>
+    <string name="goal_frequency_format">Частота: %1$s (День %2$d)</string>
+    <string name="goal_trigger_day_hint">День / Дата срабатывания (напр. 1)</string>
+    <string name="goal_save_rule">Сохранить правило</string>
+    <string name="goal_checkbox_this_is_for_goal">Это для цели</string>
+    <string name="label_transaction">Транзакция</string>
+    <string name="goal_select_account">Выберите счет</string>
+    <string name="goal_btn_allocate">Выделить</string>
+    <string name="goal_unknown">Неизвестно</string>
+    <string name="btn_catchup_missing_entries">Догнать %1$d пропущенных записей</string>
+    <string name="title_catchup_missing_entries">Догнать пропущенные записи</string>
+    <string name="msg_catchup_missing_entries">Найдено пропущенных периодов: %1$d с последней записи для \'%2$s\'. Хотите записать эти пропущенные записи?</string>
+    <string name="msg_catchup_success">Успешно записано пропущенных записей: %1$d для %2$s</string>
+    <string name="msg_catchup_already_uptodate">Подписка \'%1$s\' уже актуальна. Нет пропущенных записей.</string>
+    <string name="btn_catch_up">Догнать</string>
+
+    <!-- Fixed Deposits -->
+    <string name="fd_title_dashboard">Панель банковских вкладов</string>
+    <string name="fd_no_active_fds">Активные банковские вклады пока не записаны.</string>
+    <string name="fd_acc_last_4">Вклад посл. 4 цифры: %1$s</string>
+    <string name="fd_minor_head">Субсчет: %1$s</string>
+    <string name="fd_maturity_days_left">Срок: %1$s (осталось дней: %2$d)</string>
+    <string name="fd_maturity_date">Срок: %1$s</string>
+    <string name="fd_na">Н/Д</string>
+    <string name="fd_initial">Начальная сумма: %1$s</string>
+    <string name="fd_outstanding">Остаток: %1$s</string>
+    <string name="menu_fixed_deposits">Банковские вклады</string>
+
+    <!-- Goals Localization -->
+    <string name="menu_goals">Цели</string>
+    <string name="goal_see_account_balances">Посмотреть балансы счетов</string>
+    <string name="goal_transfer_funds_between_accounts">Перевести средства между счетами</string>
+    <string name="goal_actual_balance">Фактический баланс: %1$s</string>
+    <string name="goal_allocated_to_goal">Выделено на цель: %1$s</string>
+    <string name="goal_true_balance_available">Реальный баланс (Доступно): %1$s</string>
+    <string name="goal_source_allocation">Распределение %1$s</string>
+    <string name="goal_history_date_account">%1$s | Счет: %2$s</string>
+    <string name="goal_txn_date_account">%1$s | Счет: %2$s</string>
+    <string name="goal_transfer_allocation_title">Перевод распределения для %1$s</string>
+    <string name="goal_from_account_allocated">Со счета (Выделено: %1$s)</string>
+    <string name="goal_select_source_account">Выберите счет списания</string>
+    <string name="goal_account_allocated_format">%1$s (Выделено: %2$s)</string>
+    <string name="goal_to_account">На счет</string>
+    <string name="goal_select_destination_account">Выберите счет зачисления</string>
+    <string name="goal_transfer_amount">Сумма перевода</string>
+    <string name="goal_btn_transfer">Перевести</string>
+    <string name="goal_account_balance_format">%1$s (Баланс: %2$s)</string>
+    <string name="goal_rule_account_amt">Счет: %1$s | Сумма: %2$s</string>
+    <string name="goal_rule_freq_day">Периодичность: %1$s (День %2$d)</string>
+    <string name="goal_frequency_label">Периодичность: %1$s</string>
+    <string name="goal_account_balances_allocations_title">Балансы счетов и цели</string>
+    <string name="goal_actual_account_balance">Фактический баланс счета: %1$s</string>
+    <string name="goal_allocations_label">Распределения:</string>
+    <string name="goal_true_available_balance">Реальный доступный баланс: %1$s</string>
+
+    <!-- Settings Tab Order -->
+    <string name="settings_tab_home_fixed">Вкладка 1: %1$s (Фиксированная)</string>
+    <string name="settings_tab_format">Вкладка %1$d: %2$s</string>
 </resources>

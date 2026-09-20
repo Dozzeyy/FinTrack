@@ -1,6 +1,17 @@
 /*
+ * FinTrack
+ * Copyright (C) 2026 Bhuvan (app.upstream242@passmail.com)
  * SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (C) 2026 Bhuvan
+
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
  */
 
 package com.openapps.fintrack.data
@@ -88,7 +99,7 @@ object LoanCalculator {
         if (principal <= 0 || periods <= 0 || emi <= principal / periods) return 0.0
         
         var low = 0.0
-        var high = 1.0 // 100% per period
+        var high = 1.0
         val tolerance = 1e-9
         
         for (i in 0 until 100) {
@@ -156,8 +167,6 @@ object LoanCalculator {
         var balance = principal
 
         for (i in 1..n) {
-            // First payment covers the pre-calculated gap interest
-            // Subsequent payments cover regular periodic interest on balance
             val interestPortion = if (i == 1) gapInterest else (balance * r)
             val principalPortion = standardEMI - interestPortion
             balance -= principalPortion

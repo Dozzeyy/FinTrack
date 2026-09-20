@@ -1,6 +1,17 @@
 /*
+ * FinTrack
+ * Copyright (C) 2026 Bhuvan (app.upstream242@passmail.com)
  * SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (C) 2026 Bhuvan
+
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
  */
 
 package com.openapps.fintrack.ui
@@ -20,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.openapps.fintrack.data.MajorHead
 import com.openapps.fintrack.data.MinorHead
@@ -46,11 +58,14 @@ fun ManageHeadsScreen(
             title = { Text(stringResource(R.string.title_confirm_delete)) },
             text = { 
                 val item = showDeleteConfirm
-                val msg = if (item is MajorHead && !item.name.equals("On Account (Loan)", ignoreCase = true)) {
+                val coreMajorHeadNames = listOf("Bank Accounts", "Investments", "Credit Cards", "Credit cards", "On Account (Loan)")
+                val isCoreHead = item is MajorHead && coreMajorHeadNames.any { it.equals(item.name, ignoreCase = true) }
+                val baseMsg = if (item is MajorHead && !item.name.equals("On Account (Loan)", ignoreCase = true)) {
                     stringResource(R.string.msg_delete_major_head_confirm)
                 } else {
                     stringResource(R.string.msg_delete_header_confirm)
                 }
+                val msg = if (isCoreHead) "⚠️ Warning: Modifying or deleting core system Major Heads (Bank Accounts, Investments, Credit cards, On Account (Loan)) may disrupt linked features and accounts.\n\n$baseMsg" else baseMsg
                 Text(msg) 
             },
             confirmButton = {
@@ -106,6 +121,16 @@ fun ManageHeadsScreen(
             TabRow(selectedTabIndex = selectedTab) {
                 Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text(stringResource(R.string.label_major)) })
                 Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text(stringResource(R.string.label_minor)) })
+            }
+
+            if (selectedTab == 0) {
+                Text(
+                    text = "⚠️ Warning: Modifying or deleting core system Major Heads (Bank Accounts, Investments, Credit cards, On Account (Loan)) may disrupt linked features and accounts.",
+                    color = Color.Red,
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(16.dp)
+                )
             }
 
             LazyColumn(modifier = Modifier.weight(1f)) {

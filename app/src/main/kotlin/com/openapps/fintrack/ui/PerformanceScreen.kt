@@ -1,7 +1,17 @@
 /*
  * FinTrack
- * Copyright (C) 2026 Dozzeyy
+ * Copyright (C) 2026 Bhuvan (app.upstream242@passmail.com)
  * SPDX-License-Identifier: GPL-3.0-or-later
+
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
  */
 
 package com.openapps.fintrack.ui
@@ -9,6 +19,7 @@ package com.openapps.fintrack.ui
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.res.stringResource
 import com.openapps.fintrack.R
+import com.openapps.fintrack.domain.model.*
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
@@ -53,7 +64,8 @@ data class GroupedColumn(
 @Composable
 fun PerformanceScreen(
     viewModel: ExpenseViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    isEmbedded: Boolean = false
 ) {
     var startDate by remember { mutableStateOf(LocalDate.now().minusMonths(6).withDayOfMonth(1).format(DateTimeFormatter.ISO_DATE)) }
     var endDate by remember { mutableStateOf(LocalDate.now().format(DateTimeFormatter.ISO_DATE)) }
@@ -75,14 +87,53 @@ fun PerformanceScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.title_performance_dashboard)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.btn_back))
+            if (!isEmbedded) {
+                TopAppBar(
+                    title = { Text(stringResource(R.string.title_performance_dashboard)) },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.btn_back))
+                        }
+                    },
+                    actions = {
+                        var showGroupingMenu by remember { mutableStateOf(false) }
+                        Box {
+                            IconButton(onClick = { showGroupingMenu = true }) {
+                                Icon(Icons.Default.ViewColumn, stringResource(R.string.label_column_grouping))
+                            }
+                            DropdownMenu(expanded = showGroupingMenu, onDismissRequest = { showGroupingMenu = false }) {
+                                ColumnGrouping.entries.forEach { g ->
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(g.labelRes)) },
+                                        onClick = {
+                                            if (g == ColumnGrouping.CUSTOM) {
+                                                showCustomDialog = true
+                                            } else {
+                                                grouping = g
+                                            }
+                                            showGroupingMenu = false
+                                        },
+                                        trailingIcon = { if (grouping == g) Icon(Icons.Default.Check, null) }
+                                    )
+                                }
+                            }
+                        }
+                        IconButton(onClick = { showFilter = true }) {
+                            Icon(Icons.Default.DateRange, stringResource(R.string.label_select_period))
+                        }
                     }
-                },
-                actions = {
+                )
+            }
+        }
+    ) { padding ->
+        val contentPadding = if (isEmbedded) PaddingValues(0.dp) else padding
+        Column(modifier = Modifier.padding(contentPadding).fillMaxSize()) {
+            if (isEmbedded) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(start = 8.dp, top = 0.dp, end = 8.dp, bottom = 4.dp),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     var showGroupingMenu by remember { mutableStateOf(false) }
                     Box {
                         IconButton(onClick = { showGroupingMenu = true }) {
@@ -109,10 +160,7 @@ fun PerformanceScreen(
                         Icon(Icons.Default.DateRange, stringResource(R.string.label_select_period))
                     }
                 }
-            )
-        }
-    ) { padding ->
-        Column(modifier = Modifier.padding(padding).fillMaxSize()) {
+            }
             TabRow(selectedTabIndex = selectedTab) {
                 Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text(stringResource(R.string.label_numbers)) })
                 Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text(stringResource(R.string.label_charts)) })

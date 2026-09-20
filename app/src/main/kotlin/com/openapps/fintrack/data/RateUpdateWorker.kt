@@ -1,6 +1,17 @@
 /*
+ * FinTrack
+ * Copyright (C) 2026 Bhuvan (app.upstream242@passmail.com)
  * SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (C) 2026 Bhuvan
+
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
  */
 
 package com.openapps.fintrack.data
@@ -11,6 +22,10 @@ import android.util.Xml
 import androidx.work.Data
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import androidx.hilt.work.HiltWorker
+import com.openapps.fintrack.domain.repository.FinanceRepository
+import dagger.assisted.Assisted
+import dagger.assisted.AssistedInject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -20,7 +35,12 @@ import java.io.File
 import java.io.StringReader
 import java.util.concurrent.TimeUnit
 
-class RateUpdateWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
+@HiltWorker
+class RateUpdateWorker @AssistedInject constructor(
+    @Assisted context: Context,
+    @Assisted params: WorkerParameters,
+    private val repository: FinanceRepository
+) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         val prefs = applicationContext.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
@@ -32,20 +52,15 @@ class RateUpdateWorker(context: Context, params: WorkerParameters) : CoroutineWo
             return@withContext Result.success()
         }
 
-        val isEnabled = prefs.getBoolean("enable_multi_currency", false)
-        
-        if (!isEnabled) {
-            return@withContext Result.success()
-        }
-
         setProgress(Data.Builder().putString("status", "Initializing...").build())
 
-        val baseCurrency = EncryptedPrefsHelper.getString("base_currency", "USD") ?: "USD"
+        val baseCurrency = EncryptedPrefsHelper.getString("base_currency", null)
+            ?: prefs.getString("base_currency", "USD") ?: "USD"
         
         try {
             setProgress(Data.Builder().putString("status", "Connecting to ECB...").build())
             
-            val client = OkHttpClient.Builder()
+            val client = DohNetworkClient.createClientBuilder()
                 .connectTimeout(15, TimeUnit.SECONDS)
                 .readTimeout(15, TimeUnit.SECONDS)
                 .build()
@@ -73,15 +88,13 @@ class RateUpdateWorker(context: Context, params: WorkerParameters) : CoroutineWo
             ratesAgainstEur["EUR"] = 1.0
 
             setProgress(Data.Builder().putString("status", "Saving to database...").build())
-            val database = AppDatabase.getDatabase(applicationContext, kotlinx.coroutines.GlobalScope)
-            val dao = database.expenseDao()
 
             val rateEurToBase = ratesAgainstEur[baseCurrency] ?: 1.0
             
             ratesAgainstEur.forEach { (currency, rateAgainstEur) ->
                 val rateToBase = rateEurToBase / rateAgainstEur
                 
-                dao.upsertExchangeRate(ExchangeRate(
+                repository.upsertExchangeRate(ExchangeRate(
                     currencyCode = currency,
                     rateToBase = rateToBase,
                     baseCurrency = baseCurrency,

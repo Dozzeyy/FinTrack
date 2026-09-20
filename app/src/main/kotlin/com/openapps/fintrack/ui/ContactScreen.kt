@@ -1,6 +1,17 @@
 /*
+ * FinTrack
+ * Copyright (C) 2026 Bhuvan (app.upstream242@passmail.com)
  * SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (C) 2026 Bhuvan
+
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
  */
 
 package com.openapps.fintrack.ui
@@ -128,7 +139,7 @@ fun ContactScreen(onBack: () -> Unit) {
                 value = "vahak.org",
                 isLink = true,
                 onClick = {
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://vahak.org"))
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.vahak.org/documentation"))
                     context.startActivity(intent)
                 }
             )
@@ -190,7 +201,7 @@ fun ContactScreen(onBack: () -> Unit) {
                     color = Color.Gray
                 )
                 Text(
-                    "Version 1.0.19",
+                    "Version 1.0.20",
                     style = MaterialTheme.typography.labelSmall,
                     color = Color.Gray,
                     modifier = Modifier.padding(top = 4.dp)

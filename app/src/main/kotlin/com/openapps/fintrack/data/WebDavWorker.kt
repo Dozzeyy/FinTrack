@@ -1,6 +1,17 @@
 /*
+ * FinTrack
+ * Copyright (C) 2026 Bhuvan (app.upstream242@passmail.com)
  * SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (C) 2026 Bhuvan
+
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
  */
 
 package com.openapps.fintrack.data
@@ -11,8 +22,12 @@ import android.content.Context
 import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.openapps.fintrack.domain.repository.FinanceRepository
+import dagger.assisted.Assisted
+import dagger.assisted.AssistedInject
 import kotlinx.coroutines.sync.withLock
 import okhttp3.Credentials
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
@@ -27,7 +42,12 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
 
-class WebDavWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
+@HiltWorker
+class WebDavWorker @AssistedInject constructor(
+    @Assisted context: Context,
+    @Assisted params: WorkerParameters,
+    private val repository: FinanceRepository
+) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
         val prefs = applicationContext.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
@@ -42,7 +62,8 @@ class WebDavWorker(context: Context, params: WorkerParameters) : CoroutineWorker
         val enabled = prefs.getBoolean("remote_sync_enabled", false)
         if (!enabled) return Result.success()
 
-        val url = EncryptedPrefsHelper.getString("webdav_url", "") ?: ""
+        val rawUrl = EncryptedPrefsHelper.getString("webdav_url", "") ?: ""
+        val url = if (rawUrl.startsWith("http://", ignoreCase = true)) "https://" + rawUrl.substring(7) else rawUrl
         val username = EncryptedPrefsHelper.getString("webdav_user", "") ?: ""
         val password = EncryptedPrefsHelper.getString("webdav_pass", "") ?: ""
         
@@ -63,16 +84,12 @@ class WebDavWorker(context: Context, params: WorkerParameters) : CoroutineWorker
             .apply()
 
         return try {
-            val dbFile = applicationContext.getDatabasePath("expenses_database")
-            val encryptedAtRestFile = File(dbFile.path + ".xpt")
-
             AppDatabase.databaseMutex.withLock {
-                if (secureMode && encryptedAtRestFile.exists()) {
-                    encryptedAtRestFile.copyTo(finalFile, overwrite = true)
+                if (secureMode && ef.exists()) {
+                    ef.copyTo(finalFile, overwrite = true)
                 } else {
                     if (dbFile.exists()) {
-                        val database = AppDatabase.getDatabase(applicationContext, kotlinx.coroutines.GlobalScope)
-                        database.checkpoint()
+                        repository.checkpoint()
                         AppDatabase.closeDatabase()
 
                         FileInputStream(dbFile).use { input ->
@@ -103,7 +120,7 @@ class WebDavWorker(context: Context, params: WorkerParameters) : CoroutineWorker
                 throw Exception("Failed to prepare synchronization file.")
             }
 
-            val client = OkHttpClient.Builder()
+            val client = DohNetworkClient.createClientBuilder()
                 .connectTimeout(60, TimeUnit.SECONDS)
                 .writeTimeout(300, TimeUnit.SECONDS)
                 .readTimeout(300, TimeUnit.SECONDS)
@@ -120,7 +137,6 @@ class WebDavWorker(context: Context, params: WorkerParameters) : CoroutineWorker
                 try {
                     if (attempt > 1) kotlinx.coroutines.delay(5000)
 
-                    // 1. PUT to temporary file
                     val request = Request.Builder()
                         .url(tmpUrl)
                         .header("Authorization", Credentials.basic(username, password))
@@ -135,7 +151,6 @@ class WebDavWorker(context: Context, params: WorkerParameters) : CoroutineWorker
                         }
                     }
 
-                    // 2. Atomic MOVE to final path
                     val moveRequest = Request.Builder()
                         .url(tmpUrl)
                         .header("Authorization", Credentials.basic(username, password))

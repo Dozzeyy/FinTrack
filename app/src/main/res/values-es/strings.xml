@@ -1,7 +1,17 @@
 <!--
- FinTrack
- SPDX-License-Identifier: GPL-3.0-or-later
- Copyright (C) 2026 Bhuvan
+ * FinTrack
+ * Copyright (C) 2026 Bhuvan (app.upstream242@passmail.com)
+ * SPDX-License-Identifier: GPL-3.0-or-later
+
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
 -->
 
 <resources>
@@ -212,6 +222,8 @@
     <string name="settings_regional">Ajustes Regionales</string>
     <string name="settings_millions_system">Usar Sistema de Millones/Miles de Millones</string>
     <string name="settings_tap_net_position">Tocar para mostrar posición neta</string>
+    <string name="settings_decimal_places">Lugares decimales</string>
+    <string name="settings_decimal_suffix">lugares</string>
     <string name="settings_data_entry">Entrada de Datos</string>
     <string name="settings_multi_tag">Selección Multi-Etiqueta</string>
     <string name="settings_auto_read">Auto Leer Mensajes</string>
@@ -848,4 +860,118 @@
     <string name="shortcut_quick_entry_short">Entrada rápida</string>
     <string name="shortcut_quick_entry_long">Registrar una transacción rápida</string>
     <string name="btn_save_and_new">Guardar y Nuevo</string>
+    <string name="menu_investments">Inversiones</string>
+    <string name="label_current_value">Valor actual</string>
+    <string name="label_adjustment_category">Categoría de ajuste</string>
+    <string name="msg_investment_record_confirm">Las diferencias se registrarán como entradas de ingresos o gastos y los saldos de las cuentas se actualizarán para coincidir con los valores actuales ingresados. ¿Desea continuar?</string>
+    <string name="msg_adjustment_category_missing">Por favor, seleccione una categoría para todas las filas con diferencia. Las filas sin categoría se omitirán.</string>
+
+    <string name="greeting_good_morning">Buenos días</string>
+    <string name="greeting_good_afternoon">Buenas tardes</string>
+    <string name="greeting_good_evening">Buenas noches</string>
+    <string name="msg_credit_card_tip_days">Consejo: Use \'%1$s\' para maximizar su período sin intereses (%2$d días vs %3$d días).</string>
+
+    <string name="label_transaction_status">Estado de Transacción</string>
+    <string name="status_pending">Pendiente</string>
+    <string name="status_verified">Verificado (Conciliado)</string>
+    <string name="status_void">Anulado</string>
+    <string name="btn_mark_as_verified">Marcar como Verificado</string>
+    <string name="btn_mark_as_void">Marcar como Anulado</string>
+    <string name="btn_modify">Modificar</string>
+
+    <!-- Financial Goals -->
+    <string name="goal_title_financial_goals">Objetivos Financieros</string>
+    <string name="goal_recurring_rules">Reglas Recurrentes</string>
+    <string name="goal_add_goal">Añadir Objetivo</string>
+    <string name="goal_total_savings_progress">Progreso Total de Ahorro</string>
+    <string name="goal_saved_format">Ahorrado: %1$s</string>
+    <string name="goal_target_format">Objetivo: %1$s</string>
+    <string name="goal_no_goals_created">Aún no hay objetivos creados. ¡Pulsa \'+\' para añadir uno!</string>
+    <string name="goal_no_deadline">Sin fecha límite</string>
+    <string name="goal_expired">Caducado</string>
+    <string name="goal_due_today">Vence hoy</string>
+    <string name="goal_days_left">%1$d días restantes</string>
+    <string name="goal_months_left">%1$d meses restantes</string>
+    <string name="goal_years_left">%1$d años restantes</string>
+    <string name="goal_delete_goal">Eliminar Objetivo</string>
+    <string name="goal_options">Opciones</string>
+    <string name="goal_create_financial_goal">Crear Objetivo Financiero</string>
+    <string name="goal_name_hint">Nombre del objetivo (ej. Coche nuevo)</string>
+    <string name="goal_target_amount">Importe Objetivo</string>
+    <string name="goal_target_date_hint">Fecha objetivo (AAAA-MM-DD)</string>
+    <string name="goal_accounts_funding">Cuentas que financian este objetivo</string>
+    <string name="goal_no_funds_allocated">Aún no hay fondos asignados desde cuentas.</string>
+    <string name="goal_allocation_history">Historial de Asignación</string>
+    <string name="goal_allocation_history_desc">Historial de asignaciones manuales, reglas recurrentes y transacciones.</string>
+    <string name="goal_no_allocation_history">No se ha registrado historial de asignación.</string>
+    <string name="goal_allocation_transaction">Transacción de Asignación</string>
+    <string name="goal_transaction_visibility">Visibilidad de Transacciones</string>
+    <string name="goal_tap_transaction_details">Pulsa cualquier transacción para ver los detalles.</string>
+    <string name="goal_no_transactions_linked">No hay transacciones vinculadas a este objetivo.</string>
+    <string name="goal_allocate_funds">Asignar Fondos de Cuentas</string>
+    <string name="goal_allocate_funds_title">Asignar fondos a %1$s</string>
+    <string name="goal_amount_to_allocate">Importe a Asignar</string>
+    <string name="goal_recurring_auto_contributions">Contribuciones Automáticas Recurrentes</string>
+    <string name="goal_add_rule">Añadir Regla</string>
+    <string name="goal_no_rules_set">No hay reglas de contribución recurrentes establecidas.</string>
+    <string name="goal_unknown_goal">Objetivo Desconocido</string>
+    <string name="goal_add_recurring_contribution">Añadir Contribución Recurrente</string>
+    <string name="goal_select_goal">Seleccionar Objetivo</string>
+    <string name="goal_frequency_format">Frecuencia: %1$s (Día %2$d)</string>
+    <string name="goal_trigger_day_hint">Día / Fecha de activación (ej. 1)</string>
+    <string name="goal_save_rule">Guardar Regla</string>
+    <string name="goal_checkbox_this_is_for_goal">Esto es para un objetivo</string>
+    <string name="label_transaction">Transacción</string>
+    <string name="goal_select_account">Seleccionar Cuenta</string>
+    <string name="goal_btn_allocate">Asignar</string>
+    <string name="goal_unknown">Desconocido</string>
+    <string name="btn_catchup_missing_entries">Actualizar %1$d entradas faltantes</string>
+    <string name="title_catchup_missing_entries">Actualizar entradas faltantes</string>
+    <string name="msg_catchup_missing_entries">Se encontraron %1$d período(s) faltante(s) desde la última entrada para \'%2$s\'. ¿Desea registrar estas entradas faltantes?</string>
+    <string name="msg_catchup_success">Se registraron exitosamente %1$d entrada(s) de actualización para %2$s</string>
+    <string name="msg_catchup_already_uptodate">La suscripción \'%1$s\' ya está actualizada. No hay entradas faltantes que actualizar.</string>
+    <string name="btn_catch_up">Actualizar</string>
+
+    <!-- Fixed Deposits -->
+    <string name="fd_title_dashboard">Panel de Depósitos a Plazo</string>
+    <string name="fd_no_active_fds">Aún no se han registrado depósitos a plazo activos.</string>
+    <string name="fd_acc_last_4">Últimos 4 dígitos de depósito: %1$s</string>
+    <string name="fd_minor_head">Subcategoría: %1$s</string>
+    <string name="fd_maturity_days_left">Vencimiento: %1$s (quedan %2$d días)</string>
+    <string name="fd_maturity_date">Vencimiento: %1$s</string>
+    <string name="fd_na">N/D</string>
+    <string name="fd_initial">Inicial: %1$s</string>
+    <string name="fd_outstanding">Pendiente: %1$s</string>
+    <string name="menu_fixed_deposits">Depósitos a Plazo</string>
+
+    <!-- Goals Localization -->
+    <string name="menu_goals">Objetivos</string>
+    <string name="goal_see_account_balances">Ver saldos de cuentas</string>
+    <string name="goal_transfer_funds_between_accounts">Transferir fondos entre cuentas</string>
+    <string name="goal_actual_balance">Saldo real: %1$s</string>
+    <string name="goal_allocated_to_goal">Asignado al objetivo: %1$s</string>
+    <string name="goal_true_balance_available">Saldo real (Disponible): %1$s</string>
+    <string name="goal_source_allocation">Asignación de %1$s</string>
+    <string name="goal_history_date_account">%1$s | Cuenta: %2$s</string>
+    <string name="goal_txn_date_account">%1$s | Cuenta: %2$s</string>
+    <string name="goal_transfer_allocation_title">Transferir asignación para %1$s</string>
+    <string name="goal_from_account_allocated">Desde la cuenta (Asignado: %1$s)</string>
+    <string name="goal_select_source_account">Seleccionar cuenta de origen</string>
+    <string name="goal_account_allocated_format">%1$s (Asignado: %2$s)</string>
+    <string name="goal_to_account">A la cuenta</string>
+    <string name="goal_select_destination_account">Seleccionar cuenta de destino</string>
+    <string name="goal_transfer_amount">Monto a transferir</string>
+    <string name="goal_btn_transfer">Transferir</string>
+    <string name="goal_account_balance_format">%1$s (Saldo: %2$s)</string>
+    <string name="goal_rule_account_amt">Cuenta: %1$s | Mto: %2$s</string>
+    <string name="goal_rule_freq_day">Frecuencia: %1$s (Día %2$d)</string>
+    <string name="goal_frequency_label">Frecuencia: %1$s</string>
+    <string name="goal_account_balances_allocations_title">Saldos de cuentas y asignaciones de objetivos</string>
+    <string name="goal_actual_account_balance">Saldo real de la cuenta: %1$s</string>
+    <string name="goal_allocations_label">Asignaciones:</string>
+    <string name="goal_true_available_balance">Saldo verdadero disponible: %1$s</string>
+
+    <!-- Settings Tab Order -->
+    <string name="settings_tab_home_fixed">Pestaña 1: %1$s (Fija)</string>
+    <string name="settings_tab_format">Pestaña %1$d: %2$s</string>
 </resources>

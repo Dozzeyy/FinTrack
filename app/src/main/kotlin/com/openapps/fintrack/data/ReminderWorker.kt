@@ -1,7 +1,17 @@
 /*
  * FinTrack
- * Copyright (C) 2026 Dozzeyy
+ * Copyright (C) 2026 Bhuvan (app.upstream242@passmail.com)
  * SPDX-License-Identifier: GPL-3.0-or-later
+
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
  */
 
 package com.openapps.fintrack.data
@@ -12,8 +22,12 @@ import android.content.Context
 import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.openapps.fintrack.domain.repository.FinanceRepository
+import dagger.assisted.Assisted
+import dagger.assisted.AssistedInject
 import kotlinx.coroutines.flow.first
 import java.io.File
 import java.time.Instant
@@ -21,17 +35,14 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 
-class ReminderWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
+@HiltWorker
+class ReminderWorker @AssistedInject constructor(
+    @Assisted context: Context,
+    @Assisted params: WorkerParameters,
+    private val repository: FinanceRepository
+) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
         val prefs = applicationContext.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
-        val dbFile = applicationContext.getDatabasePath("expenses_database")
-        val ef = File(dbFile.path + ".xpt")
-        
-        if (ef.exists() && !dbFile.exists()) {
-            Log.w("ReminderWorker", "Database is encrypted. Skipping background processing.")
-            return Result.success()
-        }
-
         val remindersEnabled = prefs.getBoolean("reminders_enabled", false)
         val ccAlertEnabled = prefs.getBoolean("cc_alert_enabled", false)
 
@@ -48,9 +59,7 @@ class ReminderWorker(context: Context, params: WorkerParameters) : CoroutineWork
     }
 
     private suspend fun checkUpcomingLoans() {
-        val database = AppDatabase.getDatabase(applicationContext, kotlinx.coroutines.GlobalScope)
-        val dao = database.expenseDao()
-        val loans = dao.getAllActiveLoans().first()
+        val loans = repository.getAllActiveLoans().first()
         val today = LocalDate.now()
 
         loans.forEach { loan ->

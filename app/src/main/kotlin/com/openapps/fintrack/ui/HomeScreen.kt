@@ -1,13 +1,24 @@
 /*
  * FinTrack
- * Copyright (C) 2026 Dozzeyy
+ * Copyright (C) 2026 Bhuvan (app.upstream242@passmail.com)
  * SPDX-License-Identifier: GPL-3.0-or-later
+
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
  */
 
 package com.openapps.fintrack.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
@@ -31,19 +42,28 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import android.widget.Toast
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import com.openapps.fintrack.R
+import com.openapps.fintrack.data.EncryptionService
+import com.openapps.fintrack.data.TransactionLegacy
 import com.openapps.fintrack.data.TransactionWithDetails
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
+import java.io.File
 import java.time.LocalDate
 import java.time.Month
 import java.time.format.DateTimeFormatter
@@ -61,6 +81,12 @@ fun HomeScreen(
     var selectedTab by remember { mutableStateOf("home") }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    var showLoadRemoteConfirmDialog by remember { mutableStateOf(false) }
+    var pendingDownloadedEncryptedFile by remember { mutableStateOf<File?>(null) }
+    var downloadMasterPasswordInput by remember { mutableStateOf("") }
+    var downloadDecryptionError by remember { mutableStateOf<String?>(null) }
     
     var analysisInitialType by remember { mutableStateOf<String?>(null) }
     var sharedDateRange by remember { mutableStateOf<Pair<String, String>?>(null) }
@@ -124,6 +150,19 @@ fun HomeScreen(
                             icon = { Icon(Icons.Default.CardMembership, null) }
                         )
                         NavigationDrawerItem(
+                            label = { Text(stringResource(R.string.menu_investments)) },
+                            selected = false,
+                            onClick = { scope.launch { drawerState.close() }; onNavigate("investments") },
+                            icon = { Icon(Icons.Default.TrendingUp, null) }
+                        )
+                        NavigationDrawerItem(
+                            label = { Text(stringResource(R.string.menu_fixed_deposits)) },
+                            selected = false,
+                            modifier = Modifier.padding(start = 16.dp),
+                            onClick = { scope.launch { drawerState.close() }; onNavigate("fixed_deposits") },
+                            icon = { Icon(Icons.Default.Savings, null) }
+                        )
+                        NavigationDrawerItem(
                             label = { Text(stringResource(R.string.menu_performance)) },
                             selected = false,
                             onClick = { scope.launch { drawerState.close() }; onNavigate("performance") },
@@ -146,6 +185,12 @@ fun HomeScreen(
                             selected = false,
                             onClick = { scope.launch { drawerState.close() }; onNavigate("manage_tags") },
                             icon = { Icon(Icons.Default.Label, null) }
+                        )
+                        NavigationDrawerItem(
+                            label = { Text(stringResource(R.string.menu_goals)) },
+                            selected = false,
+                            onClick = { scope.launch { drawerState.close() }; onNavigate("goals") },
+                            icon = { Icon(Icons.Default.Flag, null) }
                         )
                         NavigationDrawerItem(
                             label = { Text(stringResource(R.string.menu_budgets)) },
@@ -193,7 +238,7 @@ fun HomeScreen(
                     }
                     
                     Text(
-                        "v1.0.19",
+                        "v1.0.20",
                         modifier = Modifier.padding(16.dp),
                         style = MaterialTheme.typography.labelSmall,
                         color = Color.Gray
@@ -202,8 +247,10 @@ fun HomeScreen(
             }
         }
     ) {
-        Scaffold { padding ->
-            Box(modifier = Modifier.padding(padding).fillMaxSize()) {
+        Scaffold(
+            contentWindowInsets = WindowInsets(0, 0, 0, 0)
+        ) { _ ->
+            Box(modifier = Modifier.fillMaxSize()) {
                 AnimatedContent(
                     targetState = isSearchActive,
                     transitionSpec = {
@@ -216,7 +263,7 @@ fun HomeScreen(
                     label = "SearchTransition"
                 ) { searchActive ->
                     if (searchActive) {
-                        Column {
+                        Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
                             Surface(
                                 modifier = Modifier.fillMaxWidth(),
                                 color = MaterialTheme.colorScheme.surface,
@@ -260,36 +307,64 @@ fun HomeScreen(
                             )
                         }
                     } else {
-                        AnimatedContent(
-                            targetState = selectedTab,
-                            transitionSpec = {
-                                fadeIn().togetherWith(fadeOut())
-                            },
-                            label = "TabTransition"
-                        ) { tab ->
-                            when (tab) {
-                                "home" -> HomeView(
-                                    viewModel, 
-                                    onNavigate, 
-                                    onOpenDrawer = { scope.launch { drawerState.open() } },
-                                    onNavigateToAnalysis = { type, start, end ->
-                                        analysisInitialType = type
-                                        sharedDateRange = Pair(start, end)
-                                        selectedTab = "analysis"
-                                    },
-                                    onTabChange = { selectedTab = it }
-                                )
-                                "analysis" -> {
-                                    AnalysisView(
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            UnifiedTopHeaderBar(
+                                viewModel = viewModel,
+                                onOpenDrawer = { scope.launch { drawerState.open() } },
+                                onShowLoadRemoteDialog = { showLoadRemoteConfirmDialog = true }
+                            )
+                            AnimatedContent(
+                                targetState = selectedTab,
+                                transitionSpec = {
+                                    fadeIn().togetherWith(fadeOut())
+                                },
+                                label = "TabTransition",
+                                modifier = Modifier.weight(1f).fillMaxWidth()
+                            ) { tab ->
+                                when (tab) {
+                                    "home" -> HomeView(
                                         viewModel, 
                                         onNavigate, 
                                         onOpenDrawer = { scope.launch { drawerState.open() } },
-                                        initialType = analysisInitialType,
-                                        initialDateRange = sharedDateRange
+                                        onNavigateToAnalysis = { type, start, end ->
+                                            analysisInitialType = type
+                                            sharedDateRange = Pair(start, end)
+                                            selectedTab = "analysis"
+                                        },
+                                        onTabChange = { selectedTab = it },
+                                        onShowLoadRemoteDialog = { showLoadRemoteConfirmDialog = true }
+                                    )
+                                    "analysis" -> {
+                                        AnalysisView(
+                                            viewModel, 
+                                            onNavigate, 
+                                            onOpenDrawer = { scope.launch { drawerState.open() } },
+                                            initialType = analysisInitialType,
+                                            initialDateRange = sharedDateRange
+                                        )
+                                    }
+                                    "transactions" -> TransactionsView(viewModel, onNavigate, onOpenDrawer = { scope.launch { drawerState.open() } })
+                                    "budgets" -> BudgetsTab(viewModel, onNavigate, onOpenDrawer = { scope.launch { drawerState.open() } })
+                                    "credit_cards" -> CreditCardDashboard(viewModel = viewModel, onBack = {}, isEmbedded = true)
+                                    "goals" -> GoalsScreen(viewModel = viewModel, onBack = {}, onNavigate = onNavigate, isEmbedded = true)
+                                    "notes" -> NotesScreen(viewModel = viewModel, onBack = {}, isEmbedded = true)
+                                    "performance" -> PerformanceScreen(viewModel = viewModel, onBack = {}, isEmbedded = true)
+                                    "subscriptions" -> SubscriptionDashboard(viewModel = viewModel, onBack = {}, onNavigate = onNavigate, isEmbedded = true)
+                                    "fd" -> FixedDepositsScreen(viewModel = viewModel, onBack = {}, isEmbedded = true)
+                                    "summary" -> SummaryScreen(viewModel = viewModel, onBack = {}, isEmbedded = true)
+                                    else -> HomeView(
+                                        viewModel, 
+                                        onNavigate, 
+                                        onOpenDrawer = { scope.launch { drawerState.open() } },
+                                        onNavigateToAnalysis = { type, start, end ->
+                                            analysisInitialType = type
+                                            sharedDateRange = Pair(start, end)
+                                            selectedTab = "analysis"
+                                        },
+                                        onTabChange = { selectedTab = it },
+                                        onShowLoadRemoteDialog = { showLoadRemoteConfirmDialog = true }
                                     )
                                 }
-                                "transactions" -> TransactionsView(viewModel, onNavigate, onOpenDrawer = { scope.launch { drawerState.open() } })
-                                "budgets" -> BudgetsTab(viewModel, onNavigate, onOpenDrawer = { scope.launch { drawerState.open() } })
                             }
                         }
                     }
@@ -348,6 +423,128 @@ fun HomeScreen(
                 }
             }
         }
+
+        if (showLoadRemoteConfirmDialog) {
+            AlertDialog(
+                onDismissRequest = { showLoadRemoteConfirmDialog = false },
+                title = { Text("Confirm Remote Database Import") },
+                text = { Text("This action will replace your existing local database with the database from WebDAV. Are you sure you want to proceed?") },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showLoadRemoteConfirmDialog = false
+                            Toast.makeText(context, "Downloading database from WebDAV...", Toast.LENGTH_SHORT).show()
+                            scope.launch {
+                                val downloadRes = viewModel.downloadRemoteFileToTempCache()
+                                if (downloadRes.isSuccess) {
+                                    val tempFile = downloadRes.getOrNull()!!
+                                    if (EncryptionService.isEncrypted(tempFile) || tempFile.name.endsWith(".xpt")) {
+                                        pendingDownloadedEncryptedFile = tempFile
+                                        downloadMasterPasswordInput = ""
+                                        downloadDecryptionError = null
+                                    } else if (EncryptionService.isValidSQLite(tempFile) || tempFile.name.endsWith(".ftd")) {
+                                        if (validateDatabaseSchema(tempFile)) {
+                                            if (importFileDirectly(context, tempFile, viewModel)) {
+                                                Toast.makeText(context, "Remote database loaded successfully!", Toast.LENGTH_LONG).show()
+                                                restartApp(context)
+                                            } else {
+                                                Toast.makeText(context, "Failed to replace database with remote file", Toast.LENGTH_LONG).show()
+                                            }
+                                        } else {
+                                            Toast.makeText(context, "Downloaded database has invalid schema structure", Toast.LENGTH_LONG).show()
+                                        }
+                                    } else {
+                                        Toast.makeText(context, "Downloaded file is not a valid SQLite database", Toast.LENGTH_LONG).show()
+                                    }
+                                } else {
+                                    val err = downloadRes.exceptionOrNull()?.message ?: "Download failed"
+                                    Toast.makeText(context, "Download failed: $err", Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        }
+                    ) {
+                        Text("Proceed")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showLoadRemoteConfirmDialog = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+
+        if (pendingDownloadedEncryptedFile != null) {
+            val encFile = pendingDownloadedEncryptedFile!!
+            AlertDialog(
+                onDismissRequest = {
+                    encFile.delete()
+                    pendingDownloadedEncryptedFile = null
+                },
+                title = { Text("Encrypted Database Downloaded") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("The downloaded database is encrypted at rest (.xpt). Enter Master Password to decrypt and load it.", style = MaterialTheme.typography.bodyMedium)
+                        OutlinedTextField(
+                            value = downloadMasterPasswordInput,
+                            onValueChange = {
+                                downloadMasterPasswordInput = it
+                                downloadDecryptionError = null
+                            },
+                            label = { Text("Master Password") },
+                            visualTransformation = PasswordVisualTransformation(),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        downloadDecryptionError?.let { err ->
+                            Text(err, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            val decryptedFile = File(context.cacheDir, "decrypted_remote_import.db")
+                            scope.launch {
+                                val decRes = withContext(Dispatchers.IO) {
+                                    val passChars = downloadMasterPasswordInput.toCharArray()
+                                    val res = EncryptionService.decryptFile(encFile, decryptedFile, passChars)
+                                    passChars.fill('\u0000')
+                                    res
+                                }
+
+                                if (decRes.isSuccess && validateDatabaseSchema(decryptedFile)) {
+                                    if (importFileDirectly(context, decryptedFile, viewModel, downloadMasterPasswordInput)) {
+                                        Toast.makeText(context, "Remote database decrypted and loaded successfully!", Toast.LENGTH_LONG).show()
+                                        pendingDownloadedEncryptedFile?.delete()
+                                        pendingDownloadedEncryptedFile = null
+                                        restartApp(context)
+                                    } else {
+                                        downloadDecryptionError = "Failed to replace database file"
+                                    }
+                                } else {
+                                    val err = decRes.exceptionOrNull()?.message ?: "Incorrect Master Password"
+                                    downloadDecryptionError = err
+                                }
+                            }
+                        },
+                        enabled = downloadMasterPasswordInput.isNotEmpty()
+                    ) {
+                        Text("Decrypt & Load")
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = {
+                            encFile.delete()
+                            pendingDownloadedEncryptedFile = null
+                        }
+                    ) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
     }
 }
 
@@ -378,7 +575,14 @@ fun FloatingBottomNav(
                     "analysis" -> stringResource(R.string.menu_analysis) to Icons.Default.PieChart
                     "transactions" -> stringResource(R.string.menu_entries) to Icons.Default.List
                     "budgets" -> stringResource(R.string.menu_budgets) to Icons.Default.AccountBalanceWallet
-                    else -> "" to Icons.Default.Home
+                    "credit_cards" -> stringResource(R.string.menu_credit_cards) to Icons.Default.CreditCard
+                    "goals" -> stringResource(R.string.goal_title_financial_goals) to Icons.Default.Star
+                    "notes" -> stringResource(R.string.menu_notes) to Icons.Default.Description
+                    "performance" -> stringResource(R.string.menu_performance) to Icons.Default.TrendingUp
+                    "subscriptions" -> stringResource(R.string.menu_subscriptions) to Icons.Default.Repeat
+                    "fd" -> stringResource(R.string.menu_fixed_deposits) to Icons.Default.AccountBalance
+                    "summary" -> stringResource(R.string.menu_summary) to Icons.Default.Assessment
+                    else -> tabKey to Icons.Default.Home
                 }
 
                 Box(
@@ -432,9 +636,12 @@ fun HomeView(
     onNavigate: (String) -> Unit, 
     onOpenDrawer: () -> Unit,
     onNavigateToAnalysis: (String, String, String) -> Unit,
-    onTabChange: (String) -> Unit
+    onTabChange: (String) -> Unit,
+    onShowLoadRemoteDialog: () -> Unit = {}
 ) {
     val refreshTrigger by viewModel.refreshTrigger.collectAsState()
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     
     var startDate by remember(refreshTrigger) { mutableStateOf(LocalDate.now().withDayOfMonth(1).format(DateTimeFormatter.ISO_DATE)) }
     var endDate by remember(refreshTrigger) { mutableStateOf(LocalDate.now().format(DateTimeFormatter.ISO_DATE)) }
@@ -447,6 +654,7 @@ fun HomeView(
     val prevStart = s.minusMonths(1).format(DateTimeFormatter.ISO_DATE)
     val prevEnd = e.minusMonths(1).format(DateTimeFormatter.ISO_DATE)
     val prevTransactions by viewModel.getFilteredTransactions(prevStart, prevEnd).collectAsState(initial = emptyList())
+    val balances by viewModel.getAccountBalances(endDate).collectAsState(initial = emptyList())
 
     var showTransactionListType by remember { mutableStateOf<String?>(null) }
     var showDiscretionaryOnly by remember { mutableStateOf(false) }
@@ -472,9 +680,10 @@ fun HomeView(
             }
         )
     } else {
-        Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
+        Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 16.dp)) {
             val ccAlerts by viewModel.getCcAlerts().collectAsState(initial = emptyList())
             val subAlerts by viewModel.getSubscriptionAlerts().collectAsState(initial = emptyList())
+            val fdAlerts by viewModel.getFdMaturityAlerts().collectAsState(initial = emptyList())
 
             ccAlerts.forEach { alert ->
                 var offsetX by remember { mutableStateOf(0f) }
@@ -545,6 +754,37 @@ fun HomeView(
                 }
             }
 
+            fdAlerts.forEach { alert ->
+                var offsetX by remember { mutableStateOf(0f) }
+                Surface(
+                    color = MaterialTheme.colorScheme.tertiaryContainer,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp)
+                        .offset { IntOffset(offsetX.roundToInt(), 0) }
+                        .draggable(
+                            orientation = Orientation.Horizontal,
+                            state = rememberDraggableState { delta -> offsetX += delta },
+                            onDragStopped = {
+                                if (kotlin.math.abs(offsetX) > 300) {
+                                    viewModel.toggleCcPaidCustom("FD_${alert.accountId}", true)
+                                }
+                                offsetX = 0f
+                            }
+                        ),
+                    shape = MaterialTheme.shapes.medium
+                ) {
+                    Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.AccountBalance, null, tint = MaterialTheme.colorScheme.onTertiaryContainer)
+                        Spacer(Modifier.width(12.dp))
+                        Column {
+                            Text("${alert.accountName} Matures: ${alert.maturityDate}", style = MaterialTheme.typography.labelLarge)
+                            Text("Balance: " + viewModel.formatAmount(alert.balance), style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            }
+
             if (viewModel.draftTransaction != null) {
                 var offsetX by remember { mutableStateOf(0f) }
                 Surface(
@@ -577,18 +817,37 @@ fun HomeView(
             }
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onOpenDrawer) {
-                        Icon(Icons.Default.Menu, stringResource(R.string.menu_home))
-                    }
-                    Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                val hour = java.time.LocalTime.now().hour
+                val greetingRes = when (hour) {
+                    in 5..11 -> R.string.greeting_good_morning
+                    in 12..16 -> R.string.greeting_good_afternoon
+                    else -> R.string.greeting_good_evening
                 }
-                Row {
+                Text(
+                    text = stringResource(greetingRes),
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    val smsDrafts by viewModel.smsDrafts.collectAsState(initial = emptyList())
+                    if (smsDrafts.isNotEmpty()) {
+                        IconButton(onClick = { onNavigate("sms_inbox") }) {
+                            BadgedBox(
+                                badge = { Badge { Text(smsDrafts.size.toString()) } }
+                            ) {
+                                Icon(Icons.Default.Sms, stringResource(R.string.title_sms_inbox))
+                            }
+                        }
+                    }
                     IconButton(onClick = { viewModel.generateFinancialInsights() }) {
                         if (viewModel.isGeneratingInsights) {
-                            CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.tertiary)
                         } else {
-                            Icon(Icons.Default.AutoAwesome, stringResource(R.string.label_insights))
+                            Icon(
+                                Icons.Default.AutoAwesome,
+                                stringResource(R.string.label_insights),
+                                tint = MaterialTheme.colorScheme.tertiary
+                            )
                         }
                     }
                     IconButton(onClick = { showFilter = true }) {
@@ -596,8 +855,6 @@ fun HomeView(
                     }
                 }
             }
-            
-            Text("$startDate to $endDate", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
 
             if (viewModel.showInsightsOverlay && viewModel.financialInsights.isNotEmpty()) {
                 Spacer(Modifier.height(16.dp))
@@ -665,119 +922,179 @@ fun HomeView(
             
             Spacer(Modifier.height(16.dp))
             
-            val curInc = transactions.filter { it.categoryType == "income" }.sumOf { it.transaction.amount }
-            val curExp = transactions.filter { it.categoryType == "expense" }.sumOf { it.transaction.amount }
-            val prevInc = prevTransactions.filter { it.categoryType == "income" }.sumOf { it.transaction.amount }
-            val prevExp = prevTransactions.filter { it.categoryType == "expense" }.sumOf { it.transaction.amount }
+            val curInc = transactions.filter { it.categoryType?.lowercase() == "income" }.sumOf { it.transaction.amount }
+            val curExp = transactions.filter { it.categoryType?.lowercase() == "expense" }.sumOf { it.transaction.amount }
+            val prevInc = prevTransactions.filter { it.categoryType?.lowercase() == "income" }.sumOf { it.transaction.amount }
+            val prevExp = prevTransactions.filter { it.categoryType?.lowercase() == "expense" }.sumOf { it.transaction.amount }
 
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Column(modifier = Modifier.fillMaxWidth().clickable { showTransactionListType = "expense" }) {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Text(stringResource(R.string.label_expense), style = MaterialTheme.typography.labelMedium, color = Color.Red)
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(viewModel.formatAmount(curExp), style = MaterialTheme.typography.titleLarge, color = Color.Red, fontWeight = FontWeight.Bold)
-                                if (curExp > prevExp) {
-                                    Text(" (↑)", style = MaterialTheme.typography.titleLarge, color = Color.Red, fontWeight = FontWeight.ExtraBold)
-                                } else if (curExp < prevExp) {
-                                    Text(" (↓)", style = MaterialTheme.typography.titleLarge, color = Color.Red, fontWeight = FontWeight.ExtraBold)
-                                }
-                            }
-                        }
-                        Text(stringResource(R.string.label_prev_month_colon) + viewModel.formatAmount(prevExp), style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
-                    }
-
-                    Spacer(Modifier.height(16.dp))
-
-                    Column(modifier = Modifier.fillMaxWidth().clickable { showTransactionListType = "income" }) {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Text(stringResource(R.string.label_income), style = MaterialTheme.typography.labelMedium, color = Color(0xFF4CAF50))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(viewModel.formatAmount(curInc), style = MaterialTheme.typography.titleLarge, color = Color(0xFF4CAF50), fontWeight = FontWeight.Bold)
-                                if (curInc > prevInc) {
-                                    Text(" (↑)", style = MaterialTheme.typography.titleLarge, color = Color(0xFF4CAF50), fontWeight = FontWeight.ExtraBold)
-                                } else if (curInc < prevInc) {
-                                    Text(" (↓)", style = MaterialTheme.typography.titleLarge, color = Color(0xFF4CAF50), fontWeight = FontWeight.ExtraBold)
-                                }
-                            }
-                        }
-                        Text(stringResource(R.string.label_prev_month_colon) + viewModel.formatAmount(prevInc), style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
-                    }
-
-                    Spacer(Modifier.height(8.dp))
-                    Divider()
-                    Spacer(Modifier.height(8.dp))
-                    
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(stringResource(R.string.label_net), fontWeight = FontWeight.Bold)
-                        Text(viewModel.formatAmount(curInc - curExp), fontWeight = FontWeight.Bold)
-                    }
+            val context = LocalContext.current
+            val homeBackgrounds = remember {
+                val list = mutableListOf<Int>()
+                list.add(0) 
+                list.add(R.drawable.bg_summary_card) 
+                for (i in 1..10) {
+                    val id = context.resources.getIdentifier("bg_home_$i", "drawable", context.packageName)
+                    if (id != 0) list.add(id)
                 }
+                list
             }
+            val currentBg = homeBackgrounds.getOrElse(viewModel.homeBackgroundIndex) { homeBackgrounds[0] }
 
-            if (viewModel.negotiationTrackerEnabled) {
-                val totalSavings = transactions.sumOf { (it.transaction.negotiationAmountOriginal ?: it.transaction.amount) - it.transaction.amount }
-                if (totalSavings > 0) {
-                    Card(
-                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF4CAF50).copy(alpha = 0.1f))
-                    ) {
-                        Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(stringResource(R.string.label_negotiated_savings), fontWeight = FontWeight.Bold, color = Color(0xFF4CAF50))
-                            Text(viewModel.formatAmount(totalSavings), fontWeight = FontWeight.Bold, color = Color(0xFF4CAF50))
-                        }
-                    }
-                }
-            }
-
-            if (viewModel.discretionarySpendingTrackerEnabled) {
-                val discTotal = transactions.filter { it.transaction.isDiscretionary }.sumOf { it.transaction.amount }
-                if (discTotal > 0) {
-                    Card(
-                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp).clickable { showDiscretionaryOnly = true },
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f))
-                    ) {
-                        Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(stringResource(R.string.label_discretionary_spend_title), fontWeight = FontWeight.Bold)
-                            Text(viewModel.formatAmount(discTotal), fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-            }
-
-            val balances by viewModel.getAccountBalances(endDate).collectAsState(initial = emptyList())
-            val netPosition = balances.sumOf { it.balance }
-            var isNetPositionVisible by remember { mutableStateOf(!viewModel.tapToShowNetPosition) }
-            
-            Card(
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 4.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                    .clip(RoundedCornerShape(24.dp))
             ) {
-                Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        stringResource(R.string.label_net_position), 
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.clickable {
-                            viewModel.summaryInitialTab = "Assets"
-                            onNavigate("summary")
-                        }
+                if (currentBg != 0) {
+                    Image(
+                        painter = painterResource(id = currentBg),
+                        contentDescription = null,
+                        modifier = Modifier.matchParentSize(),
+                        contentScale = ContentScale.Crop
                     )
-                    Text(
-                        if (isNetPositionVisible) viewModel.formatAmount(netPosition) else "****",
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.clickable {
-                            isNetPositionVisible = !isNetPositionVisible
+                }
+                
+                val contentBg = if (currentBg == 0) MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp) else Color.Black.copy(alpha = 0.4f)
+                val textColor = if (currentBg == 0) MaterialTheme.colorScheme.onSurface else Color.White
+                val secondaryTextColor = if (currentBg == 0) MaterialTheme.colorScheme.onSurfaceVariant else Color.White.copy(alpha = 0.7f)
+                val dividerColor = if (currentBg == 0) MaterialTheme.colorScheme.outlineVariant else Color.White.copy(alpha = 0.2f)
+
+                Column(modifier = Modifier
+                    .background(contentBg)
+                    .padding(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val periodRangeText = try {
+                            val formatter = DateTimeFormatter.ofPattern("dd MMM yyyy")
+                            "${s.format(formatter)} - ${e.format(formatter)}"
+                        } catch (_: Exception) {
+                            "$startDate - $endDate"
                         }
-                    )
+                        Text(
+                            text = periodRangeText,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = textColor
+                        )
+                        IconButton(
+                            onClick = { 
+                                val next = (viewModel.homeBackgroundIndex + 1) % homeBackgrounds.size
+                                viewModel.updateHomeBackgroundIndex(next)
+                            },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (currentBg == 0) Icons.Default.Image else Icons.Default.Wallpaper, 
+                                contentDescription = null, 
+                                tint = if (currentBg == 0) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.6f)
+                            )
+                        }
+                    }
+
+                    Column {
+                        Column(modifier = Modifier.fillMaxWidth().clickable { showTransactionListType = "expense" }) {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Text(stringResource(R.string.label_expense), style = MaterialTheme.typography.labelMedium, color = if (currentBg == 0) Color.Red else Color(0xFFFF8A80))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(viewModel.formatAmount(curExp), style = MaterialTheme.typography.titleLarge, color = if (currentBg == 0) Color.Red else Color(0xFFFF5252), fontWeight = FontWeight.Bold)
+                                    if (curExp > prevExp) {
+                                        Text(" (↑)", style = MaterialTheme.typography.titleLarge, color = if (currentBg == 0) Color.Red else Color(0xFFFF5252), fontWeight = FontWeight.ExtraBold)
+                                    } else if (curExp < prevExp) {
+                                        Text(" (↓)", style = MaterialTheme.typography.titleLarge, color = if (currentBg == 0) Color.Red else Color(0xFFFF5252), fontWeight = FontWeight.ExtraBold)
+                                    }
+                                }
+                            }
+                            Text(stringResource(R.string.label_prev_month_colon) + viewModel.formatAmount(prevExp), style = MaterialTheme.typography.bodyMedium, color = secondaryTextColor)
+                        }
+
+                        Spacer(Modifier.height(16.dp))
+
+                        Column(modifier = Modifier.fillMaxWidth().clickable { showTransactionListType = "income" }) {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Text(stringResource(R.string.label_income), style = MaterialTheme.typography.labelMedium, color = if (currentBg == 0) Color(0xFF4CAF50) else Color(0xFFA5D6A7))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(viewModel.formatAmount(curInc), style = MaterialTheme.typography.titleLarge, color = if (currentBg == 0) Color(0xFF4CAF50) else Color(0xFF66BB6A), fontWeight = FontWeight.Bold)
+                                    if (curInc > prevInc) {
+                                        Text(" (↑)", style = MaterialTheme.typography.titleLarge, color = if (currentBg == 0) Color(0xFF4CAF50) else Color(0xFF66BB6A), fontWeight = FontWeight.ExtraBold)
+                                    } else if (curInc < prevInc) {
+                                        Text(" (↓)", style = MaterialTheme.typography.titleLarge, color = if (currentBg == 0) Color(0xFF4CAF50) else Color(0xFF66BB6A), fontWeight = FontWeight.ExtraBold)
+                                    }
+                                }
+                            }
+                            Text(stringResource(R.string.label_prev_month_colon) + viewModel.formatAmount(prevInc), style = MaterialTheme.typography.bodyMedium, color = secondaryTextColor)
+                        }
+
+                        Spacer(Modifier.height(8.dp))
+                        Divider(color = dividerColor)
+                        Spacer(Modifier.height(8.dp))
+                        
+                        val netValue = curInc - curExp
+                        val netLabel = if (netValue >= 0) "Net Income" else "Net Expense"
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(netLabel, fontWeight = FontWeight.Bold, color = textColor)
+                            Text(viewModel.formatAmount(netValue), fontWeight = FontWeight.Bold, color = textColor)
+                        }
+                    }
+
+                    if (viewModel.negotiationTrackerEnabled) {
+                        val totalSavings = transactions.sumOf { (it.transaction.negotiationAmountOriginal ?: it.transaction.amount) - it.transaction.amount }
+                        if (totalSavings > 0) {
+                            Spacer(Modifier.height(12.dp))
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(stringResource(R.string.label_negotiated_savings), fontWeight = FontWeight.Bold, color = if (currentBg == 0) Color(0xFF4CAF50) else Color(0xFFA5D6A7))
+                                Text(viewModel.formatAmount(totalSavings), fontWeight = FontWeight.Bold, color = if (currentBg == 0) Color(0xFF4CAF50) else Color(0xFFA5D6A7))
+                            }
+                        }
+                    }
+
+                    if (viewModel.discretionarySpendingTrackerEnabled) {
+                        val discTotal = transactions.filter { it.transaction.isDiscretionary }.sumOf { it.transaction.amount }
+                        if (discTotal > 0) {
+                            Spacer(Modifier.height(12.dp))
+                            Row(modifier = Modifier.fillMaxWidth().clickable { showDiscretionaryOnly = true }, horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(stringResource(R.string.label_discretionary_spend_title), fontWeight = FontWeight.Bold, color = textColor.copy(alpha = 0.9f))
+                                Text(viewModel.formatAmount(discTotal), fontWeight = FontWeight.Bold, color = textColor.copy(alpha = 0.9f))
+                            }
+                        }
+                    }
+
+                    val netPosition = balances.sumOf { it.balance }
+                    var isNetPositionVisible by remember { mutableStateOf(!viewModel.tapToShowNetPosition) }
+                    
+                    Spacer(Modifier.height(12.dp))
+                    Divider(color = dividerColor)
+                    Spacer(Modifier.height(12.dp))
+                    
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            stringResource(R.string.label_net_position), 
+                            fontWeight = FontWeight.Bold,
+                            color = textColor,
+                            modifier = Modifier.clickable {
+                                viewModel.summaryInitialTab = "Assets"
+                                onNavigate("summary")
+                            }
+                        )
+                        Text(
+                            if (isNetPositionVisible) viewModel.formatAmount(netPosition) else "****",
+                            fontWeight = FontWeight.Bold,
+                            color = textColor,
+                            modifier = Modifier.clickable {
+                                isNetPositionVisible = !isNetPositionVisible
+                            }
+                        )
+                    }
                 }
             }
 
             Spacer(Modifier.height(16.dp))
             
             Text(stringResource(R.string.label_top_expenses), style = MaterialTheme.typography.titleMedium)
-            val topExpenses = transactions.filter { it.categoryType == "expense" }
+            val topExpenses = transactions.filter { it.categoryType?.lowercase() == "expense" }
                 .groupBy { it.categoryName ?: stringResource(R.string.label_uncategorized) }
                 .mapValues { it.value.sumOf { t -> t.transaction.amount } }
                 .toList()
@@ -816,15 +1133,15 @@ fun HomeView(
             if (viewModel.dashboardBudgetIds.isNotEmpty()) {
                 Spacer(Modifier.height(12.dp))
                 val budgetVsActual by viewModel.getBudgetVsActual(endDate).collectAsState(initial = emptyList())
-                val selectedBudgetsRaw by viewModel.getAllBudgets().collectAsState(initial = emptyList())
+                val selectedBudgetsRaw by viewModel.getAllBudgetsDetailed().collectAsState(initial = emptyList())
                 
                 val selectedBudgets = remember(selectedBudgetsRaw, budgetVsActual, viewModel.dashboardBudgetIds) {
-                    selectedBudgetsRaw.filter { it.id in viewModel.dashboardBudgetIds }
-                        .sortedBy { budget ->
-                            val performance = budgetVsActual.find { it.categoryName == budget.name || (budget.name == null && it.categoryName.contains(budget.categoryIds.split(",")[0])) }
+                    selectedBudgetsRaw.filter { it.budget.id in viewModel.dashboardBudgetIds }
+                        .sortedBy { bdr ->
+                            val performance = budgetVsActual.find { it.budgetId == bdr.budget.id }
                             val actual = performance?.actualAmount ?: 0.0
-                            val limit = budget.amount
-                            val isGoalMet = if (budget.higherIsBetter) actual >= limit else actual <= limit
+                            val limit = bdr.budget.amount
+                            val isGoalMet = if (bdr.budget.higherIsBetter) actual >= limit else actual <= limit
                             if (isGoalMet) 1 else 0
                         }
                 }
@@ -835,8 +1152,9 @@ fun HomeView(
                         modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(selectedBudgets) { budget ->
-                            val performance = budgetVsActual.find { it.categoryName == budget.name || (budget.name == null && it.categoryName.contains(budget.categoryIds.split(",")[0])) }
+                        items(selectedBudgets) { budgetWithRelations ->
+                            val budget = budgetWithRelations.budget
+                            val performance = budgetVsActual.find { it.budgetId == budget.id }
                             val actual = performance?.actualAmount ?: 0.0
                             val limit = budget.amount
                             val percent = if (limit != 0.0) (actual / limit * 100).toInt() else 0
@@ -847,12 +1165,13 @@ fun HomeView(
                                 actual <= limit
                             }
                             val statusColor = if (isGoalMet) Color(0xFF4CAF50) else Color.Red
+                            val catNames = budgetWithRelations.categories.joinToString(", ") { it.name }
 
                             Card(
                                 modifier = Modifier.width(180.dp).clickable { onTabChange("budgets") }
                             ) {
                                 Column(modifier = Modifier.padding(12.dp)) {
-                                    Text(budget.name ?: stringResource(R.string.label_budget), style = MaterialTheme.typography.labelMedium, maxLines = 1)
+                                    Text(budget.name ?: catNames, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                                     Text("$percent%", style = MaterialTheme.typography.titleMedium, color = statusColor, fontWeight = FontWeight.Bold)
                                     LinearProgressIndicator(
                                         progress = (actual / limit).toFloat().coerceIn(0f, 1f),
@@ -935,13 +1254,22 @@ fun AnalysisView(
     val networthLabel = stringResource(R.string.label_networth)
     val onAccountLoanLabel = stringResource(R.string.label_on_account_loan)
 
-    var type by remember { mutableStateOf(initialType ?: expenseLabel) }
+    var type by remember { mutableStateOf(when(initialType) {
+        "Income" -> "Income"
+        "Account" -> "Account"
+        "Tags" -> "Tags"
+        "Merchants" -> "Merchants"
+        "Networth" -> "Networth"
+        "OnAccountLoan" -> "OnAccountLoan"
+        else -> "Expense"
+    }) }
     var month by remember { mutableStateOf(LocalDate.now()) }
     var startDate by remember { mutableStateOf(initialDateRange?.first ?: month.withDayOfMonth(1).format(DateTimeFormatter.ISO_DATE)) }
     var endDate by remember { mutableStateOf(initialDateRange?.second ?: month.with(TemporalAdjusters.lastDayOfMonth()).format(DateTimeFormatter.ISO_DATE)) }
     var showFilter by remember { mutableStateOf(false) }
     var categoryFilterIds by remember { mutableStateOf<Set<Int>?>(null) }
     var showCategoryFilterDialog by remember { mutableStateOf(false) }
+    var showAccountSelectionDialog by remember { mutableStateOf(false) }
     var isMainLevelAnalysis by remember { mutableStateOf(false) }
     
     var selectedAnalysisPartyIds = remember { mutableStateListOf<Int>() }
@@ -1032,19 +1360,20 @@ fun AnalysisView(
         }
     }
 
-    LaunchedEffect(allAccountsList) {
-        if (analysisSelectedAccountId == null && allAccountsList.isNotEmpty()) {
-            analysisSelectedAccountId = allAccountsList.first().id
+    LaunchedEffect(allAccountsList, type) {
+        if (type == "Account") {
+            if (analysisSelectedAccountId == null && allAccountsList.isNotEmpty()) {
+                analysisSelectedAccountId = allAccountsList.first().id
+            }
+        } else if (type != "Networth" && type != "OnAccountLoan") {
+            analysisSelectedAccountId = null
         }
     }
 
     var showDetailList by remember { mutableStateOf<String?>(null) }
     var showTagDetailList by remember { mutableStateOf<Int?>(null) }
     
-    val selectAccountLabel = stringResource(R.string.label_select_account_analysis)
-    val currentAccountName = remember(analysisSelectedAccountId, allAccountsList) {
-        allAccountsList.find { it.id == analysisSelectedAccountId }?.name ?: selectAccountLabel
-    }
+    val allAccountsLabel = stringResource(R.string.label_all) + " " + stringResource(R.string.menu_accounts)
 
     val uncategorizedLabel = stringResource(R.string.label_uncategorized)
 
@@ -1054,7 +1383,7 @@ fun AnalysisView(
     } else if (showDetailList != null) {
         BackHandler { showDetailList = null }
         val filteredList = remember(transactions, type, accountsSubTab, analysisSelectedAccountId, showDetailList, isMainLevelAnalysis) {
-            if (type == accountLabel) {
+            if (type == "Account") {
             
                 if (accountsSubTab == "Spending") {
                     transactions.filter { it.transaction.accountId == analysisSelectedAccountId && it.categoryName == showDetailList }
@@ -1067,7 +1396,7 @@ fun AnalysisView(
                 } else {
                     transactions.filter { it.accountName == showDetailList || it.toAccountName == showDetailList }
                 }
-            } else if (type == expenseLabel || type == incomeLabel) {
+            } else if (type == "Expense" || type == "Income") {
             
                 transactions.filter { 
                     val catName = it.categoryName ?: uncategorizedLabel
@@ -1104,21 +1433,18 @@ fun AnalysisView(
     } else {
         val chartColors = listOf(Color.Red, Color.Blue, Color.Green, Color.Yellow, Color.Magenta, Color.Cyan, Color.Gray, Color.DarkGray, Color.LightGray)
         Column(modifier = Modifier.fillMaxSize()) {
-            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Row(modifier = Modifier.fillMaxWidth().padding(start = 8.dp, top = 0.dp, end = 8.dp, bottom = 4.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onOpenDrawer) {
-                        Icon(Icons.Default.Menu, stringResource(R.string.menu_home))
-                    }
                     var expanded by remember { mutableStateOf(false) }
                     Box {
                         val currentTypeLabel = when(type) {
-                            expenseLabel -> expenseLabel
-                            incomeLabel -> incomeLabel
-                            accountLabel -> accountLabel
-                            tagsLabel -> tagsLabel
-                            merchantsLabel -> merchantsLabel
-                            networthLabel -> networthLabel
-                            onAccountLoanLabel -> onAccountLoanLabel
+                            "Expense" -> expenseLabel
+                            "Income" -> incomeLabel
+                            "Account" -> accountLabel
+                            "Tags" -> tagsLabel
+                            "Merchants" -> merchantsLabel
+                            "Networth" -> networthLabel
+                            "OnAccountLoan" -> onAccountLoanLabel
                             else -> type
                         }
                         TextButton(onClick = { expanded = true }) {
@@ -1126,16 +1452,16 @@ fun AnalysisView(
                             Icon(Icons.Default.ArrowDropDown, "")
                         }
                         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                            DropdownMenuItem(text = { Text(expenseLabel) }, onClick = { type = expenseLabel; expanded = false })
-                            DropdownMenuItem(text = { Text(incomeLabel) }, onClick = { type = incomeLabel; expanded = false })
-                            DropdownMenuItem(text = { Text(accountLabel) }, onClick = { type = accountLabel; expanded = false })
-                            DropdownMenuItem(text = { Text(tagsLabel) }, onClick = { type = tagsLabel; expanded = false })
-                            DropdownMenuItem(text = { Text(merchantsLabel) }, onClick = { type = merchantsLabel; expanded = false })
-                            DropdownMenuItem(text = { Text(networthLabel) }, onClick = { type = networthLabel; expanded = false })
-                            DropdownMenuItem(text = { Text(onAccountLoanLabel) }, onClick = { type = onAccountLoanLabel; expanded = false })
+                            DropdownMenuItem(text = { Text(expenseLabel) }, onClick = { type = "Expense"; expanded = false })
+                            DropdownMenuItem(text = { Text(incomeLabel) }, onClick = { type = "Income"; expanded = false })
+                            DropdownMenuItem(text = { Text(accountLabel) }, onClick = { type = "Account"; expanded = false })
+                            DropdownMenuItem(text = { Text(tagsLabel) }, onClick = { type = "Tags"; expanded = false })
+                            DropdownMenuItem(text = { Text(merchantsLabel) }, onClick = { type = "Merchants"; expanded = false })
+                            DropdownMenuItem(text = { Text(networthLabel) }, onClick = { type = "Networth"; expanded = false })
+                            DropdownMenuItem(text = { Text(onAccountLoanLabel) }, onClick = { type = "OnAccountLoan"; expanded = false })
                         }
                     }
-                    if (type == expenseLabel || type == incomeLabel) {
+                    if (type == "Expense" || type == "Income") {
                         Spacer(Modifier.width(4.dp))
                         IconButton(onClick = { showCategoryFilterDialog = true }) {
                             Icon(
@@ -1154,15 +1480,26 @@ fun AnalysisView(
                             )
                         }
                     }
+                    if (type == "Account" && accountsSubTab != "Balance") {
+                        Spacer(Modifier.width(4.dp))
+                        IconButton(onClick = { showAccountSelectionDialog = true }) {
+                            Icon(
+                                Icons.Default.FilterAlt,
+                                null,
+                                modifier = Modifier.size(20.dp),
+                                tint = if (analysisSelectedAccountId != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (type == tagsLabel) {
+                    if (type == "Tags") {
                         IconButton(onClick = { isTagBarChartView = !isTagBarChartView }) {
                             Icon(if (isTagBarChartView) Icons.Default.PieChart else Icons.Default.BarChart, stringResource(R.string.label_toggle_chart))
                         }
                     }
                     
-                    if (type == onAccountLoanLabel && viewModel.invoiceAgeTrackingEnabled) {
+                    if (type == "OnAccountLoan" && viewModel.invoiceAgeTrackingEnabled) {
                         IconButton(onClick = { showAdvancedFilterDialog = true }) {
                             val hasActiveFilter = filterByParty || filterByOverdue || filterByAmount || filterByDueInXDays || filterByWasDueYDays || categoryFilterIds != null || tagFilterIds != null || groupByParty
                             Icon(
@@ -1174,12 +1511,27 @@ fun AnalysisView(
                     }
                     
                     IconButton(onClick = { showFilter = true }) { 
-                        Icon(if (type == onAccountLoanLabel) Icons.Default.DateRange else Icons.Default.FilterList, stringResource(R.string.label_filter)) 
+                        Icon(if (type == "OnAccountLoan") Icons.Default.DateRange else Icons.Default.FilterList, stringResource(R.string.label_filter)) 
                     }
                 }
             }
                 
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 4.dp, top = 0.dp, end = 4.dp, bottom = 0.dp)) {
+                IconButton(onClick = {
+                    month = month.minusYears(1)
+                    startDate = month.withDayOfMonth(1).format(DateTimeFormatter.ISO_DATE)
+                    endDate = month.with(TemporalAdjusters.lastDayOfMonth()).format(DateTimeFormatter.ISO_DATE)
+                }) {
+                    Icon(Icons.Default.KeyboardDoubleArrowLeft, contentDescription = "Prev Year")
+                }
+                IconButton(onClick = {
+                    month = month.minusMonths(1)
+                    startDate = month.withDayOfMonth(1).format(DateTimeFormatter.ISO_DATE)
+                    endDate = month.with(TemporalAdjusters.lastDayOfMonth()).format(DateTimeFormatter.ISO_DATE)
+                }) {
+                    Icon(Icons.Default.ChevronLeft, contentDescription = "Prev Month")
+                }
+
                 var monthMenuExpanded by remember { mutableStateOf(false) }
                 var yearMenuExpanded by remember { mutableStateOf(false) }
                 
@@ -1226,31 +1578,48 @@ fun AnalysisView(
                         }
                     }
                 }
+
+                IconButton(onClick = {
+                    month = month.plusMonths(1)
+                    startDate = month.withDayOfMonth(1).format(DateTimeFormatter.ISO_DATE)
+                    endDate = month.with(TemporalAdjusters.lastDayOfMonth()).format(DateTimeFormatter.ISO_DATE)
+                }) {
+                    Icon(Icons.Default.ChevronRight, contentDescription = "Next Month")
+                }
+                IconButton(onClick = {
+                    month = month.plusYears(1)
+                    startDate = month.withDayOfMonth(1).format(DateTimeFormatter.ISO_DATE)
+                    endDate = month.with(TemporalAdjusters.lastDayOfMonth()).format(DateTimeFormatter.ISO_DATE)
+                }) {
+                    Icon(Icons.Default.KeyboardDoubleArrowRight, contentDescription = "Next Year")
+                }
             }
 
             val bTrendData = remember(allTransactionsList, analysisSelectedAccountId, startDate, endDate, accountsSubTab, type) {
-                if (type == "Accounts" && accountsSubTab == "BTrend" && analysisSelectedAccountId != null) {
+                if (type == "Account" && accountsSubTab == "BTrend" && analysisSelectedAccountId != null) {
                     val start = LocalDate.parse(startDate)
                     val end = LocalDate.parse(endDate)
                     val accountId = analysisSelectedAccountId!!
                     
                     val accountObj = allAccountsList.find { it.id == accountId }
-                    val openingBalance = accountObj?.openingBalance ?: 0.0
+                    val initialBalance: Long = accountObj?.openingBalanceMinorUnits ?: (accountObj?.openingBalance?.let { (it * 100).toLong() } ?: 0L)
                     
                     val txnsBefore = allTransactionsList.filter { 
                         it.transaction.date < startDate && 
                         (it.transaction.accountId == accountId || it.transaction.toAccountId == accountId)
                     }
                     
-                    var currentBal = openingBalance + txnsBefore.sumOf { t ->
-                        if (t.transaction.toAccountId == accountId) t.transaction.amount
+                    var mCalculatedBalance: Long = initialBalance
+                    txnsBefore.forEach { t ->
+                        val amt: Long = t.transaction.amountMinorUnits ?: (t.transaction.amount * 100).toLong()
+                        if (t.transaction.toAccountId == accountId) mCalculatedBalance = mCalculatedBalance + amt
                         else if (t.transaction.accountId == accountId) {
-                            if (t.categoryType == "income") t.transaction.amount else -t.transaction.amount
-                        } else 0.0
+                            if (t.categoryType == "income") mCalculatedBalance = mCalculatedBalance + amt else mCalculatedBalance = mCalculatedBalance - amt
+                        }
                     }
                     
                     val daysInMonth = java.time.temporal.ChronoUnit.DAYS.between(start, end).toInt() + 1
-                    val trend = mutableListOf<Pair<String, Double>>()
+                    val trend = mutableListOf<Pair<String, Long>>()
                     
                     val monthTxns = allTransactionsList.filter { 
                         it.transaction.date >= startDate && it.transaction.date <= endDate &&
@@ -1262,13 +1631,16 @@ fun AnalysisView(
                         val dStr = d.format(DateTimeFormatter.ISO_DATE)
                         val dayTxns = monthTxns.filter { it.transaction.date == dStr }
                         
-                        currentBal += dayTxns.sumOf { t ->
-                            if (t.transaction.toAccountId == accountId) t.transaction.amount
+                        var dayChange: Long = 0L
+                        dayTxns.forEach { t ->
+                            val amt: Long = t.transaction.amountMinorUnits ?: (t.transaction.amount * 100).toLong()
+                            if (t.transaction.toAccountId == accountId) dayChange = dayChange + amt
                             else if (t.transaction.accountId == accountId) {
-                                if (t.categoryType == "income") t.transaction.amount else -t.transaction.amount
-                            } else 0.0
+                                if (t.categoryType == "income") dayChange = dayChange + amt else dayChange = dayChange - amt
+                            }
                         }
-                        trend.add(d.format(DateTimeFormatter.ofPattern("dd MMM")) to currentBal)
+                        mCalculatedBalance = mCalculatedBalance + dayChange
+                        trend.add(d.format(DateTimeFormatter.ofPattern("dd MMM")) to mCalculatedBalance)
                     }
                     trend
                 } else if (type == "Networth") {
@@ -1276,17 +1648,19 @@ fun AnalysisView(
                     val end = LocalDate.parse(endDate)
                     
                     val txnsBefore = allTransactionsList.filter { it.transaction.date < startDate }
-                    val openingBalancesSum = allAccountsList.sumOf { it.openingBalance }
+                    val initialNetPosition: Long = allAccountsList.sumOf { it.openingBalanceMinorUnits ?: (it.openingBalance * 100).toLong() }
                     
-                    var currentNetPosition = openingBalancesSum + txnsBefore.sumOf { t ->
-                        if (t.transaction.toAccountId != null) 0.0 
-                        else if (t.categoryType == "income") t.transaction.amount 
-                        else if (t.categoryType == "expense") -t.transaction.amount 
-                        else 0.0
+                    var mCalculatedNetPosition: Long = initialNetPosition
+                    txnsBefore.forEach { t ->
+                        val amt: Long = t.transaction.amountMinorUnits ?: (t.transaction.amount * 100).toLong()
+                        if (t.transaction.toAccountId == null) {
+                            if (t.categoryType == "income") mCalculatedNetPosition = mCalculatedNetPosition + amt 
+                            else if (t.categoryType == "expense") mCalculatedNetPosition = mCalculatedNetPosition - amt 
+                        }
                     }
                     
                     val daysInMonth = java.time.temporal.ChronoUnit.DAYS.between(start, end).toInt() + 1
-                    val trend = mutableListOf<Pair<String, Double>>()
+                    val trend = mutableListOf<Pair<String, Long>>()
                     val monthTxns = allTransactionsList.filter { it.transaction.date >= startDate && it.transaction.date <= endDate }
                     
                     for (day in 0 until daysInMonth) {
@@ -1294,42 +1668,46 @@ fun AnalysisView(
                         val dStr = d.format(DateTimeFormatter.ISO_DATE)
                         val dayTxns = monthTxns.filter { it.transaction.date == dStr }
                         
-                        currentNetPosition += dayTxns.sumOf { t ->
-                            if (t.transaction.toAccountId != null) 0.0
-                            else if (t.categoryType == "income") t.transaction.amount 
-                            else if (t.categoryType == "expense") -t.transaction.amount 
-                            else 0.0
+                        var dayChange: Long = 0L
+                        dayTxns.forEach { t ->
+                            val amt: Long = t.transaction.amountMinorUnits ?: (t.transaction.amount * 100).toLong()
+                            if (t.transaction.toAccountId == null) {
+                                if (t.categoryType == "income") dayChange = dayChange + amt 
+                                else if (t.categoryType == "expense") dayChange = dayChange - amt 
+                            }
                         }
-                        trend.add(d.format(DateTimeFormatter.ofPattern("dd MMM")) to currentNetPosition)
+                        mCalculatedNetPosition = mCalculatedNetPosition + dayChange
+                        trend.add(d.format(DateTimeFormatter.ofPattern("dd MMM")) to mCalculatedNetPosition)
                     }
                     trend
-                } else emptyList()
+                } else emptyList<Pair<String, Long>>()
             }
 
             val uncategorizedLabel = stringResource(R.string.label_uncategorized)
-            val data = when (type) {
-                expenseLabel, incomeLabel -> {
-                    val targetType = if (type == expenseLabel) "expense" else "income"
+            val data: List<Pair<String, Long>> = when (type) {
+                "Expense", "Income" -> {
+                    val targetType = if (type == "Expense") "expense" else "income"
                     val filteredTxns = transactions.filter { 
                         it.categoryType?.lowercase() == targetType && 
-                        (categoryFilterIds == null || it.transaction.categoryId in categoryFilterIds!!) 
+                        (categoryFilterIds == null || it.transaction.categoryId in categoryFilterIds!!) &&
+                        (analysisSelectedAccountId == null || it.transaction.accountId == analysisSelectedAccountId || it.transaction.toAccountId == analysisSelectedAccountId)
                     }
                     
                     if (isMainLevelAnalysis) {
                         filteredTxns.groupBy { 
                             val name = it.categoryName ?: uncategorizedLabel
                             if (name.contains(":")) name.split(":").first().trim() else name
-                        }.mapValues { it.value.sumOf { t -> t.transaction.amount } }
+                        }.mapValues { it.value.sumOf { t -> t.transaction.amountMinorUnits ?: (t.transaction.amount * 100).toLong() } }
                         .toList().sortedByDescending { it.second }
                     } else {
                         filteredTxns.groupBy { 
                             val name = it.categoryName ?: uncategorizedLabel
                             if (name.contains(":")) name.split(":").last().trim() else name
-                        }.mapValues { it.value.sumOf { t -> t.transaction.amount } }
+                        }.mapValues { it.value.sumOf { t -> t.transaction.amountMinorUnits ?: (t.transaction.amount * 100).toLong() } }
                         .toList().sortedByDescending { it.second }
                     }
                 }
-                accountLabel -> {
+                "Account" -> {
                     if (accountsSubTab == "Balance") {
                         val onAccountLoanId = majorHeads.find { it.name.contains("On Account", ignoreCase = true) }?.id ?: 6
                         balances.filter { b ->
@@ -1342,40 +1720,46 @@ fun AnalysisView(
                         transactions.filter { it.transaction.accountId == analysisSelectedAccountId && it.transaction.categoryId != null }
                             .groupBy { it.categoryName ?: uncategorizedLabel }
                             .mapValues { entry -> 
-                                entry.value.sumOf { if (it.categoryType == "income") it.transaction.amount else -it.transaction.amount } 
+                                entry.value.sumOf { 
+                                    val amt = it.transaction.amountMinorUnits ?: (it.transaction.amount * 100).toLong()
+                                    if (it.categoryType == "income") amt else -amt 
+                                } 
                             }
-                            .toList().sortedByDescending { Math.abs(it.second) }
+                            .toList().sortedByDescending { kotlin.math.abs(it.second) }
                     } else if (accountsSubTab == "Source" && analysisSelectedAccountId != null) {
                         transactions.filter { (it.transaction.accountId == analysisSelectedAccountId || it.transaction.toAccountId == analysisSelectedAccountId) && it.transaction.categoryId == null }
                             .groupBy { if (it.transaction.accountId == analysisSelectedAccountId) it.toAccountName ?: stringResource(R.string.label_other) else it.accountName }
                             .mapValues { entry ->
                                 entry.value.sumOf {
-                                    if (it.transaction.toAccountId == analysisSelectedAccountId) it.transaction.amount
-                                    else -it.transaction.amount
+                                    val amt = it.transaction.amountMinorUnits ?: (it.transaction.amount * 100).toLong()
+                                    if (it.transaction.toAccountId == analysisSelectedAccountId) amt
+                                    else -amt
                                 }
                             }
-                            .toList().sortedByDescending { Math.abs(it.second) }
+                            .toList().sortedByDescending { kotlin.math.abs(it.second) }
                     } else {
                         emptyList()
                     }
                 }
-                tagsLabel -> tags.map { tag ->
-                    val total = transactions.filter { t -> t.transaction.tags?.split(",")?.contains(tag.id.toString()) == true }.sumOf { it.transaction.amount }
+                "Tags" -> tags.map { tag ->
+                    val total = transactions.filter { t -> t.transaction.tags?.split(",")?.contains(tag.id.toString()) == true }.sumOf { t -> t.transaction.amountMinorUnits ?: (t.transaction.amount * 100).toLong() }
                     tag.name to total
                 }.filter { it.second > 0 }.sortedByDescending { it.second }
-                merchantsLabel -> {
+                "Merchants" -> {
                     transactions.filter { it.transaction.merchantName != null && it.transaction.merchantName!!.isNotBlank() }
                         .groupBy { it.transaction.merchantName!! }
-                        .mapValues { it.value.sumOf { t -> t.transaction.amount } }
+                        .mapValues { it.value.sumOf { t -> t.transaction.amountMinorUnits ?: (t.transaction.amount * 100).toLong() } }
                         .toList().sortedByDescending { it.second }
                 }
-                networthLabel -> bTrendData
-                onAccountLoanLabel -> {
+                "Networth" -> bTrendData
+                "OnAccountLoan" -> {
                     filteredInvoices.groupBy { it.detail.partyName ?: it.detail.accountName }
                         .mapValues { entry -> 
                             entry.value.sumOf { inv -> 
-                                val outstanding = inv.detail.transaction.amount - inv.totalCleared
-                                if (invoiceStatusFilter == "Cleared") inv.totalCleared else outstanding
+                                val total = inv.detail.transaction.amountMinorUnits ?: (inv.detail.transaction.amount * 100).toLong()
+                                val totalCleared = inv.totalCleared 
+                                val outstanding = total - totalCleared
+                                if (invoiceStatusFilter == "Cleared") totalCleared else outstanding
                             } 
                         }
                         .toList().sortedByDescending { kotlin.math.abs(it.second) }
@@ -1383,7 +1767,7 @@ fun AnalysisView(
                 else -> emptyList()
             }
 
-            if (type == "Accounts") {
+            if (type == "Account") {
                 ScrollableTabRow(
                     selectedTabIndex = when(accountsSubTab) { "Spending" -> 0; "Source" -> 1; "BTrend" -> 2; else -> 3 },
                     modifier = Modifier.fillMaxWidth(),
@@ -1404,41 +1788,21 @@ fun AnalysisView(
                         Text(stringResource(R.string.label_balance), modifier = Modifier.padding(12.dp), style = MaterialTheme.typography.labelLarge)
                     }
                 }
-
-                if (accountsSubTab != "Balance") {
-                    var accountMenuExpanded by remember { mutableStateOf(false) }
-                    Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-                        OutlinedButton(
-                            onClick = { accountMenuExpanded = true },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(currentAccountName)
-                            Icon(Icons.Default.ArrowDropDown, null)
-                        }
-                        DropdownMenu(expanded = accountMenuExpanded, onDismissRequest = { accountMenuExpanded = false }) {
-                            allAccountsList.forEach { acc ->
-                                DropdownMenuItem(text = { Text(acc.name) }, onClick = {
-                                    analysisSelectedAccountId = acc.id
-                                    accountMenuExpanded = false
-                                })
-                            }
-                        }
-                    }
-                }
             }
 
-            if (data.isEmpty() && type == accountLabel && accountsSubTab != "Balance" && analysisSelectedAccountId == null) {
+
+            if (data.isEmpty() && type == "Account" && accountsSubTab != "Balance" && analysisSelectedAccountId == null) {
                 Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     Text(stringResource(R.string.msg_select_account_analysis), color = Color.Gray)
                 }
             } else if (data.isNotEmpty()) {
-                val chartData = if (type == "On Account (Loan)" || type == "Accounts" || type == "Networth") {
-                    data.map { it.component1() to kotlin.math.abs(it.component2()) }
-                } else data
+                val chartData = if (type == "OnAccountLoan" || type == "Account" || type == "Networth") {
+                    data.map { it.component1() to kotlin.math.abs(it.component2().toDouble() / 100.0) }
+                } else data.map { it.first to it.second.toDouble() / 100.0 }
 
                 Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-                    if ((type == "Accounts" && accountsSubTab == "BTrend") || type == "Networth") {
-                        LineChart(data = data.map { it.second }, labels = data.map { it.first })
+                    if ((type == "Account" && accountsSubTab == "BTrend") || type == "Networth") {
+                        LineChart(data = data.map { it.second.toDouble() / 100.0 }, labels = data.map { it.first })
                     } else if (type == "Tags" && isTagBarChartView) {
                         val tagBarData = tags.filter { (it.targetNumber ?: 0.0) > 0.0 }.map { tag ->
                             val total = transactions.filter { t -> t.transaction.tags?.split(",")?.contains(tag.id.toString()) == true }.sumOf { it.transaction.amount }
@@ -1463,14 +1827,14 @@ fun AnalysisView(
                         }
                     }
                 }
-            } else if (type != onAccountLoanLabel) {
+            } else if (type != "OnAccountLoan") {
                  Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
                     Text(stringResource(R.string.msg_no_data), color = Color.Gray)
                 }
             }
 
             LazyColumn(modifier = Modifier.weight(1f)) {
-                if (type == onAccountLoanLabel && viewModel.invoiceAgeTrackingEnabled) {
+                if (type == "OnAccountLoan" && viewModel.invoiceAgeTrackingEnabled) {
                     if (filteredInvoices.isEmpty()) {
                         item {
                             Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
@@ -1483,8 +1847,10 @@ fun AnalysisView(
                         val grouped = filteredInvoices.groupBy { it.detail.partyName ?: it.detail.accountName }
                             .mapValues { entry -> 
                                 entry.value.sumOf { inv -> 
-                                    val outstanding = inv.detail.transaction.amount - inv.totalCleared
-                                    if (invoiceStatusFilter == "Cleared") inv.totalCleared else outstanding
+                                    val total = inv.detail.transaction.amountMinorUnits ?: (inv.detail.transaction.amount * 100).toLong()
+                                    val totalCleared = inv.totalCleared
+                                    val outstanding = total - totalCleared
+                                    if (invoiceStatusFilter == "Cleared") totalCleared else outstanding
                                 } 
                             }.toList().sortedByDescending { kotlin.math.abs(it.second) }
                         
@@ -1507,7 +1873,8 @@ fun AnalysisView(
                         }
                     } else {
                         items(filteredInvoices) { inv ->
-                            val outstanding = inv.detail.transaction.amount - inv.totalCleared
+                            val total = inv.detail.transaction.amountMinorUnits ?: (inv.detail.transaction.amount * 100).toLong()
+                            val outstanding = total - inv.totalCleared
                             val dueDate = try { LocalDate.parse(inv.detail.transaction.date).plusDays(inv.detail.transaction.dueDays?.toLong() ?: 0) } catch(e: Exception) { null }
                             val isCleared = outstanding <= 0
                             
@@ -1544,7 +1911,7 @@ fun AnalysisView(
                             }
                         }
                     }
-                } else if ((type == accountLabel && accountsSubTab == "BTrend") || type == networthLabel) {
+                } else if ((type == "Account" && accountsSubTab == "BTrend") || type == "Networth") {
                     items(data.reversed()) { pair ->
                         val dateLabel = pair.component1()
                         val amount = pair.component2()
@@ -1571,15 +1938,15 @@ fun AnalysisView(
                         val name = pair.component1()
                         val amount = pair.component2()
                         val index = data.indexOfFirst { it.component1() == name }
-                        val itemColor = if (type == "Accounts") {
+                        val itemColor = if (type == "Account") {
                             if (amount >= 0) Color(0xFF4CAF50) else Color.Red
-                        } else if (type == "On Account (Loan)" || type == "Accounts") {
+                        } else if (type == "OnAccountLoan" || type == "Account") {
                             if (amount >= 0) Color(0xFF4CAF50) else Color.Red
                         } else MaterialTheme.colorScheme.onSurface
 
                         val itemIcon = when (type) {
-                            expenseLabel, incomeLabel -> allCategories.find { it.name == name }?.icon ?: "📁"
-                            accountLabel, onAccountLoanLabel -> balances.find { it.name == name }?.icon ?: "🏦"
+                            "Expense", "Income" -> allCategories.find { it.name == name }?.icon ?: "📁"
+                            "Account", "OnAccountLoan" -> balances.find { it.name == name }?.icon ?: "🏦"
                             else -> "📁"
                         }
 
@@ -1590,11 +1957,11 @@ fun AnalysisView(
                                 .fillMaxWidth()
                                 .padding(vertical = 2.dp)
                                 .clickable { 
-                                    if (type == tagsLabel) {
+                                    if (type == "Tags") {
                                         showTagDetailList = tags.find { it.name == name }?.id
-                                    } else if (type == accountLabel && accountsSubTab != "Balance") {
+                                    } else if (type == "Account" && accountsSubTab != "Balance") {
                                         showDetailList = name
-                                    } else if (type == merchantsLabel) {
+                                    } else if (type == "Merchants") {
                                         showDetailList = "MERCHANT:$name"
                                     } else {
                                         showDetailList = name 
@@ -1622,7 +1989,7 @@ fun AnalysisView(
                     }
                 }
             }
-            if (type == tagsLabel) {
+            if (type == "Tags") {
                 Button(onClick = { onNavigate("summary_by_tags") }, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
                     Text(stringResource(R.string.label_view_all_txns_tag))
                 }
@@ -1803,6 +2170,93 @@ fun AnalysisView(
             }
         )
     }
+
+    if (showAccountSelectionDialog) {
+        AlertDialog(
+            onDismissRequest = { showAccountSelectionDialog = false },
+            title = { Text(stringResource(R.string.label_select_account_analysis)) },
+            text = {
+                Box(modifier = Modifier.height(300.dp)) {
+                    LazyColumn {
+                        item {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().clickable {
+                                    analysisSelectedAccountId = null
+                                    showAccountSelectionDialog = false
+                                }.padding(vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(selected = analysisSelectedAccountId == null, onClick = {
+                                    analysisSelectedAccountId = null
+                                    showAccountSelectionDialog = false
+                                })
+                                Spacer(Modifier.width(8.dp))
+                                Text(allAccountsLabel)
+                            }
+                        }
+                        items(allAccountsList) { acc ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth().clickable {
+                                    analysisSelectedAccountId = acc.id
+                                    showAccountSelectionDialog = false
+                                }.padding(vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(selected = analysisSelectedAccountId == acc.id, onClick = {
+                                    analysisSelectedAccountId = acc.id
+                                    showAccountSelectionDialog = false
+                                })
+                                Spacer(Modifier.width(8.dp))
+                                Text(acc.name)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = { Button(onClick = { showAccountSelectionDialog = false }) { Text(stringResource(R.string.btn_done)) } }
+        )
+    }
+
+    if (showCategoryFilterDialog) {
+        val targetType = if (type == "Expense") "expense" else "income"
+        val filteredCategories = allCategories.filter { it.type.lowercase() == targetType }
+
+        AlertDialog(
+            onDismissRequest = { showCategoryFilterDialog = false },
+            title = { Text(stringResource(R.string.title_filter_analysis)) },
+            text = {
+                Box(modifier = Modifier.height(300.dp)) {
+                    LazyColumn {
+                        items(filteredCategories) { cat ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth().clickable {
+                                    val current = categoryFilterIds?.toMutableSet() ?: mutableSetOf()
+                                    if (cat.id in current) current.remove(cat.id)
+                                    else current.add(cat.id)
+                                    categoryFilterIds = if (current.isEmpty()) null else current
+                                },
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(checked = cat.id in (categoryFilterIds ?: emptySet()), onCheckedChange = {
+                                    val current = categoryFilterIds?.toMutableSet() ?: mutableSetOf()
+                                    if (it) current.add(cat.id)
+                                    else current.remove(cat.id)
+                                    categoryFilterIds = if (current.isEmpty()) null else current
+                                })
+                                Text(cat.name)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = { Button(onClick = { showCategoryFilterDialog = false }) { Text(stringResource(R.string.btn_done)) } },
+            dismissButton = {
+                TextButton(onClick = { categoryFilterIds = null; showCategoryFilterDialog = false }) {
+                    Text(stringResource(R.string.btn_clear_all), color = Color.Red)
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -1812,7 +2266,7 @@ fun TransactionsView(viewModel: ExpenseViewModel, onNavigate: (String) -> Unit, 
         AddTransactionScreen(viewModel = viewModel, onBack = { viewModel.selectedTransactionDetail = null }, onNavigate = onNavigate, readOnly = true)
     } else {
         Column {
-            TransactionHistoryView(viewModel, onOpenDrawer = onOpenDrawer)
+            TransactionHistoryView(viewModel, onOpenDrawer = null)
         }
     }
 }
@@ -1821,12 +2275,77 @@ fun TransactionsView(viewModel: ExpenseViewModel, onNavigate: (String) -> Unit, 
 @Composable
 fun BudgetsTab(viewModel: ExpenseViewModel, onNavigate: (String) -> Unit, onOpenDrawer: () -> Unit) {
     Column(modifier = Modifier.fillMaxSize()) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
+        BudgetComparisonScreen(viewModel = viewModel, onBack = {}, isTab = true)
+    }
+}
+
+@Composable
+fun UnifiedTopHeaderBar(
+    viewModel: ExpenseViewModel,
+    onOpenDrawer: () -> Unit,
+    onShowLoadRemoteDialog: () -> Unit
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .statusBarsPadding()
+            .padding(horizontal = 8.dp, vertical = 0.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onOpenDrawer) {
                 Icon(Icons.Default.Menu, stringResource(R.string.menu_home))
             }
-            Text(stringResource(R.string.title_budgets), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text(
+                text = stringResource(R.string.app_name),
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold
+            )
         }
-        BudgetComparisonScreen(viewModel = viewModel, onBack = {}, isTab = true)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(
+                onClick = {
+                    if (viewModel.webdavUrl.isBlank()) {
+                        Toast.makeText(context, "Please configure WebDAV Server URL in Database screen first.", Toast.LENGTH_LONG).show()
+                        return@IconButton
+                    }
+                    if (viewModel.isSyncing) return@IconButton
+                    Toast.makeText(context, "Uploading database to WebDAV cloud...", Toast.LENGTH_SHORT).show()
+                    scope.launch {
+                        val result = viewModel.syncNow()
+                        if (result.isSuccess) {
+                            Toast.makeText(context, "Database uploaded to WebDAV cloud successfully!", Toast.LENGTH_LONG).show()
+                        } else {
+                            val err = result.exceptionOrNull()?.message ?: "Upload failed"
+                            Toast.makeText(context, "Upload failed: $err", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                },
+                enabled = !viewModel.isSyncing
+            ) {
+                if (viewModel.isSyncing) {
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                } else {
+                    Icon(Icons.Default.CloudUpload, "Upload Remote", tint = MaterialTheme.colorScheme.primary)
+                }
+            }
+
+            IconButton(
+                onClick = {
+                    if (viewModel.webdavUrl.isBlank()) {
+                        Toast.makeText(context, "Please configure WebDAV Server URL in Database screen first.", Toast.LENGTH_LONG).show()
+                        return@IconButton
+                    }
+                    onShowLoadRemoteDialog()
+                },
+                enabled = !viewModel.isSyncing
+            ) {
+                Icon(Icons.Default.CloudDownload, "Load Remote", tint = MaterialTheme.colorScheme.secondary)
+            }
+        }
     }
 }

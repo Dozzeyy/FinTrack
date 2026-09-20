@@ -1,7 +1,17 @@
 /*
  * FinTrack
- * Copyright (C) 2026 Dozzeyy
+ * Copyright (C) 2026 Bhuvan (app.upstream242@passmail.com)
  * SPDX-License-Identifier: GPL-3.0-or-later
+
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
  */
 
 package com.openapps.fintrack.data
@@ -12,8 +22,13 @@ import android.content.Context
 import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.openapps.fintrack.data.TransactionLegacy
+import com.openapps.fintrack.domain.repository.FinanceRepository
+import dagger.assisted.Assisted
+import dagger.assisted.AssistedInject
 import kotlinx.coroutines.flow.first
 import java.io.File
 import java.time.Instant
@@ -24,46 +39,36 @@ import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import kotlin.math.abs
 
-class CcAlertWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
+@HiltWorker
+class CcAlertWorker @AssistedInject constructor(
+    @Assisted context: Context,
+    @Assisted params: WorkerParameters,
+    private val repository: FinanceRepository
+) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
         val prefs = applicationContext.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
-        val dbFile = applicationContext.getDatabasePath("expenses_database")
-        val ef = File(dbFile.path + ".xpt")
-        
-        if (ef.exists() && !dbFile.exists()) {
-            Log.w("CcAlertWorker", "Database is encrypted. Skipping background processing.")
-            return Result.success()
-        }
-        
-        val db = try { 
-            AppDatabase.getDatabase(applicationContext, kotlinx.coroutines.GlobalScope) 
-        } catch(e: Exception) { 
-            return Result.success() 
-        }
-        val dao = db.expenseDao()
-    
         val today = LocalDate.now(ZoneId.of("UTC"))
 
         if (prefs.getBoolean("cc_alert_enabled", false)) {
-            processAlerts(dao, today)
+            processAlerts(repository, today)
         }
 
-        processLoanAutoRecords(dao, today)
+        processLoanAutoRecords(repository, today)
 
-        processSubscriptionAutoRecords(dao, today)
+        processSubscriptionAutoRecords(repository, today)
 
         return Result.success()
     }
 
-    private suspend fun processSubscriptionAutoRecords(dao: ExpenseDao, today: LocalDate) {
-        val masterSubs = dao.getAllSubscriptionsMaster().first().filter { it.isEnabled }
-        val statuses = dao.getAllSubscriptionStatuses().first()
-        val allTxns = dao.getAllTransactionsWithDetails().first()
+    private suspend fun processSubscriptionAutoRecords(repository: FinanceRepository, today: LocalDate) {
+        val masterSubs = repository.getAllSubscriptionsMaster().first().filter { it.isEnabled }
+        val statuses = repository.getAllSubscriptionStatuses().first()
+        val allTxns = repository.getAllTransactionsWithDetails().first()
         
         for (sub in masterSubs) {
             val status = statuses.find { it.subName == sub.name }
             val isStopped = status?.isStopped ?: false
-            val isAutoRecordEnabled = status?.isAutoRecordEnabled ?: false
+            val isAutoRecordEnabled = status?.isAutoRecordEnabled ?: true
             
             if (isStopped || !isAutoRecordEnabled) continue
             
@@ -83,20 +88,24 @@ class CcAlertWorker(context: Context, params: WorkerParameters) : CoroutineWorke
                 val type = if (sub.isTransfer) "transfer" else (lastTxn.categoryType ?: "expense")
                 val prefix = when(type) { "income"->"INC"; "expense"->"EXP"; "transfer"->"TNF"; else->"TXN" }
                 
-                val lastNum = dao.getLastTransactionNumber(prefix)
+                val lastNum = repository.getLastTransactionNumber(prefix)
                 val nextSerial = (lastNum?.split("/")?.last()?.toIntOrNull() ?: 99999) + 1
                 val year = nextDue.year
                 val txnNumber = "$prefix/$year/$nextSerial"
                 
+                val originalNote = lastTxn.transaction.note ?: sub.name
+                val autoNote = if (originalNote.startsWith("[Auto-Recorded]")) originalNote else "[Auto-Recorded] $originalNote"
+
                 val newTxn = lastTxn.transaction.copy(
                     id = 0,
                     date = dateStr,
                     time = timeStr,
                     transactionNumber = txnNumber,
-                    editedAt = null
+                    note = autoNote,
+                    editedAt = System.currentTimeMillis()
                 )
                 
-                dao.insertTransaction(newTxn)
+                repository.insertTransactionLegacy(newTxn)
                 Log.d("CcAlertWorker", "Auto-recorded subscription: ${sub.name} for date $dateStr")
                 
                 nextDue = nextDue.plusMonths(freq)
@@ -104,9 +113,9 @@ class CcAlertWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         }
     }
 
-    private suspend fun processAlerts(dao: ExpenseDao, today: LocalDate) {
-        val accounts = dao.getEnabledAccounts().first()
-        val minorHeads = dao.getAllMinorHeads().first()
+    private suspend fun processAlerts(repository: FinanceRepository, today: LocalDate) {
+        val accounts = repository.getEnabledAccounts().first()
+        val minorHeads = repository.getAllMinorHeads().first()
 
         accounts.filter { it.minorHeadId != null }.forEach { acc ->
             val minor = minorHeads.find { it.id == acc.minorHeadId }
@@ -127,7 +136,7 @@ class CcAlertWorker(context: Context, params: WorkerParameters) : CoroutineWorke
                 val dueDate = cycleEnd.plusDays(daysPost.toLong())
 
                 if (ChronoUnit.DAYS.between(today, dueDate) == 2L) {
-                    val amount = calculateCcPayable(dao, acc, startDay, endDay, dueDate, daysPost)
+                    val amount = calculateCcPayable(repository, acc, startDay, endDay, dueDate, daysPost)
                     if (amount != 0.0) {
                         sendNotification(acc.name, amount, dueDate)
                     }
@@ -135,9 +144,8 @@ class CcAlertWorker(context: Context, params: WorkerParameters) : CoroutineWorke
             }
         }
 
-        // Subscription Alerts
-        val allTransactions = dao.getAllTransactionsWithDetails().first()
-        val statuses = dao.getAllSubscriptionStatuses().first()
+        val allTransactions = repository.getAllTransactionsWithDetails().first()
+        val statuses = repository.getAllSubscriptionStatuses().first()
 
         allTransactions.filter { it.transaction.subName != null }
             .groupBy { it.transaction.subName!! }
@@ -161,19 +169,19 @@ class CcAlertWorker(context: Context, params: WorkerParameters) : CoroutineWorke
             }
     }
 
-    private suspend fun processLoanAutoRecords(dao: ExpenseDao, today: LocalDate) {
-        val loans = dao.getAllActiveLoans().first()
-        val allCategories = dao.getAllCategories().first()
+    private suspend fun processLoanAutoRecords(repository: FinanceRepository, today: LocalDate) {
+        val loans = repository.getAllActiveLoans().first()
+        val allCategories = repository.getAllCategories().first()
         val intExpCat = allCategories.find { it.name.equals("Interest expense - Loans", ignoreCase = true) }
         val intIncCat = allCategories.find { it.name.equals("Interest Income - Loans", ignoreCase = true) }
         val intMiscCat = allCategories.find { it.name.equals("Interest Exp Misc", ignoreCase = true) }
         
         // Suspense Account for loans that don't update bank balance
-        val suspenseAcc = dao.getSuspenseAccountInternal() ?: run {
-            val othersMajorId = dao.getAllMajorHeads().first().find { it.name.equals("Others", true) }?.id
-            val defaultMinorId = othersMajorId?.let { dao.getMinorHeadsByMajor(it).first().find { it.name.equals("Default", true) }?.id }
-            dao.upsertAccount(Account(name = "Suspense", type = "asset", openingBalance = 0.0, minorHeadId = defaultMinorId, isEnabled = true))
-            dao.getSuspenseAccountInternal()
+        val suspenseAcc = repository.getSuspenseAccountInternal() ?: run {
+            val othersMajorId = repository.getAllMajorHeads().first().find { it.name.equals("Others", true) }?.id
+            val defaultMinorId = othersMajorId?.let { repository.getMinorHeadsByMajor(it).first().find { it.name.equals("Default", true) }?.id }
+            repository.upsertAccount(Account(name = "Suspense", type = "asset", openingBalance = 0.0, minorHeadId = defaultMinorId, isEnabled = true))
+            repository.getSuspenseAccountInternal()
         }
 
         loans.filter { it.isAutoRecordEnabled }.forEach { loan ->
@@ -182,9 +190,9 @@ class CcAlertWorker(context: Context, params: WorkerParameters) : CoroutineWorke
 
             while (!nextDue.isAfter(today) && !loan.isClosed) {
 
-                recordRepayment(dao, loan, nextDue, intExpCat, intIncCat, intMiscCat, effectiveSourceId)
+                recordRepayment(repository, loan, nextDue, intExpCat, intIncCat, intMiscCat, effectiveSourceId)
                 
-                val updatedLoan = dao.getLoanById(loan.id) ?: break
+                val updatedLoan = repository.getLoanById(loan.id) ?: break
                 if (updatedLoan.isClosed) break
                 nextDue = Instant.ofEpochMilli(updatedLoan.nextDueDate).atZone(ZoneId.systemDefault()).toLocalDate()
             }
@@ -211,7 +219,7 @@ class CcAlertWorker(context: Context, params: WorkerParameters) : CoroutineWorke
     }
 
     private suspend fun recordRepayment(
-        dao: ExpenseDao, 
+        repository: FinanceRepository, 
         loan: Loan, 
         dueDate: LocalDate, 
         intExpCat: Category?, 
@@ -236,7 +244,7 @@ class CcAlertWorker(context: Context, params: WorkerParameters) : CoroutineWorke
 
         if (loan.loanType == "BORROWING") {
             // 2. Transfer: Source (Bank/Suspense) -> Loan Account (Amount = EMI)
-            dao.insertTransaction(Transaction(
+            repository.insertTransactionLegacy(TransactionLegacy(
                 date = dateStr,
                 time = timeStr,
                 accountId = sourceId,
@@ -250,7 +258,7 @@ class CcAlertWorker(context: Context, params: WorkerParameters) : CoroutineWorke
 
             // 3. Charge off Interest from Loan Account
             if (intExpCat != null) {
-                dao.insertTransaction(Transaction(
+                repository.insertTransactionLegacy(TransactionLegacy(
                     date = dateStr,
                     time = timeStr,
                     accountId = loan.accountId,
@@ -263,7 +271,7 @@ class CcAlertWorker(context: Context, params: WorkerParameters) : CoroutineWorke
 
             // 4. Charge off difference to Interest Exp Misc (from Source)
             if (diff != 0.0 && intMiscCat != null) {
-                dao.insertTransaction(Transaction(
+                repository.insertTransactionLegacy(TransactionLegacy(
                     date = dateStr,
                     time = timeStr,
                     accountId = sourceId,
@@ -274,9 +282,9 @@ class CcAlertWorker(context: Context, params: WorkerParameters) : CoroutineWorke
                 ))
             }
         } else {
-            // LENDING: Money comes back to us.
+            // LENDING:
             // 2. Transfer: Loan Account -> Source (Bank/Suspense) (Amount = EMI)
-            dao.insertTransaction(Transaction(
+            repository.insertTransactionLegacy(TransactionLegacy(
                 date = dateStr,
                 time = timeStr,
                 accountId = loan.accountId,
@@ -290,7 +298,7 @@ class CcAlertWorker(context: Context, params: WorkerParameters) : CoroutineWorke
 
             // 3. Add Interest Income to Loan Account (to balance principal reduction)
             if (intIncCat != null) {
-                dao.insertTransaction(Transaction(
+                repository.insertTransactionLegacy(TransactionLegacy(
                     date = dateStr,
                     time = timeStr,
                     accountId = loan.accountId,
@@ -303,7 +311,7 @@ class CcAlertWorker(context: Context, params: WorkerParameters) : CoroutineWorke
 
             // 4. Adjustment (Income or Expense based on Diff) from Source
             if (diff != 0.0 && intMiscCat != null) {
-                dao.insertTransaction(Transaction(
+                repository.insertTransactionLegacy(TransactionLegacy(
                     date = dateStr,
                     time = timeStr,
                     accountId = sourceId,
@@ -324,10 +332,10 @@ class CcAlertWorker(context: Context, params: WorkerParameters) : CoroutineWorke
             nextDueDate = LoanCalculator.getNextDate(loan.nextDueDate, loan.frequency),
             isClosed = abs(loan.outstandingBalance - split.first) < 1.0
         )
-        dao.upsertLoan(updatedLoan)
+        repository.upsertLoan(updatedLoan)
         
         // 5. Save LoanRepayment record
-        dao.upsertLoanRepayment(LoanRepayment(
+        repository.upsertLoanRepayment(LoanRepayment(
             loanId = loan.id,
             amountPaid = actualTotal,
             principalPortion = split.first,
@@ -345,8 +353,8 @@ class CcAlertWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         else -> 12.0
     }
 
-    private suspend fun calculateCcPayable(dao: ExpenseDao, acc: Account, startDay: Int, endDay: Int, dueDate: LocalDate, daysPost: Int): Double {
-        // Reconstruct the specific cycle that led to this dueDate
+    private suspend fun calculateCcPayable(repository: FinanceRepository, acc: Account, startDay: Int, endDay: Int, dueDate: LocalDate, daysPost: Int): Double {
+
         var cycleEnd = dueDate.minusDays(daysPost.toLong())
         
         var cycleStart = try {
@@ -360,7 +368,7 @@ class CcAlertWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         val startStr = cycleStart.format(DateTimeFormatter.ISO_DATE)
         val endStr = cycleEnd.format(DateTimeFormatter.ISO_DATE)
         
-        val txns = dao.getAccountTransactionsByDateRange(acc.id, startStr, endStr).first()
+        val txns = repository.getAccountTransactionsByDateRange(acc.id, startStr, endStr).first()
         return txns.sumOf { 
             if (it.transaction.toAccountId == acc.id) it.transaction.amount 
             else -it.transaction.amount 

@@ -1,6 +1,17 @@
 /*
+ * FinTrack
+ * Copyright (C) 2026 Bhuvan (app.upstream242@passmail.com)
  * SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (C) 2026 Bhuvan
+
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
  */
 
 package com.openapps.fintrack.data
@@ -24,7 +35,7 @@ interface ExpenseDao {
     fun getEnabledAccounts(): Flow<List<Account>>
 
     @Upsert
-    suspend fun upsertAccount(account: Account)
+    suspend fun upsertAccount(account: Account): Long
 
     @Update
     suspend fun updateAccount(account: Account)
@@ -72,96 +83,206 @@ interface ExpenseDao {
     fun getAllBudgets(): Flow<List<Budget>>
 
     @Upsert
-    suspend fun upsertBudget(budget: Budget)
+    suspend fun upsertBudget(budget: Budget): Long
 
     @Delete
     suspend fun deleteBudget(budget: Budget)
 
-    // Transactions
+    // Normalized Transactions
+    @Transaction
+    @Query("SELECT * FROM transaction_headers ORDER BY date DESC, time DESC")
+    fun getTransactionsWithLines(): Flow<List<TransactionWithLines>>
+
+    @Transaction
+    @Query("SELECT * FROM transaction_headers ORDER BY date DESC, time DESC")
+    fun getTransactionsDetailed(): Flow<List<TransactionWithLinesAndDetails>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertTransactionHeader(header: TransactionHeader): Long
+
+    @Insert
+    suspend fun insertTransactionLines(lines: List<TransactionLine>)
+
+    @Insert
+    suspend fun insertTransactionTags(tags: List<TransactionTag>)
+
+    @Query("DELETE FROM transaction_headers WHERE id = :id")
+    suspend fun deleteTransactionHeader(id: Int)
+
+    @Query("DELETE FROM transaction_lines WHERE headerId = :headerId")
+    suspend fun deleteTransactionLines(headerId: Int)
+
+    @Query("DELETE FROM transaction_tags WHERE headerId = :headerId")
+    suspend fun deleteTransactionTags(headerId: Int)
+
+    @Query("UPDATE transaction_lines SET isReconciled = :reconciled, reconciliationStatus = :status WHERE headerId = :headerId")
+    suspend fun updateLinesStatusByHeader(headerId: Int, reconciled: Boolean, status: String)
+
+    @Query("UPDATE transactions SET isReconciled = :reconciled, reconciliationStatus = :status WHERE id = :headerId")
+    suspend fun updateLegacyStatusByHeader(headerId: Int, reconciled: Boolean, status: String)
+
+    @Query("UPDATE transaction_lines SET isReconciled = :reconciled WHERE id = :lineId")
+    suspend fun updateLineReconciliation(lineId: Int, reconciled: Boolean)
+
+    @Query("SELECT transactionNumber FROM transaction_headers WHERE transactionNumber LIKE :prefix || '%' ORDER BY id DESC LIMIT 1")
+    suspend fun getLastTransactionHeaderNumber(prefix: String): String?
+
+    // Normalized Budgets
+    @Transaction
+    @Query("SELECT * FROM budgets")
+    fun getBudgetsWithRelations(): Flow<List<BudgetWithRelations>>
+
+    @Insert
+    suspend fun insertBudgetCategory(junction: BudgetCategory)
+
+    @Insert
+    suspend fun insertBudgetAccount(junction: BudgetAccount)
+
+    @Query("DELETE FROM budget_categories WHERE budgetId = :budgetId")
+    suspend fun deleteBudgetCategories(budgetId: Int)
+
+    @Query("DELETE FROM budget_accounts WHERE budgetId = :budgetId")
+    suspend fun deleteBudgetAccounts(budgetId: Int)
+
+    // Normalized Templates
+    @Transaction
+    @Query("SELECT * FROM template_headers ORDER BY name")
+    fun getTemplatesWithLines(): Flow<List<TemplateWithLines>>
+
+    @Insert
+    suspend fun insertTemplateHeader(header: TemplateHeader): Long
+
+    @Insert
+    suspend fun insertTemplateLines(lines: List<TemplateLine>)
+
+    @Insert
+    suspend fun insertTemplateTags(tags: List<TemplateTag>)
+
+    @Query("DELETE FROM template_lines WHERE headerId = :headerId")
+    suspend fun deleteTemplateLines(headerId: Int)
+
+    @Query("DELETE FROM template_tags WHERE headerId = :headerId")
+    suspend fun deleteTemplateTags(headerId: Int)
+
+    @Query("DELETE FROM template_headers WHERE id = :id")
+    suspend fun deleteTemplateHeader(id: Int)
+
+    // Legacy Transactions
     @Query("""
-        SELECT t.*, c.name as categoryName, c.type as categoryType, c.icon as categoryIcon, 
+        SELECT h.id as id, h.date, h.time, l.accountId, l.toAccountId, l.categoryId, 
+               l.amount, l.amountMinorUnits, h.note, h.transactionNumber, h.partyId, h.toPartyId,
+               h.subName, h.subFrequency, l.amountOriginal, l.amountOriginalMinorUnits,
+               l.currencyCode, l.amountBase, l.amountBaseMinorUnits, h.editedAt,
+               l.isNegotiated, l.negotiationAmountOriginal, l.negotiationAmountOriginalMinorUnits,
+               h.merchantName, l.isDiscretionary, h.invoiceNumber, h.dueDays,
+               l.isReconciled, l.reconciliationStatus,
+               c.name as categoryName, c.type as categoryType, c.icon as categoryIcon, 
                a.name as accountName, a.icon as accountIcon, 
                a2.name as toAccountName, a2.icon as toAccountIcon, 
-               p.name as partyName, p2.name as toPartyName
-        FROM transactions t 
-        LEFT JOIN categories c ON t.categoryId = c.id 
-        JOIN accounts a ON t.accountId = a.id
-        LEFT JOIN accounts a2 ON t.toAccountId = a2.id
-        LEFT JOIN parties p ON t.partyId = p.id
-        LEFT JOIN parties p2 ON t.toPartyId = p2.id
-        ORDER BY t.date DESC, t.time DESC
+               COALESCE(p.name, a.name) as partyName, 
+               COALESCE(p2.name, a2.name) as toPartyName
+        FROM transaction_headers h
+        JOIN transaction_lines l ON h.id = l.headerId
+        LEFT JOIN categories c ON l.categoryId = c.id 
+        JOIN accounts a ON l.accountId = a.id
+        LEFT JOIN accounts a2 ON l.toAccountId = a2.id
+        LEFT JOIN parties p ON h.partyId = p.id
+        LEFT JOIN parties p2 ON h.toPartyId = p2.id
+        ORDER BY h.date DESC, h.time DESC
     """)
     fun getAllTransactionsWithDetails(): Flow<List<TransactionWithDetails>>
 
     @Query("""
-        SELECT t.*, c.name as categoryName, c.type as categoryType, c.icon as categoryIcon, 
+        SELECT h.id as id, h.date, h.time, l.accountId, l.toAccountId, l.categoryId, 
+               l.amount, l.amountMinorUnits, h.note, h.transactionNumber, h.partyId, h.toPartyId,
+               h.subName, h.subFrequency, l.amountOriginal, l.amountOriginalMinorUnits,
+               l.currencyCode, l.amountBase, l.amountBaseMinorUnits, h.editedAt,
+               l.isNegotiated, l.negotiationAmountOriginal, l.negotiationAmountOriginalMinorUnits,
+               h.merchantName, l.isDiscretionary, h.invoiceNumber, h.dueDays,
+               l.isReconciled, l.reconciliationStatus,
+               c.name as categoryName, c.type as categoryType, c.icon as categoryIcon, 
                a.name as accountName, a.icon as accountIcon, 
                a2.name as toAccountName, a2.icon as toAccountIcon, 
-               p.name as partyName, p2.name as toPartyName
-        FROM transactions t 
-        LEFT JOIN categories c ON t.categoryId = c.id 
-        JOIN accounts a ON t.accountId = a.id
-        LEFT JOIN accounts a2 ON t.toAccountId = a2.id
-        LEFT JOIN parties p ON t.partyId = p.id
-        LEFT JOIN parties p2 ON t.toPartyId = p2.id
-        WHERE t.date BETWEEN :startDate AND :endDate
-        ORDER BY t.date DESC, t.time DESC
+               COALESCE(p.name, a.name) as partyName, 
+               COALESCE(p2.name, a2.name) as toPartyName
+        FROM transaction_headers h
+        JOIN transaction_lines l ON h.id = l.headerId
+        LEFT JOIN categories c ON l.categoryId = c.id 
+        JOIN accounts a ON l.accountId = a.id
+        LEFT JOIN accounts a2 ON l.toAccountId = a2.id
+        LEFT JOIN parties p ON h.partyId = p.id
+        LEFT JOIN parties p2 ON h.toPartyId = p2.id
+        WHERE h.date BETWEEN :startDate AND :endDate
+        ORDER BY h.date DESC, h.time DESC
     """)
     fun getTransactionsByDateRange(startDate: String, endDate: String): Flow<List<TransactionWithDetails>>
 
     @Query("""
-        SELECT t.*, c.name as categoryName, c.type as categoryType, c.icon as categoryIcon, 
+        SELECT h.id as id, h.date, h.time, l.accountId, l.toAccountId, l.categoryId, 
+               l.amount, l.amountMinorUnits, h.note, h.transactionNumber, h.partyId, h.toPartyId,
+               h.subName, h.subFrequency, l.amountOriginal, l.amountOriginalMinorUnits,
+               l.currencyCode, l.amountBase, l.amountBaseMinorUnits, h.editedAt,
+               l.isNegotiated, l.negotiationAmountOriginal, l.negotiationAmountOriginalMinorUnits,
+               h.merchantName, l.isDiscretionary, h.invoiceNumber, h.dueDays,
+               l.isReconciled, l.reconciliationStatus,
+               c.name as categoryName, c.type as categoryType, c.icon as categoryIcon, 
                a.name as accountName, a.icon as accountIcon, 
                a2.name as toAccountName, a2.icon as toAccountIcon, 
-               p.name as partyName, p2.name as toPartyName
-        FROM transactions t 
-        LEFT JOIN categories c ON t.categoryId = c.id 
-        JOIN accounts a ON t.accountId = a.id
-        LEFT JOIN accounts a2 ON t.toAccountId = a2.id
-        LEFT JOIN parties p ON t.partyId = p.id
-        LEFT JOIN parties p2 ON t.toPartyId = p2.id
-        WHERE (t.accountId = :accountId OR t.toAccountId = :accountId)
-        AND t.date BETWEEN :startDate AND :endDate
-        ORDER BY t.date DESC, t.time DESC
+               COALESCE(p.name, a.name) as partyName, 
+               COALESCE(p2.name, a2.name) as toPartyName
+        FROM transaction_headers h
+        JOIN transaction_lines l ON h.id = l.headerId
+        LEFT JOIN categories c ON l.categoryId = c.id 
+        JOIN accounts a ON l.accountId = a.id
+        LEFT JOIN accounts a2 ON l.toAccountId = a2.id
+        LEFT JOIN parties p ON h.partyId = p.id
+        LEFT JOIN parties p2 ON h.toPartyId = p2.id
+        WHERE (l.accountId = :accountId OR l.toAccountId = :accountId)
+        AND h.date BETWEEN :startDate AND :endDate
+        ORDER BY h.date DESC, h.time DESC
     """)
     fun getAccountTransactionsByDateRange(accountId: Int, startDate: String, endDate: String): Flow<List<TransactionWithDetails>>
 
     @Query("""
-        SELECT a.id, a.name, a.type, a.openingBalance,
+        SELECT a.id, a.name, a.type, a.openingBalanceMinorUnits as openingBalance,
         (
             (CASE WHEN a.name = 'On Account' 
-                 THEN COALESCE((SELECT SUM(openingBalance) FROM parties WHERE isEnabled = 1), 0.0) 
-                 ELSE a.openingBalance 
+                 THEN COALESCE((SELECT SUM(openingBalanceMinorUnits) FROM parties WHERE isEnabled = 1), 0) 
+                 ELSE a.openingBalanceMinorUnits 
             END)
-            + COALESCE((SELECT SUM(t.amount) 
-                FROM transactions t 
-                LEFT JOIN categories c ON t.categoryId = c.id 
-                WHERE t.accountId = a.id AND c.type = 'income' AND t.date <= :asOfDate), 0.0)
-            - COALESCE((SELECT SUM(t.amount) 
-                FROM transactions t 
-                LEFT JOIN categories c ON t.categoryId = c.id 
-                WHERE t.accountId = a.id AND c.type = 'expense' AND t.date <= :asOfDate), 0.0)
-            - COALESCE((SELECT SUM(t.amount) 
-                FROM transactions t 
-                WHERE t.accountId = a.id AND t.toAccountId IS NOT NULL AND t.date <= :asOfDate), 0.0)
-            + COALESCE((SELECT SUM(t.amount) 
-                FROM transactions t 
-                WHERE t.toAccountId = a.id AND t.date <= :asOfDate), 0.0)
+            + COALESCE((SELECT SUM(l.amountMinorUnits) 
+                FROM transaction_lines l 
+                JOIN transaction_headers h ON l.headerId = h.id
+                LEFT JOIN categories c ON l.categoryId = c.id 
+                WHERE l.accountId = a.id AND LOWER(c.type) = 'income' AND h.date <= :asOfDate AND l.reconciliationStatus != 'VOID'), 0)
+            - COALESCE((SELECT SUM(l.amountMinorUnits) 
+                FROM transaction_lines l 
+                JOIN transaction_headers h ON l.headerId = h.id
+                LEFT JOIN categories c ON l.categoryId = c.id 
+                WHERE l.accountId = a.id AND LOWER(c.type) = 'expense' AND h.date <= :asOfDate AND l.reconciliationStatus != 'VOID'), 0)
+            - COALESCE((SELECT SUM(l.amountMinorUnits) 
+                FROM transaction_lines l 
+                JOIN transaction_headers h ON l.headerId = h.id
+                WHERE l.accountId = a.id AND l.toAccountId IS NOT NULL AND h.date <= :asOfDate AND l.reconciliationStatus != 'VOID'), 0)
+            + COALESCE((SELECT SUM(l.amountMinorUnits) 
+                FROM transaction_lines l 
+                JOIN transaction_headers h ON l.headerId = h.id
+                WHERE l.toAccountId = a.id AND h.date <= :asOfDate AND l.reconciliationStatus != 'VOID'), 0)
         ) as balance,
-        a.minorHeadId, a.billingCycleStart, a.billingCycleEnd, a.paymentDueDate, a.icon, a.isEmergencyFund, a.creditLimit
+        a.minorHeadId, a.billingCycleStart, a.billingCycleEnd, a.paymentDueDate, a.icon, a.isEmergencyFund, a.creditLimitMinorUnits as creditLimit, a.minimumBalance
         FROM accounts a
         WHERE a.isEnabled = 1 AND a.name != 'Suspense'
     """)
     fun getAccountBalances(asOfDate: String): Flow<List<AccountBalance>>
 
     @Insert
-    suspend fun insertTransaction(transaction: Transaction): Long
+    suspend fun insertTransaction(transaction: TransactionLegacy): Long
 
     @Insert
-    suspend fun insertTransactions(transactions: List<Transaction>)
+    suspend fun insertTransactions(transactions: List<TransactionLegacy>)
 
     @Update
-    suspend fun updateTransaction(transaction: Transaction)
+    suspend fun updateTransaction(transaction: TransactionLegacy)
 
     @Query("DELETE FROM transactions WHERE id = :id")
     suspend fun deleteTransaction(id: Int)
@@ -169,8 +290,24 @@ interface ExpenseDao {
     @Query("SELECT transactionNumber FROM transactions WHERE transactionNumber LIKE :prefix || '%' ORDER BY id DESC LIMIT 1")
     suspend fun getLastTransactionNumber(prefix: String): String?
 
-    @Query("SELECT MIN(date) FROM transactions")
+    @Query("SELECT MIN(date) FROM transaction_headers")
     suspend fun getFirstTransactionDate(): String?
+
+    // SMS Automation
+    @Query("SELECT * FROM sms_logs WHERE bodyHash = :hash LIMIT 1")
+    suspend fun getSmsLogByHash(hash: String): SmsLog?
+
+    @Insert
+    suspend fun insertSmsLog(log: SmsLog)
+
+    @Query("SELECT * FROM sms_drafts ORDER BY date DESC, time DESC")
+    fun getAllSmsDrafts(): Flow<List<SmsTransactionDraft>>
+
+    @Insert
+    suspend fun insertSmsDraft(draft: SmsTransactionDraft)
+
+    @Delete
+    suspend fun deleteSmsDraft(draft: SmsTransactionDraft)
 
     // Parties (Payer/Payee)
     @Query("SELECT * FROM parties ORDER BY name")
@@ -191,11 +328,11 @@ interface ExpenseDao {
     @Query("""
         SELECT p.id, p.name,
         (
-            p.openingBalance
-            + COALESCE((SELECT SUM(t.amount) FROM transactions t LEFT JOIN categories c ON t.categoryId = c.id 
-                WHERE (t.partyId = p.id AND c.type = 'income' AND t.date <= :asOfDate) OR (t.toPartyId = p.id AND t.date <= :asOfDate)), 0)
-            - COALESCE((SELECT SUM(t.amount) FROM transactions t LEFT JOIN categories c ON t.categoryId = c.id 
-                WHERE (t.partyId = p.id AND (c.type = 'expense' OR (t.categoryId IS NULL AND t.toAccountId IS NOT NULL)) AND t.date <= :asOfDate)), 0)
+            p.openingBalanceMinorUnits
+            + COALESCE((SELECT SUM(l.amountMinorUnits) FROM transaction_lines l JOIN transaction_headers h ON l.headerId = h.id LEFT JOIN categories c ON l.categoryId = c.id 
+                WHERE (h.partyId = p.id AND c.type = 'income' AND h.date <= :asOfDate) OR (h.toPartyId = p.id AND h.date <= :asOfDate)), 0)
+            - COALESCE((SELECT SUM(l.amountMinorUnits) FROM transaction_lines l JOIN transaction_headers h ON l.headerId = h.id LEFT JOIN categories c ON l.categoryId = c.id 
+                WHERE (h.partyId = p.id AND (c.type = 'expense' OR (l.categoryId IS NULL AND l.toAccountId IS NOT NULL)) AND h.date <= :asOfDate)), 0)
         ) as balance
         FROM parties p
         WHERE p.isEnabled = 1
@@ -204,13 +341,13 @@ interface ExpenseDao {
 
     // Templates
     @Query("SELECT * FROM templates ORDER BY name")
-    fun getAllTemplates(): Flow<List<Template>>
+    fun getAllTemplates(): Flow<List<TemplateLegacy>>
 
     @Upsert
-    suspend fun upsertTemplate(template: Template)
+    suspend fun upsertTemplate(template: TemplateLegacy)
 
     @Delete
-    suspend fun deleteTemplate(template: Template)
+    suspend fun deleteTemplate(template: TemplateLegacy)
 
     // Major Heads
     @Query("SELECT * FROM major_heads ORDER BY name")
@@ -246,14 +383,14 @@ interface ExpenseDao {
         (
             SELECT COALESCE(SUM(
                 (CASE WHEN a.name = 'On Account' 
-                     THEN COALESCE((SELECT SUM(openingBalance) FROM parties WHERE isEnabled = 1), 0.0) 
-                     ELSE a.openingBalance 
+                     THEN COALESCE((SELECT SUM(openingBalanceMinorUnits) FROM parties WHERE isEnabled = 1), 0) 
+                     ELSE a.openingBalanceMinorUnits 
                 END)
-                + COALESCE((SELECT SUM(t.amount) FROM transactions t LEFT JOIN categories c ON t.categoryId = c.id WHERE t.accountId = a.id AND c.type = 'income' AND t.date <= :asOfDate), 0.0)
-                - COALESCE((SELECT SUM(t.amount) FROM transactions t LEFT JOIN categories c ON t.categoryId = c.id WHERE t.accountId = a.id AND c.type = 'expense' AND t.date <= :asOfDate), 0.0)
-                - COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.accountId = a.id AND t.toAccountId IS NOT NULL AND t.date <= :asOfDate), 0.0)
-                + COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.toAccountId = a.id AND t.date <= :asOfDate), 0.0)
-            ), 0.0)
+                + COALESCE((SELECT SUM(l.amountMinorUnits) FROM transaction_lines l JOIN transaction_headers h ON l.headerId = h.id LEFT JOIN categories c ON l.categoryId = c.id WHERE l.accountId = a.id AND LOWER(c.type) = 'income' AND h.date <= :asOfDate AND l.reconciliationStatus != 'VOID'), 0)
+                - COALESCE((SELECT SUM(l.amountMinorUnits) FROM transaction_lines l JOIN transaction_headers h ON l.headerId = h.id LEFT JOIN categories c ON l.categoryId = c.id WHERE l.accountId = a.id AND LOWER(c.type) = 'expense' AND h.date <= :asOfDate AND l.reconciliationStatus != 'VOID'), 0)
+                - COALESCE((SELECT SUM(l.amountMinorUnits) FROM transaction_lines l JOIN transaction_headers h ON l.headerId = h.id WHERE l.accountId = a.id AND l.toAccountId IS NOT NULL AND h.date <= :asOfDate AND l.reconciliationStatus != 'VOID'), 0)
+                + COALESCE((SELECT SUM(l.amountMinorUnits) FROM transaction_lines l JOIN transaction_headers h ON l.headerId = h.id WHERE l.toAccountId = a.id AND h.date <= :asOfDate AND l.reconciliationStatus != 'VOID'), 0)
+            ), 0)
             FROM accounts a
             LEFT JOIN minor_heads mih ON a.minorHeadId = mih.id
             WHERE mih.majorHeadId = mh.id AND a.isEnabled = 1 AND a.name != 'Suspense'
@@ -268,14 +405,14 @@ interface ExpenseDao {
         (
             SELECT COALESCE(SUM(
                 (CASE WHEN a.name = 'On Account' 
-                     THEN COALESCE((SELECT SUM(openingBalance) FROM parties WHERE isEnabled = 1), 0.0) 
-                     ELSE a.openingBalance 
+                     THEN COALESCE((SELECT SUM(openingBalanceMinorUnits) FROM parties WHERE isEnabled = 1), 0) 
+                     ELSE a.openingBalanceMinorUnits 
                 END)
-                + COALESCE((SELECT SUM(t.amount) FROM transactions t LEFT JOIN categories c ON t.categoryId = c.id WHERE t.accountId = a.id AND c.type = 'income' AND t.date <= :asOfDate), 0.0)
-                - COALESCE((SELECT SUM(t.amount) FROM transactions t LEFT JOIN categories c ON t.categoryId = c.id WHERE t.accountId = a.id AND c.type = 'expense' AND t.date <= :asOfDate), 0.0)
-                - COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.accountId = a.id AND t.toAccountId IS NOT NULL AND t.date <= :asOfDate), 0.0)
-                + COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.toAccountId = a.id AND t.date <= :asOfDate), 0.0)
-            ), 0.0)
+                + COALESCE((SELECT SUM(l.amountMinorUnits) FROM transaction_lines l JOIN transaction_headers h ON l.headerId = h.id LEFT JOIN categories c ON l.categoryId = c.id WHERE l.accountId = a.id AND LOWER(c.type) = 'income' AND h.date <= :asOfDate AND l.reconciliationStatus != 'VOID'), 0)
+                - COALESCE((SELECT SUM(l.amountMinorUnits) FROM transaction_lines l JOIN transaction_headers h ON l.headerId = h.id LEFT JOIN categories c ON l.categoryId = c.id WHERE l.accountId = a.id AND LOWER(c.type) = 'expense' AND h.date <= :asOfDate AND l.reconciliationStatus != 'VOID'), 0)
+                - COALESCE((SELECT SUM(l.amountMinorUnits) FROM transaction_lines l JOIN transaction_headers h ON l.headerId = h.id WHERE l.accountId = a.id AND l.toAccountId IS NOT NULL AND h.date <= :asOfDate AND l.reconciliationStatus != 'VOID'), 0)
+                + COALESCE((SELECT SUM(l.amountMinorUnits) FROM transaction_lines l JOIN transaction_headers h ON l.headerId = h.id WHERE l.toAccountId = a.id AND h.date <= :asOfDate AND l.reconciliationStatus != 'VOID'), 0)
+            ), 0)
             FROM accounts a
             WHERE a.minorHeadId = mih.id AND a.isEnabled = 1 AND a.name != 'Suspense'
         ) as balance
@@ -387,65 +524,239 @@ interface ExpenseDao {
     suspend fun deleteClearancesByTransfer(transferId: Int)
 
     @Query("""
-        SELECT t.*, c.name as categoryName, c.type as categoryType, c.icon as categoryIcon, 
+        SELECT h.id as id, h.date, h.time, l.accountId, l.toAccountId, l.categoryId, 
+               l.amount, l.amountMinorUnits, h.note, h.transactionNumber, h.partyId, h.toPartyId,
+               h.subName, h.subFrequency, l.amountOriginal, l.amountOriginalMinorUnits,
+               l.currencyCode, l.amountBase, l.amountBaseMinorUnits, h.editedAt,
+               l.isNegotiated, l.negotiationAmountOriginal, l.negotiationAmountOriginalMinorUnits,
+               h.merchantName, l.isDiscretionary, h.invoiceNumber, h.dueDays,
+               l.isReconciled, l.reconciliationStatus,
+               c.name as categoryName, c.type as categoryType, c.icon as categoryIcon, 
                a.name as accountName, a.icon as accountIcon, 
                a2.name as toAccountName, a2.icon as toAccountIcon, 
-               COALESCE(p.name, ap.name, a.name) as partyName, 
-               COALESCE(p2.name, ap2.name, a2.name) as toPartyName,
-               COALESCE((SELECT SUM(amountCleared) FROM invoice_clearances ic JOIN transactions tt ON ic.transferTransactionId = tt.id WHERE ic.invoiceTransactionId = t.id AND tt.date <= :asOfDate), 0.0) as totalCleared
-        FROM transactions t 
-        LEFT JOIN categories c ON t.categoryId = c.id 
-        JOIN accounts a ON t.accountId = a.id
-        LEFT JOIN accounts a2 ON t.toAccountId = a2.id
-        LEFT JOIN parties p ON t.partyId = p.id
-        LEFT JOIN accounts ap ON t.partyId = ap.id
-        LEFT JOIN parties p2 ON t.toPartyId = p2.id
-        LEFT JOIN accounts ap2 ON t.toPartyId = ap2.id
-        WHERE t.invoiceNumber IS NOT NULL 
-        AND (t.partyId = :partyId OR t.accountId = :partyId)
-        AND t.date <= :asOfDate
-        ORDER BY t.date ASC, t.time ASC
+               COALESCE(p.name, a.name) as partyName, 
+               COALESCE(p2.name, a2.name) as toPartyName,
+               COALESCE((SELECT SUM(amountClearedMinorUnits) FROM invoice_clearances ic JOIN transaction_headers th ON ic.transferTransactionId = th.id WHERE ic.invoiceTransactionId = h.id AND th.date <= :asOfDate), 0) as totalCleared
+        FROM transaction_headers h
+        JOIN transaction_lines l ON h.id = l.headerId
+        LEFT JOIN categories c ON l.categoryId = c.id 
+        JOIN accounts a ON l.accountId = a.id
+        LEFT JOIN accounts a2 ON l.toAccountId = a2.id
+        LEFT JOIN parties p ON h.partyId = p.id
+        LEFT JOIN parties p2 ON h.toPartyId = p2.id
+        WHERE h.invoiceNumber IS NOT NULL 
+        AND (h.partyId = :partyId OR l.accountId = :partyId)
+        AND h.date <= :asOfDate
+        ORDER BY h.date ASC, h.time ASC
     """)
     fun getInvoicesForParty(partyId: Int, asOfDate: String): Flow<List<TransactionWithInvoiceDetails>>
 
     @Query("""
-        SELECT ic.*, t.transactionNumber as otherTxnNumber, t.date as otherDate, t.amount as otherTotalAmount,
+        SELECT ic.*, h.transactionNumber as otherTxnNumber, h.date as otherDate, 
+               (SELECT SUM(amount) FROM transaction_lines WHERE headerId = h.id) as otherTotalAmount,
                a1.name as accountName, a2.name as toAccountName
         FROM invoice_clearances ic
-        JOIN transactions t ON ic.transferTransactionId = t.id
-        JOIN accounts a1 ON t.accountId = a1.id
-        LEFT JOIN accounts a2 ON t.toAccountId = a2.id
+        JOIN transaction_headers h ON ic.transferTransactionId = h.id
+        JOIN transaction_lines l ON h.id = l.headerId
+        JOIN accounts a1 ON l.accountId = a1.id
+        LEFT JOIN accounts a2 ON l.toAccountId = a2.id
         WHERE ic.invoiceTransactionId = :invoiceId
+        GROUP BY ic.id
     """)
     suspend fun getClearingsForInvoice(invoiceId: Int): List<InvoiceClearanceExtended>
 
     @Query("""
-        SELECT ic.*, t.transactionNumber as otherTxnNumber, t.date as otherDate, t.amount as otherTotalAmount,
-               t.invoiceNumber as otherInvoiceNumber
+        SELECT ic.*, h.transactionNumber as otherTxnNumber, h.date as otherDate, 
+               (SELECT SUM(amount) FROM transaction_lines WHERE headerId = h.id) as otherTotalAmount,
+               h.invoiceNumber as otherInvoiceNumber
         FROM invoice_clearances ic
-        JOIN transactions t ON ic.invoiceTransactionId = t.id
+        JOIN transaction_headers h ON ic.invoiceTransactionId = h.id
         WHERE ic.transferTransactionId = :transferId
     """)
     suspend fun getInvoicesClearedByTransfer(transferId: Int): List<InvoiceClearanceExtended>
 
     @Query("""
-        SELECT t.*, c.name as categoryName, c.type as categoryType, c.icon as categoryIcon, 
+        SELECT h.id as id, h.date, h.time, l.accountId, l.toAccountId, l.categoryId, 
+               l.amount, l.amountMinorUnits, h.note, h.transactionNumber, h.partyId, h.toPartyId,
+               h.subName, h.subFrequency, l.amountOriginal, l.amountOriginalMinorUnits,
+               l.currencyCode, l.amountBase, l.amountBaseMinorUnits, h.editedAt,
+               l.isNegotiated, l.negotiationAmountOriginal, l.negotiationAmountOriginalMinorUnits,
+               h.merchantName, l.isDiscretionary, h.invoiceNumber, h.dueDays,
+               l.isReconciled, l.reconciliationStatus,
+               c.name as categoryName, c.type as categoryType, c.icon as categoryIcon, 
                a.name as accountName, a.icon as accountIcon, 
                a2.name as toAccountName, a2.icon as toAccountIcon, 
-               COALESCE(p.name, ap.name, a.name) as partyName, 
-               COALESCE(p2.name, ap2.name, a2.name) as toPartyName
-        FROM transactions t 
-        LEFT JOIN categories c ON t.categoryId = c.id 
-        JOIN accounts a ON t.accountId = a.id
-        LEFT JOIN accounts a2 ON t.toAccountId = a2.id
-        LEFT JOIN parties p ON t.partyId = p.id
-        LEFT JOIN accounts ap ON t.partyId = ap.id
-        LEFT JOIN parties p2 ON t.toPartyId = p2.id
-        LEFT JOIN accounts ap2 ON t.toPartyId = ap2.id
-        WHERE t.id = :id
+               COALESCE(p.name, a.name) as partyName, 
+               COALESCE(p2.name, a2.name) as toPartyName
+        FROM transaction_headers h
+        JOIN transaction_lines l ON h.id = l.headerId
+        LEFT JOIN categories c ON l.categoryId = c.id 
+        JOIN accounts a ON l.accountId = a.id
+        LEFT JOIN accounts a2 ON l.toAccountId = a2.id
+        LEFT JOIN parties p ON h.partyId = p.id
+        LEFT JOIN parties p2 ON h.toPartyId = p2.id
+        WHERE h.id = :id
+        LIMIT 1
     """)
     suspend fun getTransactionWithDetails(id: Int): TransactionWithDetails?
+
+    // Goals
+    @Query("SELECT * FROM goals WHERE isDeleted = 0 ORDER BY name")
+    fun getAllGoals(): Flow<List<Goal>>
+
+    @Upsert
+    suspend fun upsertGoal(goal: Goal): Long
+
+    @Delete
+    suspend fun deleteGoal(goal: Goal)
+
+    @Query("SELECT * FROM goal_account_allocations WHERE goalId = :goalId")
+    fun getAllocationsForGoal(goalId: Int): Flow<List<GoalAccountAllocation>>
+
+    @Query("SELECT * FROM goal_account_allocations")
+    fun getAllAllocations(): Flow<List<GoalAccountAllocation>>
+
+    @Query("SELECT * FROM goal_account_allocations WHERE goalId = :goalId AND accountId = :accountId")
+    suspend fun getAllocation(goalId: Int, accountId: Int): GoalAccountAllocation?
+
+    @Upsert
+    suspend fun upsertAllocation(allocation: GoalAccountAllocation)
+
+    @Query("DELETE FROM goal_account_allocations WHERE goalId = :goalId AND accountId = :accountId")
+    suspend fun deleteAllocation(goalId: Int, accountId: Int)
+
+    @Query("SELECT * FROM goal_rules")
+    fun getAllGoalRules(): Flow<List<GoalRule>>
+
+    @Upsert
+    suspend fun upsertGoalRule(rule: GoalRule): Long
+
+    @Delete
+    suspend fun deleteGoalRule(rule: GoalRule)
+
+    @Upsert
+    suspend fun insertGoalTransaction(gt: GoalTransaction)
+
+    @Query("""
+        SELECT h.id as id, h.date, h.time, l.accountId, l.toAccountId, l.categoryId, 
+               l.amount, l.amountMinorUnits, h.note, h.transactionNumber, h.partyId, h.toPartyId,
+               h.subName, h.subFrequency, l.amountOriginal, l.amountOriginalMinorUnits,
+               l.currencyCode, l.amountBase, l.amountBaseMinorUnits, h.editedAt,
+               l.isNegotiated, l.negotiationAmountOriginal, l.negotiationAmountOriginalMinorUnits,
+               h.merchantName, l.isDiscretionary, h.invoiceNumber, h.dueDays,
+               l.isReconciled, l.reconciliationStatus,
+               c.name as categoryName, c.type as categoryType, c.icon as categoryIcon, 
+               a.name as accountName, a.icon as accountIcon, 
+               a2.name as toAccountName, a2.icon as toAccountIcon, 
+               COALESCE(p.name, a.name) as partyName, 
+               COALESCE(p2.name, a2.name) as toPartyName
+        FROM transaction_headers h
+        JOIN transaction_lines l ON h.id = l.headerId
+        JOIN goal_transactions gt ON h.id = gt.transactionId
+        LEFT JOIN categories c ON l.categoryId = c.id 
+        JOIN accounts a ON l.accountId = a.id
+        LEFT JOIN accounts a2 ON l.toAccountId = a2.id
+        LEFT JOIN parties p ON h.partyId = p.id
+        LEFT JOIN parties p2 ON h.toPartyId = p2.id
+        WHERE gt.goalId = :goalId
+        ORDER BY h.date DESC, h.time DESC
+    """)
+    fun getTransactionsForGoal(goalId: Int): Flow<List<TransactionWithDetails>>
+
+    @Query("SELECT * FROM goal_allocation_history WHERE goalId = :goalId ORDER BY timestamp DESC")
+    fun getAllocationHistoryForGoal(goalId: Int): Flow<List<GoalAllocationHistory>>
+
+    @Upsert
+    suspend fun insertAllocationHistory(history: GoalAllocationHistory)
+
+    @Insert
+    suspend fun insertFdClearance(clearance: FdClearance): Long
+
+    @Query("DELETE FROM fd_clearances WHERE redemptionHeaderId = :redemptionHeaderId")
+    suspend fun deleteFdClearancesByRedemption(redemptionHeaderId: Int)
+
+    @Query("SELECT * FROM fd_clearances WHERE redemptionHeaderId = :redemptionHeaderId")
+    suspend fun getFdClearancesForRedemption(redemptionHeaderId: Int): List<FdClearance>
+
+    @Query("SELECT * FROM fd_clearances")
+    fun getAllFdClearances(): Flow<List<FdClearance>>
 }
+
+data class TransactionWithLinesAndDetails(
+    @Embedded val header: TransactionHeader,
+    @Relation(parentColumn = "partyId", entityColumn = "id")
+    val party: Party?,
+    @Relation(parentColumn = "toPartyId", entityColumn = "id")
+    val toParty: Party?,
+    @Relation(
+        entity = TransactionLine::class,
+        parentColumn = "id",
+        entityColumn = "headerId"
+    )
+    val lines: List<TransactionLineDetailed>,
+    @Relation(
+        parentColumn = "id",
+        entityColumn = "id",
+        associateBy = Junction(TransactionTag::class, parentColumn = "headerId", entityColumn = "tagId")
+    )
+    val tags: List<Tag>
+)
+
+data class TransactionLineDetailed(
+    @Embedded val line: TransactionLine,
+    @Relation(parentColumn = "accountId", entityColumn = "id")
+    val account: Account,
+    @Relation(parentColumn = "categoryId", entityColumn = "id")
+    val category: Category?,
+    @Relation(parentColumn = "toAccountId", entityColumn = "id")
+    val toAccount: Account?
+)
+
+data class TransactionWithLines(
+    @Embedded val header: TransactionHeader,
+    @Relation(
+        parentColumn = "id",
+        entityColumn = "headerId"
+    )
+    val lines: List<TransactionLine>,
+    @Relation(
+        parentColumn = "id",
+        entityColumn = "id",
+        associateBy = Junction(TransactionTag::class, parentColumn = "headerId", entityColumn = "tagId")
+    )
+    val tags: List<Tag>
+)
+
+data class BudgetWithRelations(
+    @Embedded val budget: Budget,
+    @Relation(
+        parentColumn = "id",
+        entityColumn = "id",
+        associateBy = Junction(BudgetCategory::class, parentColumn = "budgetId", entityColumn = "categoryId")
+    )
+    val categories: List<Category>,
+    @Relation(
+        parentColumn = "id",
+        entityColumn = "id",
+        associateBy = Junction(BudgetAccount::class, parentColumn = "budgetId", entityColumn = "accountId")
+    )
+    val accounts: List<Account>
+)
+
+data class TemplateWithLines(
+    @Embedded val header: TemplateHeader,
+    @Relation(
+        parentColumn = "id",
+        entityColumn = "headerId"
+    )
+    val lines: List<TemplateLine>,
+    @Relation(
+        parentColumn = "id",
+        entityColumn = "id",
+        associateBy = Junction(TemplateTag::class, parentColumn = "headerId", entityColumn = "tagId")
+    )
+    val tags: List<Tag>
+)
 
 data class InvoiceClearanceExtended(
     @Embedded val clearance: InvoiceClearance,
@@ -459,11 +770,11 @@ data class InvoiceClearanceExtended(
 
 data class TransactionWithInvoiceDetails(
     @Embedded val detail: TransactionWithDetails,
-    val totalCleared: Double
+    val totalCleared: Long
 )
 
 data class TransactionWithDetails(
-    @Embedded val transaction: Transaction,
+    @Embedded val transaction: TransactionLegacy,
     val categoryName: String?,
     val categoryType: String?,
     val categoryIcon: String?,
@@ -479,15 +790,16 @@ data class AccountBalance(
     val id: Int,
     val name: String,
     val type: String,
-    val openingBalance: Double,
-    val balance: Double,
+    val openingBalance: Long,
+    val balance: Long,
     val minorHeadId: Int? = null,
     val billingCycleStart: String? = null,
     val billingCycleEnd: String? = null,
     val paymentDueDate: String? = null,
     val icon: String? = null,
     val isEmergencyFund: Boolean = false,
-    val creditLimit: Double? = null
+    val creditLimit: Long? = null,
+    val minimumBalance: Double? = null
 )
 
 data class BudgetWithDetails(
@@ -499,18 +811,18 @@ data class BudgetWithDetails(
 data class PartyBalance(
     val id: Int,
     val name: String,
-    val balance: Double
+    val balance: Long
 )
 
 data class MajorHeadBalance(
     val id: Int,
     val name: String,
-    val balance: Double
+    val balance: Long
 )
 
 data class MinorHeadBalance(
     val id: Int,
     val name: String,
     val majorHeadId: Int,
-    val balance: Double
+    val balance: Long
 )

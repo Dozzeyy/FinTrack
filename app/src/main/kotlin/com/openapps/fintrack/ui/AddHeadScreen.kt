@@ -1,6 +1,17 @@
 /*
+ * FinTrack
+ * Copyright (C) 2026 Bhuvan (app.upstream242@passmail.com)
  * SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (C) 2026 Bhuvan
+
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
  */
 
 package com.openapps.fintrack.ui
@@ -18,7 +29,9 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.openapps.fintrack.data.MajorHead
 import com.openapps.fintrack.data.MinorHead
@@ -64,6 +77,19 @@ fun AddHeadScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                     Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text(stringResource(R.string.label_minor)) })
                 }
                 Spacer(Modifier.height(16.dp))
+            }
+
+            val editingMajorName = editingMajor?.name.orEmpty()
+            val coreMajorHeadNames = listOf("Bank Accounts", "Investments", "Credit Cards", "Credit cards", "On Account (Loan)")
+            val isCoreHead = editingMajor != null && coreMajorHeadNames.any { it.equals(editingMajorName, ignoreCase = true) }
+            if (isCoreHead) {
+                Text(
+                    text = "⚠️ Warning: Modifying or deleting core system Major Heads (Bank Accounts, Investments, Credit cards, On Account (Loan)) may disrupt linked features and accounts.",
+                    color = Color.Red,
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
             }
 
             OutlinedTextField(

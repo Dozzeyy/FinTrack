@@ -1,6 +1,17 @@
 /*
+ * FinTrack
+ * Copyright (C) 2026 Bhuvan (app.upstream242@passmail.com)
  * SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (C) 2026 Bhuvan
+
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
  */
 
 package com.openapps.fintrack.ui
@@ -98,7 +109,7 @@ fun PointData.toOffset() = Offset(x, y)
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun NotesScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
+fun NotesScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, isEmbedded: Boolean = false) {
     var isAddingNote by remember { mutableStateOf(false) }
     var noteTypeToAdd by remember { mutableStateOf("text") }
     var viewingNote by remember { mutableStateOf<Note?>(null) }
@@ -165,116 +176,137 @@ fun NotesScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
             },
             onUpdateNote = { updatedNote ->
                 viewingNote = updatedNote
-            }
+            },
+            isEmbedded = isEmbedded
         )
     } else {
         Scaffold(
             topBar = {
-                TopAppBar(
-                    title = {
-                        if (isSearching) {
-                            TextField(
-                                value = searchQuery,
-                                onValueChange = { searchQuery = it },
-                                placeholder = { Text(stringResource(R.string.label_search_placeholder)) },
-                                modifier = Modifier.fillMaxWidth(),
-                                singleLine = true,
-                                colors = TextFieldDefaults.colors(
-                                    focusedContainerColor = Color.Transparent,
-                                    unfocusedContainerColor = Color.Transparent
-                                )
-                            )
-                        } else {
-                            Text(stringResource(R.string.menu_notes))
-                        }
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = {
+                if (!isEmbedded || isSearching) {
+                    TopAppBar(
+                        title = {
                             if (isSearching) {
-                                isSearching = false
-                                searchQuery = ""
+                                TextField(
+                                    value = searchQuery,
+                                    onValueChange = { searchQuery = it },
+                                    placeholder = { Text(stringResource(R.string.label_search_placeholder)) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true,
+                                    colors = TextFieldDefaults.colors(
+                                        focusedContainerColor = Color.Transparent,
+                                        unfocusedContainerColor = Color.Transparent
+                                    )
+                                )
                             } else {
-                                onBack()
-                            }
-                        }) {
-                            Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.btn_back))
-                        }
-                    },
-                    actions = {
-                        IconButton(onClick = { showTagFilter = true }) {
-                            Icon(Icons.Default.Label, contentDescription = stringResource(R.string.title_filter_tags), tint = if (selectedTagIds.isNotEmpty()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
-                        }
-                        IconButton(onClick = { isSearching = !isSearching }) {
-                            Icon(if (isSearching) Icons.Default.Close else Icons.Default.Search, contentDescription = stringResource(R.string.label_search))
-                        }
-                    }
-                )
-            },
-            floatingActionButton = {
-                Box(contentAlignment = Alignment.BottomEnd) {
-                    if (showFabMenu) {
-                        Column(
-                            horizontalAlignment = Alignment.End,
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.padding(bottom = 72.dp)
-                        ) {
-                            ExtendedFloatingActionButton(
-                                onClick = {
-                                    noteTypeToAdd = "statement"
-                                    isAddingNote = true
-                                    showFabMenu = false
-                                },
-                                icon = { Icon(Icons.Default.TableChart, null) },
-                                text = { Text(stringResource(R.string.title_statement)) },
-                                containerColor = MaterialTheme.colorScheme.secondaryContainer
-                            )
-                            ExtendedFloatingActionButton(
-                                onClick = {
-                                    noteTypeToAdd = "drawing"
-                                    isAddingNote = true
-                                    showFabMenu = false
-                                },
-                                icon = { Icon(Icons.Default.Brush, null) },
-                                text = { Text(stringResource(R.string.title_drawing)) },
-                                containerColor = MaterialTheme.colorScheme.secondaryContainer
-                            )
-                            ExtendedFloatingActionButton(
-                                onClick = {
-                                    noteTypeToAdd = "checklist"
-                                    isAddingNote = true
-                                    showFabMenu = false
-                                },
-                                icon = { Icon(Icons.Default.List, null) },
-                                text = { Text(stringResource(R.string.title_checklist)) },
-                                containerColor = MaterialTheme.colorScheme.secondaryContainer
-                            )
-                            ExtendedFloatingActionButton(
-                                onClick = {
-                                    noteTypeToAdd = "text"
-                                    isAddingNote = true
-                                    showFabMenu = false
-                                },
-                                icon = { Icon(Icons.Default.Notes, null) },
-                                text = { Text(stringResource(R.string.title_new_note)) },
-                                containerColor = MaterialTheme.colorScheme.secondaryContainer
-                            )
-                        }
-                    }
-                    FloatingActionButton(
-                        onClick = { 
-                            if (!isServerRunning) {
-                                showFabMenu = !showFabMenu
+                                Text(stringResource(R.string.menu_notes))
                             }
                         },
-                        containerColor = if (isServerRunning) Color.Gray else MaterialTheme.colorScheme.primaryContainer
-                    ) {
-                        Icon(if (showFabMenu) Icons.Default.Close else Icons.Default.Add, contentDescription = stringResource(R.string.btn_add))
+                        navigationIcon = {
+                            IconButton(onClick = {
+                                if (isSearching) {
+                                    isSearching = false
+                                    searchQuery = ""
+                                } else {
+                                    onBack()
+                                }
+                            }) {
+                                Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.btn_back))
+                            }
+                        },
+                        actions = {
+                            IconButton(onClick = { showTagFilter = true }) {
+                                Icon(Icons.Default.Label, contentDescription = stringResource(R.string.title_filter_tags), tint = if (selectedTagIds.isNotEmpty()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+                            }
+                            IconButton(onClick = { isSearching = !isSearching }) {
+                                Icon(if (isSearching) Icons.Default.Close else Icons.Default.Search, contentDescription = stringResource(R.string.label_search))
+                            }
+                        }
+                    )
+                }
+            },
+            floatingActionButton = {
+                if (!isEmbedded) {
+                    Box(contentAlignment = Alignment.BottomEnd) {
+                        if (showFabMenu) {
+                            Column(
+                                horizontalAlignment = Alignment.End,
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.padding(bottom = 72.dp)
+                            ) {
+                                ExtendedFloatingActionButton(
+                                    onClick = {
+                                        noteTypeToAdd = "statement"
+                                        isAddingNote = true
+                                        showFabMenu = false
+                                    },
+                                    icon = { Icon(Icons.Default.TableChart, null) },
+                                    text = { Text(stringResource(R.string.title_statement)) },
+                                    containerColor = MaterialTheme.colorScheme.secondaryContainer
+                                )
+                                ExtendedFloatingActionButton(
+                                    onClick = {
+                                        noteTypeToAdd = "drawing"
+                                        isAddingNote = true
+                                        showFabMenu = false
+                                    },
+                                    icon = { Icon(Icons.Default.Brush, null) },
+                                    text = { Text(stringResource(R.string.title_drawing)) },
+                                    containerColor = MaterialTheme.colorScheme.secondaryContainer
+                                )
+                                ExtendedFloatingActionButton(
+                                    onClick = {
+                                        noteTypeToAdd = "checklist"
+                                        isAddingNote = true
+                                        showFabMenu = false
+                                    },
+                                    icon = { Icon(Icons.Default.List, null) },
+                                    text = { Text(stringResource(R.string.title_checklist)) },
+                                    containerColor = MaterialTheme.colorScheme.secondaryContainer
+                                )
+                                ExtendedFloatingActionButton(
+                                    onClick = {
+                                        noteTypeToAdd = "text"
+                                        isAddingNote = true
+                                        showFabMenu = false
+                                    },
+                                    icon = { Icon(Icons.Default.Notes, null) },
+                                    text = { Text(stringResource(R.string.title_new_note)) },
+                                    containerColor = MaterialTheme.colorScheme.secondaryContainer
+                                )
+                            }
+                        }
+                        FloatingActionButton(
+                            onClick = { 
+                                if (!isServerRunning) {
+                                    showFabMenu = !showFabMenu
+                                }
+                            },
+                            containerColor = if (isServerRunning) Color.Gray else MaterialTheme.colorScheme.primaryContainer
+                        ) {
+                            Icon(if (showFabMenu) Icons.Default.Close else Icons.Default.Add, contentDescription = stringResource(R.string.btn_add))
+                        }
                     }
                 }
             }
         ) { padding ->
-            Row(modifier = Modifier.fillMaxSize().padding(padding)) {
-                // Left Pane: Notebooks
+            val contentPadding = if (isEmbedded && !isSearching) PaddingValues(0.dp) else padding
+            Column(modifier = Modifier.fillMaxSize().padding(contentPadding)) {
+                if (isEmbedded && !isSearching) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(start = 8.dp, top = 0.dp, end = 8.dp, bottom = 4.dp),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(onClick = { showTagFilter = true }) {
+                            Icon(Icons.Default.Label, contentDescription = stringResource(R.string.title_filter_tags), tint = if (selectedTagIds.isNotEmpty()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+                        }
+                        IconButton(onClick = { isSearching = true }) {
+                            Icon(Icons.Default.Search, contentDescription = stringResource(R.string.label_search))
+                        }
+                    }
+                }
+                Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
+
                 Column(
                     modifier = Modifier
                         .weight(0.35f)
@@ -349,7 +381,6 @@ fun NotesScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                 
                 Divider(modifier = Modifier.fillMaxHeight().width(1.dp))
 
-                // Right Pane: Pages (Notes)
                 Column(modifier = Modifier.weight(0.65f).fillMaxSize()) {
                     if (notes.isEmpty()) {
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -484,6 +515,7 @@ fun NotesScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
             }
         }
     }
+}
 
     if (showAddNotebookDialog) {
         var name by remember { mutableStateOf("") }
@@ -637,7 +669,7 @@ fun RgbColorPickerDialog(initialColor: Int?, onColorSelected: (Int?) -> Unit, on
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ViewNoteScreen(viewModel: ExpenseViewModel, note: Note, onBack: () -> Unit, onEdit: () -> Unit, onUpdateNote: (Note) -> Unit) {
+fun ViewNoteScreen(viewModel: ExpenseViewModel, note: Note, onBack: () -> Unit, onEdit: () -> Unit, onUpdateNote: (Note) -> Unit, isEmbedded: Boolean = false) {
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
     var showColorPicker by remember { mutableStateOf(false) }
@@ -695,6 +727,11 @@ fun ViewNoteScreen(viewModel: ExpenseViewModel, note: Note, onBack: () -> Unit, 
                     }
                 },
                 actions = {
+                    if (!isEmbedded) {
+                        IconButton(onClick = { if (!isServerRunning) onEdit() }) {
+                            Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.btn_edit_note))
+                        }
+                    }
                     Box {
                         IconButton(onClick = { showMenu = true }) {
                             Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.label_more))
@@ -732,11 +769,13 @@ fun ViewNoteScreen(viewModel: ExpenseViewModel, note: Note, onBack: () -> Unit, 
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { if (!isServerRunning) onEdit() },
-                containerColor = if (isServerRunning) Color.Gray else MaterialTheme.colorScheme.secondaryContainer
-            ) {
-                Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.btn_edit_note))
+            if (!isEmbedded) {
+                FloatingActionButton(
+                    onClick = { if (!isServerRunning) onEdit() },
+                    containerColor = if (isServerRunning) Color.Gray else MaterialTheme.colorScheme.secondaryContainer
+                ) {
+                    Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.btn_edit_note))
+                }
             }
         }
     ) { padding ->

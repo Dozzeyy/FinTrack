@@ -1,6 +1,17 @@
 /*
+ * FinTrack
+ * Copyright (C) 2026 Bhuvan (app.upstream242@passmail.com)
  * SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (C) 2026 Bhuvan
+
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
  */
 
 package com.openapps.fintrack.ui
@@ -40,7 +51,9 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -50,7 +63,10 @@ import com.openapps.fintrack.data.AmortizationRow
 import com.google.zxing.BarcodeFormat
 import com.journeyapps.barcodescanner.BarcodeEncoder
 import com.openapps.fintrack.data.AccountBalance
+import com.openapps.fintrack.data.RawTransactionHelper
 import com.openapps.fintrack.data.Tag
+import com.openapps.fintrack.data.TransactionLegacy
+import com.openapps.fintrack.data.TemplateLegacy
 import com.openapps.fintrack.data.TransactionWithDetails
 import com.openapps.fintrack.data.PartyBalance
 import kotlinx.coroutines.flow.first
@@ -64,7 +80,7 @@ import java.time.temporal.TemporalAdjusters
 
 data class TransactionWithRunningBalance(
     val detail: TransactionWithDetails,
-    val runningBalance: Double?
+    val runningBalance: Long?
 )
 
 @Composable
@@ -72,8 +88,9 @@ fun TransactionRow(
     detail: TransactionWithDetails, 
     viewModel: ExpenseViewModel, 
     showTxnNumber: Boolean = false,
-    runningBalance: Double? = null,
-    hideAccountName: Boolean = false
+    runningBalance: Long? = null,
+    hideAccountName: Boolean = false,
+    isInsideGroup: Boolean = false
 ) {
     val transaction = detail.transaction
     val typeColor = when (detail.categoryType) {
@@ -84,10 +101,22 @@ fun TransactionRow(
     
     val backgroundColor = typeColor.copy(alpha = 0.05f)
     
+    val isMultiEntry = !isInsideGroup && transaction.transactionNumber?.let { 
+        it.startsWith("MEXP") || it.startsWith("MINC") 
+    } == true
+
+    val borderModifier = if (isMultiEntry) {
+        Modifier.border(
+            width = 2.dp,
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+            shape = RoundedCornerShape(12.dp)
+        )
+    } else Modifier
+
     Surface(
         color = backgroundColor,
         shape = RoundedCornerShape(12.dp),
-        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
+        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp).then(borderModifier)
     ) {
         Row(
             modifier = Modifier.padding(8.dp),
@@ -115,15 +144,34 @@ fun TransactionRow(
                     (detail.categoryName ?: stringResource(R.string.label_transfer))
                 }
 
-                Text(
-                    text = headlineText + 
-                           (if (detail.partyName != null) " (${detail.partyName})" else "") +
-                           (if (detail.toPartyName != null) " -> ${detail.toPartyName}" else ""),
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = headlineText + 
+                               (if (detail.partyName != null) " (${detail.partyName})" else "") +
+                               (if (detail.toPartyName != null) " -> ${detail.toPartyName}" else ""),
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+
+                    if (isMultiEntry) {
+                        Spacer(Modifier.width(6.dp))
+                        Surface(
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
+                            Text(
+                                text = "Multi",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                            )
+                        }
+                    }
+                }
                 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
@@ -176,12 +224,37 @@ fun TransactionRow(
             }
             
             Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    text = viewModel.formatAmount(transaction.amount),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = typeColor
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    val status = transaction.reconciliationStatus
+                    val isVerified = status.equals("VERIFIED", ignoreCase = true) || (status.isBlank() && transaction.isReconciled)
+                    val isVoid = status.equals("VOID", ignoreCase = true)
+
+                    if (isVerified) {
+                        Icon(
+                            Icons.Default.CheckCircle,
+                            contentDescription = stringResource(R.string.status_verified),
+                            modifier = Modifier.size(16.dp),
+                            tint = Color(0xFF4CAF50)
+                        )
+                        Spacer(Modifier.width(4.dp))
+                    } else if (isVoid) {
+                        Icon(
+                            Icons.Default.Warning,
+                            contentDescription = stringResource(R.string.status_void),
+                            modifier = Modifier.size(16.dp),
+                            tint = Color(0xFFF44336)
+                        )
+                        Spacer(Modifier.width(4.dp))
+                    }
+
+                    Text(
+                        text = viewModel.formatAmount(transaction.amount),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = if (isVoid) Color.Gray else typeColor,
+                        textDecoration = if (isVoid) androidx.compose.ui.text.style.TextDecoration.LineThrough else null
+                    )
+                }
                 
                 if (runningBalance != null) {
                     Text(
@@ -300,7 +373,7 @@ fun HorizontalBalanceChart(
 ) {
     if (accounts.isEmpty()) return
 
-    val maxAbsVal = accounts.maxOfOrNull { kotlin.math.abs(it.balance) }?.coerceAtLeast(1.0) ?: 1.0
+    val maxAbsVal = accounts.maxOfOrNull { kotlin.math.abs(it.balance).toDouble() / 100.0 }?.coerceAtLeast(1.0) ?: 1.0
 
     Column(modifier = modifier.padding(8.dp)) {
         accounts.forEach { account ->
@@ -331,7 +404,7 @@ fun HorizontalBalanceChart(
                             strokeWidth = 1.dp.toPx()
                         )
                         
-                        val barWidthFraction = (kotlin.math.abs(account.balance) / maxAbsVal).toFloat()
+                        val barWidthFraction = ((kotlin.math.abs(account.balance).toDouble() / 100.0) / maxAbsVal).toFloat()
                         
                         drawRoundRect(
                             color = if (account.balance >= 0) Color(0xFF4CAF50) else Color.Red,
@@ -522,7 +595,7 @@ fun LineChart(
                         )
                     )
                 } else if (index == 0 || index == data.size - 1 || data.size < 10) {
-                    // Default behavior for other charts if not showing all values
+
                     val valLayout = textMeasurer.measure(valueText, style = labelStyle)
                     drawText(
                         textLayoutResult = valLayout,
@@ -559,7 +632,14 @@ fun LineChart(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TransactionHistoryView(viewModel: ExpenseViewModel, onOpenDrawer: (() -> Unit)? = null) {
+fun TransactionHistoryView(
+    viewModel: ExpenseViewModel, 
+    onOpenDrawer: (() -> Unit)? = null,
+    initialCategoryId: Int? = null,
+    initialAccountId: Int? = null,
+    onBack: (() -> Unit)? = null,
+    isEmbedded: Boolean = false
+) {
     var month by remember { mutableStateOf(LocalDate.now()) }
     var startDate by remember { mutableStateOf(month.withDayOfMonth(1).format(DateTimeFormatter.ISO_DATE)) }
     var endDate by remember { mutableStateOf(month.with(TemporalAdjusters.lastDayOfMonth()).format(DateTimeFormatter.ISO_DATE)) }
@@ -574,7 +654,16 @@ fun TransactionHistoryView(viewModel: ExpenseViewModel, onOpenDrawer: (() -> Uni
     val allAccounts by viewModel.getEnabledAccounts().collectAsState(initial = emptyList())
     
     val selectedTagIds = remember { mutableStateListOf<Int>() }
-    val selectedAccountIds = remember { mutableStateListOf<Int>() }
+    val selectedAccountIds = remember { 
+        mutableStateListOf<Int>().apply {
+            if (initialAccountId != null) add(initialAccountId)
+        }
+    }
+    val selectedCategoryIds = remember {
+        mutableStateListOf<Int>().apply {
+            if (initialCategoryId != null) add(initialCategoryId)
+        }
+    }
     
     var showTagFilterDialog by remember { mutableStateOf(false) }
     var showAccountFilterDialog by remember { mutableStateOf(false) }
@@ -592,12 +681,13 @@ fun TransactionHistoryView(viewModel: ExpenseViewModel, onOpenDrawer: (() -> Uni
 
     val transactions by viewModel.getFilteredTransactions(startDate, endDate).collectAsState(initial = emptyList())
     val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
 
     var isMultiSelectMode by remember { mutableStateOf(false) }
     val selectedIds = remember { mutableStateListOf<Int>() }
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
-    val filteredTransactions = remember(transactions, filterTypes.toList(), selectedTagIds.toList(), selectedAccountIds.toList()) {
+    val filteredTransactions = remember(transactions, filterTypes.toList(), selectedTagIds.toList(), selectedAccountIds.toList(), selectedCategoryIds.toList()) {
         var list = if (filterTypes.isEmpty()) transactions
         else {
             transactions.filter {
@@ -619,6 +709,12 @@ fun TransactionHistoryView(viewModel: ExpenseViewModel, onOpenDrawer: (() -> Uni
                 detail.transaction.accountId in selectedAccountIds || detail.transaction.toAccountId in selectedAccountIds
             }
         }
+
+        if (selectedCategoryIds.isNotEmpty()) {
+            list = list.filter { detail ->
+                detail.transaction.categoryId in selectedCategoryIds
+            }
+        }
         
         list
     }
@@ -638,7 +734,7 @@ fun TransactionHistoryView(viewModel: ExpenseViewModel, onOpenDrawer: (() -> Uni
                 onBack = { showCrossReferenceScreen = false },
                 onNavigateToTransaction = { id ->
                     scope.launch {
-                        val detail = viewModel.dao.getTransactionWithDetails(id)
+                        val detail = viewModel.repository.getTransactionWithDetails(id)
                         if (detail != null) {
                             viewModel.selectedTransactionDetail = detail
                             showCrossReferenceScreen = false
@@ -647,7 +743,7 @@ fun TransactionHistoryView(viewModel: ExpenseViewModel, onOpenDrawer: (() -> Uni
                 }
             )
         } else {
-            if (onOpenDrawer != null) {
+            if (onBack != null || onOpenDrawer != null) {
                 Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (isMultiSelectMode) {
@@ -655,7 +751,12 @@ fun TransactionHistoryView(viewModel: ExpenseViewModel, onOpenDrawer: (() -> Uni
                                 Icon(Icons.Default.Close, stringResource(R.string.btn_cancel))
                             }
                             Text(stringResource(R.string.label_num_selected, selectedIds.size), style = MaterialTheme.typography.titleMedium)
-                        } else {
+                        } else if (onBack != null) {
+                            IconButton(onClick = onBack) {
+                                Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.btn_back))
+                            }
+                            Text(stringResource(R.string.menu_transactions), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                        } else if (onOpenDrawer != null) {
                             IconButton(onClick = onOpenDrawer) {
                                 Icon(Icons.Default.Menu, stringResource(R.string.menu_home))
                             }
@@ -670,6 +771,26 @@ fun TransactionHistoryView(viewModel: ExpenseViewModel, onOpenDrawer: (() -> Uni
                                 Icon(Icons.Default.MoreVert, stringResource(R.string.label_more))
                             }
                             DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.btn_mark_as_verified)) },
+                                    onClick = { 
+                                        expanded = false
+                                        viewModel.updateBulkTransactionStatus(selectedIds.toList(), "VERIFIED")
+                                        isMultiSelectMode = false
+                                        selectedIds.clear()
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.CheckCircle, null, tint = Color(0xFF4CAF50)) }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.btn_mark_as_void)) },
+                                    onClick = { 
+                                        expanded = false
+                                        viewModel.updateBulkTransactionStatus(selectedIds.toList(), "VOID")
+                                        isMultiSelectMode = false
+                                        selectedIds.clear()
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.Warning, null, tint = Color(0xFFF44336)) }
+                                )
                                 if (!viewModel.disableTransactionDeletion) {
                                     DropdownMenuItem(
                                         text = { Text(stringResource(R.string.btn_delete), color = Color.Red) },
@@ -687,7 +808,7 @@ fun TransactionHistoryView(viewModel: ExpenseViewModel, onOpenDrawer: (() -> Uni
             }
 
             // Month Navigation
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 0.dp)) {
                 IconButton(onClick = { 
                     month = month.minusMonths(1)
                     startDate = month.withDayOfMonth(1).format(DateTimeFormatter.ISO_DATE)
@@ -773,10 +894,9 @@ fun TransactionHistoryView(viewModel: ExpenseViewModel, onOpenDrawer: (() -> Uni
 
                 val singleAccountId = if (selectedAccountIds.size == 1) selectedAccountIds.first() else null
                 
-                // Calculate summary and running balance if single account is selected
                 val prevDate = try { LocalDate.parse(startDate).minusDays(1).format(DateTimeFormatter.ISO_DATE) } catch(e: Exception) { startDate }
                 val openingBalances by if (singleAccountId != null) viewModel.getAccountBalances(prevDate).collectAsState(initial = emptyList()) else remember { mutableStateOf(emptyList<AccountBalance>()) }
-                val openingBalance = remember(openingBalances, singleAccountId) { openingBalances.find { it.id == singleAccountId }?.balance ?: 0.0 }
+                val openingBalance = remember(openingBalances, singleAccountId) { openingBalances.find { it.id == singleAccountId }?.balance ?: 0L }
 
                 val transactionsWithRunningBalance = remember(filteredTransactions, openingBalance, singleAccountId) {
                     if (singleAccountId == null) {
@@ -785,7 +905,7 @@ fun TransactionHistoryView(viewModel: ExpenseViewModel, onOpenDrawer: (() -> Uni
                         val sorted = filteredTransactions.sortedWith(compareBy({ it.transaction.date }, { it.transaction.time }, { it.transaction.id }))
                         var currentBal = openingBalance
                         sorted.map { detail ->
-                            val amount = detail.transaction.amount
+                            val amount = detail.transaction.amountMinorUnits ?: (detail.transaction.amount * 100).toLong()
                             val isIncoming = detail.transaction.toAccountId == singleAccountId || (detail.transaction.accountId == singleAccountId && detail.categoryType == "income")
                             val isOutgoing = detail.transaction.accountId == singleAccountId && detail.categoryType != "income"
                             
@@ -798,13 +918,15 @@ fun TransactionHistoryView(viewModel: ExpenseViewModel, onOpenDrawer: (() -> Uni
                 }
 
                 if (singleAccountId != null) {
-                    val additions = transactionsWithRunningBalance.sumOf { item -> 
-                        if (item.detail.transaction.toAccountId == singleAccountId || (item.detail.transaction.accountId == singleAccountId && item.detail.categoryType == "income")) item.detail.transaction.amount else 0.0 
+                    val additionsCount = transactionsWithRunningBalance.sumOf { item -> 
+                        if (item.detail.transaction.toAccountId == singleAccountId || (item.detail.transaction.accountId == singleAccountId && item.detail.categoryType == "income")) 
+                            (item.detail.transaction.amountMinorUnits ?: (item.detail.transaction.amount * 100).toLong()) else 0L 
                     }
-                    val deletions = transactionsWithRunningBalance.sumOf { item -> 
-                        if (item.detail.transaction.accountId == singleAccountId && item.detail.categoryType != "income") item.detail.transaction.amount else 0.0 
+                    val deletionsCount = transactionsWithRunningBalance.sumOf { item -> 
+                        if (item.detail.transaction.accountId == singleAccountId && item.detail.categoryType != "income") 
+                            (item.detail.transaction.amountMinorUnits ?: (item.detail.transaction.amount * 100).toLong()) else 0L 
                     }
-                    val closingBalance = openingBalance + additions - deletions
+                    val closingBalanceCalc = openingBalance + additionsCount - deletionsCount
 
                     Card(
                         modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -819,80 +941,247 @@ fun TransactionHistoryView(viewModel: ExpenseViewModel, onOpenDrawer: (() -> Uni
                             }
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Text(viewModel.formatAmount(openingBalance), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-                                Text(viewModel.formatAmount(additions), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = Color(0xFF4CAF50))
-                                Text(viewModel.formatAmount(deletions), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = Color.Red)
-                                Text(viewModel.formatAmount(closingBalance), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                                Text(viewModel.formatAmount(additionsCount), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = Color(0xFF4CAF50))
+                                Text(viewModel.formatAmount(deletionsCount), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = Color.Red)
+                                Text(viewModel.formatAmount(closingBalanceCalc), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
                 }
                 
-                LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp).padding(top = 0.dp)) {
-                    transactionsWithRunningBalance.forEach { entry ->
-                        item {
-                            var showTxnMenu by remember { mutableStateOf(false) }
-                            val isSelected = selectedIds.contains(entry.detail.transaction.id)
-                            val isLoanTxn = remember(entry.detail.transaction, onAccountIds) {
-                                entry.detail.transaction.accountId in onAccountIds || entry.detail.transaction.toAccountId in onAccountIds
-                            }
+                val groupedEntries = remember(transactionsWithRunningBalance) {
+                    val result = mutableListOf<List<TransactionWithRunningBalance>>()
+                    var currentGroup = mutableListOf<TransactionWithRunningBalance>()
 
-                            Box(modifier = Modifier
-                                .combinedClickable(
-                                    onClick = { 
-                                        if (isMultiSelectMode) {
-                                            if (isSelected) selectedIds.remove(entry.detail.transaction.id)
-                                            else selectedIds.add(entry.detail.transaction.id)
-                                            if (selectedIds.isEmpty()) isMultiSelectMode = false
-                                        } else {
-                                            viewModel.selectedTransactionDetail = entry.detail 
-                                        }
-                                    },
-                                    onLongClick = {
-                                        if (!isMultiSelectMode) {
-                                            showTxnMenu = true
-                                        }
-                                    }
-                                )
-                                .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.Transparent, RoundedCornerShape(12.dp))
-                            ) {
-                                TransactionRow(
-                                    detail = entry.detail, 
-                                    viewModel = viewModel, 
-                                    showTxnNumber = false,
-                                    runningBalance = entry.runningBalance,
-                                    hideAccountName = singleAccountId != null
-                                )
-                                
-                                DropdownMenu(expanded = showTxnMenu, onDismissRequest = { showTxnMenu = false }) {
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.btn_multi_select)) },
-                                        onClick = {
-                                            isMultiSelectMode = true
-                                            selectedIds.add(entry.detail.transaction.id)
-                                            showTxnMenu = false
-                                        },
-                                        leadingIcon = { Icon(Icons.Default.Checklist, null) }
-                                    )
-                                    if (isLoanTxn) {
-                                        DropdownMenuItem(
-                                            text = { Text(stringResource(R.string.btn_cross_reference)) },
-                                            onClick = {
-                                                viewModel.loadCrossReference(entry.detail.transaction.id)
-                                                showCrossReferenceScreen = true
-                                                showTxnMenu = false
-                                            },
-                                            leadingIcon = { Icon(Icons.Default.Link, null) }
+                    for (entry in transactionsWithRunningBalance) {
+                        val txnNum = entry.detail.transaction.transactionNumber
+                        val isMulti = txnNum != null && (txnNum.startsWith("MEXP") || txnNum.startsWith("MINC"))
+
+                        if (currentGroup.isEmpty()) {
+                            currentGroup.add(entry)
+                        } else {
+                            val lastTxnNum = currentGroup.last().detail.transaction.transactionNumber
+                            if (isMulti && txnNum == lastTxnNum) {
+                                currentGroup.add(entry)
+                            } else {
+                                result.add(currentGroup)
+                                currentGroup = mutableListOf(entry)
+                            }
+                        }
+                    }
+                    if (currentGroup.isNotEmpty()) {
+                        result.add(currentGroup)
+                    }
+                    result
+                }
+
+                val bottomPadding = if (isEmbedded) 88.dp else 16.dp
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(start = 16.dp, top = 0.dp, end = 16.dp, bottom = bottomPadding)
+                ) {
+                    groupedEntries.forEach { group ->
+                        item {
+                            val isMultiGroup = group.size > 1 || group.first().detail.transaction.transactionNumber?.let {
+                                it.startsWith("MEXP") || it.startsWith("MINC")
+                            } == true
+
+                            if (isMultiGroup) {
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp)
+                                        .border(
+                                            width = 2.dp,
+                                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+                                            shape = RoundedCornerShape(12.dp)
                                         )
+                                ) {
+                                    Column(modifier = Modifier.padding(6.dp)) {
+                                        group.forEachIndexed { idx, entry ->
+                                            var showTxnMenu by remember { mutableStateOf(false) }
+                                            val isSelected = selectedIds.contains(entry.detail.transaction.id)
+                                            val isLoanTxn = remember(entry.detail.transaction, onAccountIds) {
+                                                entry.detail.transaction.accountId in onAccountIds || entry.detail.transaction.toAccountId in onAccountIds
+                                            }
+
+                                            Box(
+                                                modifier = Modifier
+                                                    .combinedClickable(
+                                                        onClick = {
+                                                            if (isMultiSelectMode) {
+                                                                if (isSelected) selectedIds.remove(entry.detail.transaction.id)
+                                                                else selectedIds.add(entry.detail.transaction.id)
+                                                                if (selectedIds.isEmpty()) isMultiSelectMode = false
+                                                            } else {
+                                                                viewModel.selectedTransactionDetail = entry.detail
+                                                            }
+                                                        },
+                                                        onLongClick = {
+                                                            if (!isMultiSelectMode) {
+                                                                showTxnMenu = true
+                                                            }
+                                                        }
+                                                    )
+                                                    .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.Transparent, RoundedCornerShape(12.dp))
+                                            ) {
+                                                TransactionRow(
+                                                    detail = entry.detail,
+                                                    viewModel = viewModel,
+                                                    showTxnNumber = false,
+                                                    runningBalance = entry.runningBalance,
+                                                    hideAccountName = singleAccountId != null,
+                                                    isInsideGroup = true
+                                                )
+
+                                                DropdownMenu(expanded = showTxnMenu, onDismissRequest = { showTxnMenu = false }) {
+                                                    DropdownMenuItem(
+                                                        text = { Text("Copy Raw String") },
+                                                        onClick = {
+                                                            showTxnMenu = false
+                                                            scope.launch {
+                                                                val headerDetail = viewModel.getTransactionHeaderWithLines(entry.detail.transaction.id).first()
+                                                                val rawData = if (headerDetail != null) {
+                                                                    RawTransactionHelper.fromTransactionWithLinesAndDetails(headerDetail, allTags)
+                                                                } else {
+                                                                    RawTransactionHelper.fromTransactionWithDetails(entry.detail, allTags)
+                                                                }
+                                                                val jsonStr = RawTransactionHelper.toJson(rawData)
+                                                                clipboardManager.setText(AnnotatedString(jsonStr))
+                                                                Toast.makeText(context, "Transaction Raw String copied to clipboard!", Toast.LENGTH_SHORT).show()
+                                                            }
+                                                        },
+                                                        leadingIcon = { Icon(Icons.Default.ContentCopy, null) }
+                                                    )
+                                                    DropdownMenuItem(
+                                                        text = { Text(stringResource(R.string.btn_multi_select)) },
+                                                        onClick = {
+                                                            isMultiSelectMode = true
+                                                            selectedIds.add(entry.detail.transaction.id)
+                                                            showTxnMenu = false
+                                                        },
+                                                        leadingIcon = { Icon(Icons.Default.Checklist, null) }
+                                                    )
+                                                    if (isLoanTxn) {
+                                                        DropdownMenuItem(
+                                                            text = { Text(stringResource(R.string.btn_cross_reference)) },
+                                                            onClick = {
+                                                                viewModel.loadCrossReference(entry.detail.transaction.id)
+                                                                showCrossReferenceScreen = true
+                                                                showTxnMenu = false
+                                                            },
+                                                            leadingIcon = { Icon(Icons.Default.Link, null) }
+                                                        )
+                                                    }
+                                                }
+
+                                                if (isSelected) {
+                                                    Icon(
+                                                        Icons.Default.CheckCircle,
+                                                        null,
+                                                        tint = MaterialTheme.colorScheme.primary,
+                                                        modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).size(16.dp)
+                                                    )
+                                                }
+                                            }
+
+                                            if (idx < group.size - 1) {
+                                                HorizontalDivider(
+                                                    modifier = Modifier.padding(vertical = 2.dp),
+                                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                                                )
+                                            }
+                                        }
                                     }
                                 }
+                            } else {
+                                val entry = group.first()
+                                var showTxnMenu by remember { mutableStateOf(false) }
+                                val isSelected = selectedIds.contains(entry.detail.transaction.id)
+                                val isLoanTxn = remember(entry.detail.transaction, onAccountIds) {
+                                    entry.detail.transaction.accountId in onAccountIds || entry.detail.transaction.toAccountId in onAccountIds
+                                }
 
-                                if (isSelected) {
-                                    Icon(
-                                        Icons.Default.CheckCircle, 
-                                        null, 
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).size(16.dp)
+                                Box(
+                                    modifier = Modifier
+                                        .combinedClickable(
+                                            onClick = {
+                                                if (isMultiSelectMode) {
+                                                    if (isSelected) selectedIds.remove(entry.detail.transaction.id)
+                                                    else selectedIds.add(entry.detail.transaction.id)
+                                                    if (selectedIds.isEmpty()) isMultiSelectMode = false
+                                                } else {
+                                                    viewModel.selectedTransactionDetail = entry.detail
+                                                }
+                                            },
+                                            onLongClick = {
+                                                if (!isMultiSelectMode) {
+                                                    showTxnMenu = true
+                                                }
+                                            }
+                                        )
+                                        .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.Transparent, RoundedCornerShape(12.dp))
+                                ) {
+                                    TransactionRow(
+                                        detail = entry.detail,
+                                        viewModel = viewModel,
+                                        showTxnNumber = false,
+                                        runningBalance = entry.runningBalance,
+                                        hideAccountName = singleAccountId != null,
+                                        isInsideGroup = false
                                     )
+
+                                    DropdownMenu(expanded = showTxnMenu, onDismissRequest = { showTxnMenu = false }) {
+                                        DropdownMenuItem(
+                                            text = { Text("Copy Raw String") },
+                                            onClick = {
+                                                showTxnMenu = false
+                                                scope.launch {
+                                                    val headerDetail = viewModel.getTransactionHeaderWithLines(entry.detail.transaction.id).first()
+                                                    val rawData = if (headerDetail != null) {
+                                                        RawTransactionHelper.fromTransactionWithLinesAndDetails(headerDetail, allTags)
+                                                    } else {
+                                                        RawTransactionHelper.fromTransactionWithDetails(entry.detail, allTags)
+                                                    }
+                                                    val jsonStr = RawTransactionHelper.toJson(rawData)
+                                                    clipboardManager.setText(AnnotatedString(jsonStr))
+                                                    Toast.makeText(context, "Transaction Raw String copied to clipboard!", Toast.LENGTH_SHORT).show()
+                                                }
+                                            },
+                                            leadingIcon = { Icon(Icons.Default.ContentCopy, null) }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(R.string.btn_multi_select)) },
+                                            onClick = {
+                                                isMultiSelectMode = true
+                                                selectedIds.add(entry.detail.transaction.id)
+                                                showTxnMenu = false
+                                            },
+                                            leadingIcon = { Icon(Icons.Default.Checklist, null) }
+                                        )
+                                        if (isLoanTxn) {
+                                            DropdownMenuItem(
+                                                text = { Text(stringResource(R.string.btn_cross_reference)) },
+                                                onClick = {
+                                                    viewModel.loadCrossReference(entry.detail.transaction.id)
+                                                    showCrossReferenceScreen = true
+                                                    showTxnMenu = false
+                                                },
+                                                leadingIcon = { Icon(Icons.Default.Link, null) }
+                                            )
+                                        }
+                                    }
+
+                                    if (isSelected) {
+                                        Icon(
+                                            Icons.Default.CheckCircle,
+                                            null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).size(16.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -959,7 +1248,7 @@ fun TransactionHistoryView(viewModel: ExpenseViewModel, onOpenDrawer: (() -> Uni
             onBack = { showCrossReferenceScreen = false },
             onNavigateToTransaction = { id ->
                 scope.launch {
-                    val detail = viewModel.dao.getTransactionWithDetails(id)
+                    val detail = viewModel.repository.getTransactionWithDetails(id)
                     if (detail != null) {
                         viewModel.selectedTransactionDetail = detail
                         showCrossReferenceScreen = false
@@ -1117,7 +1406,7 @@ fun MultiSelectFilterDialog(
 }
 
 @Composable
-fun AssetsLiabilitiesView(viewModel: ExpenseViewModel) {
+fun AssetsLiabilitiesView(viewModel: ExpenseViewModel, isEmbedded: Boolean = false) {
     var asOfDate by remember { mutableStateOf(LocalDate.now().format(DateTimeFormatter.ISO_DATE)) }
     var viewMode by remember { mutableStateOf(0) } // 0: Major, 1: Major+Minor, 2: Major+Minor+Micro, 3: Minor, 4: Micro
     
@@ -1137,7 +1426,7 @@ fun AssetsLiabilitiesView(viewModel: ExpenseViewModel) {
             uri?.let { 
                 exportToUri(context, microBalances.map { b ->
                     TransactionWithDetails(
-                        transaction = com.openapps.fintrack.data.Transaction(date = asOfDate, time = "00:00", accountId = b.id, amount = b.balance, note = context.getString(R.string.label_balance_export), categoryId = null),
+                        transaction = com.openapps.fintrack.data.TransactionLegacy(date = asOfDate, time = "00:00", accountId = b.id, amount = b.balance.toDouble() / 100.0, amountMinorUnits = b.balance, note = context.getString(R.string.label_balance_export), categoryId = null),
                         categoryName = null,
                         categoryType = if (b.balance >= 0) "asset" else "liability",
                         categoryIcon = null,
@@ -1191,155 +1480,201 @@ fun AssetsLiabilitiesView(viewModel: ExpenseViewModel) {
         return
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        val totalAssets = microBalances.filter { it.balance > 0 }.sumOf { it.balance }
-        val totalLiabilities = microBalances.filter { it.balance < 0 }.sumOf { kotlin.math.abs(it.balance) }
+    val totalAssets = microBalances.filter { it.balance > 0 }.sumOf { it.balance }
+    val totalLiabilities = microBalances.filter { it.balance < 0 }.sumOf { kotlin.math.abs(it.balance) }
+    val netPosition = microBalances.sumOf { it.balance }
+    val bottomPadding = if (isEmbedded) 88.dp else 16.dp
 
-        Row(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Card(
-                modifier = Modifier.weight(1f),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF4CAF50).copy(alpha = 0.1f))
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = bottomPadding)
+    ) {
+        item {
+            Surface(
+                color = MaterialTheme.colorScheme.primaryContainer, 
+                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                shape = MaterialTheme.shapes.medium
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(stringResource(R.string.label_available_balance), style = MaterialTheme.typography.labelSmall, color = Color(0xFF4CAF50))
-                    Text(viewModel.formatAmount(totalAssets), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color(0xFF4CAF50))
-                }
-            }
-            Card(
-                modifier = Modifier.weight(1f),
-                colors = CardDefaults.cardColors(containerColor = Color.Red.copy(alpha = 0.1f))
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(stringResource(R.string.label_payable), style = MaterialTheme.typography.labelSmall, color = Color.Red)
-                    Text(viewModel.formatAmount(totalLiabilities), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.Red)
-                }
-            }
-        }
-
-        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { viewMode = (viewMode + 1) % 5 }) {
-                Icon(Icons.Default.Layers, stringResource(R.string.label_toggle_mode))
-            }
-            Text(text = stringResource(R.string.label_as_of_colon, asOfDate), modifier = Modifier.clickable {
-                val date = try { LocalDate.parse(asOfDate) } catch(e: Exception) { LocalDate.now() }
-                DatePickerDialog(context, { _, year, month, day ->
-                    asOfDate = LocalDate.of(year, month + 1, day).format(DateTimeFormatter.ISO_DATE)
-                }, date.year, date.monthValue - 1, date.dayOfMonth).show()
-            })
-            IconButton(onClick = { exportLauncher.launch("balances_$asOfDate.csv") }) {
-                Icon(Icons.Default.FileDownload, stringResource(R.string.label_export))
-            }
-        }
-
-        LazyColumn(modifier = Modifier.weight(1f).padding(horizontal = 16.dp)) {
-            when (viewMode) {
-                0 -> { // Major only
-                    val pos = majorBalances.filter { it.balance > 0 }
-                    val neg = majorBalances.filter { it.balance <= 0 }
-                    if (pos.isNotEmpty()) {
-                        item { Text(stringResource(R.string.label_assets), fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
-                        items(pos) { hb -> BalanceRow(hb.name, hb.balance, null, viewModel) { drillMajorId = hb.id } }
-                    }
-                    if (neg.isNotEmpty()) {
-                        item { Text(stringResource(R.string.label_liabilities), fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
-                        items(neg) { hb -> BalanceRow(hb.name, hb.balance, null, viewModel) { drillMajorId = hb.id } }
-                    }
-                }
-                1 -> { // Major + Minor
-                    val posMajor = majorBalances.filter { it.balance > 0 }
-                    val negMajor = majorBalances.filter { it.balance <= 0 }
-                    
-                    if (posMajor.isNotEmpty()) {
-                        item { Text(stringResource(R.string.label_assets), fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
-                        posMajor.forEach { mhb ->
-                            item { Text(mhb.name, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(vertical = 4.dp)) }
-                            items(minorBalances.filter { it.majorHeadId == mhb.id }) { mihb ->
-                                BalanceRow(mihb.name, mihb.balance, null, viewModel, indent = true) { drillMinorId = mihb.id }
-                            }
-                        }
-                    }
-                    if (negMajor.isNotEmpty()) {
-                        item { Text(stringResource(R.string.label_liabilities), fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
-                        negMajor.forEach { mhb ->
-                            item { Text(mhb.name, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(vertical = 4.dp)) }
-                            items(minorBalances.filter { it.majorHeadId == mhb.id }) { mihb ->
-                                BalanceRow(mihb.name, mihb.balance, null, viewModel, indent = true) { drillMinorId = mihb.id }
-                            }
-                        }
-                    }
-                }
-                2 -> { // Major + Minor + Micro
-                    val posMajor = majorBalances.filter { it.balance > 0 }
-                    val negMajor = majorBalances.filter { it.balance <= 0 }
-
-                    if (posMajor.isNotEmpty()) {
-                        item { Text(stringResource(R.string.label_assets), fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
-                        posMajor.forEach { mhb ->
-                            item { Text(mhb.name, style = MaterialTheme.typography.titleSmall) }
-                            minorBalances.filter { it.majorHeadId == mhb.id }.forEach { mihb ->
-                                val mms = microBalances.filter { it.minorHeadId == mihb.id || (mihb.name == "Default" && mihb.majorHeadId == 10 && it.minorHeadId == null) }
-                                if (mms.isNotEmpty()) {
-                                    item { Text(mihb.name, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = 16.dp)) }
-                                    items(mms) { mb ->
-                                        BalanceRow(mb.name, mb.balance, mb.icon, viewModel, indent = true, doubleIndent = true) { drillMicroId = mb.id }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    if (negMajor.isNotEmpty()) {
-                        item { Text(stringResource(R.string.label_liabilities), fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
-                        negMajor.forEach { mhb ->
-                            item { Text(mhb.name, style = MaterialTheme.typography.titleSmall) }
-                            minorBalances.filter { it.majorHeadId == mhb.id }.forEach { mihb ->
-                                val mms = microBalances.filter { it.minorHeadId == mihb.id || (mihb.name == "Default" && mihb.majorHeadId == 10 && it.minorHeadId == null) }
-                                if (mms.isNotEmpty()) {
-                                    item { Text(mihb.name, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = 16.dp)) }
-                                    items(mms) { mb ->
-                                        BalanceRow(mb.name, mb.balance, mb.icon, viewModel, indent = true, doubleIndent = true) { drillMicroId = mb.id }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                3 -> { // Minor only
-                    val pos = minorBalances.filter { it.balance > 0 }
-                    val neg = minorBalances.filter { it.balance <= 0 }
-                    if (pos.isNotEmpty()) {
-                        item { Text(stringResource(R.string.label_assets), fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
-                        items(pos) { hb -> BalanceRow(hb.name, hb.balance, null, viewModel) { drillMinorId = hb.id } }
-                    }
-                    if (neg.isNotEmpty()) {
-                        item { Text(stringResource(R.string.label_liabilities), fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
-                        items(neg) { hb -> BalanceRow(hb.name, hb.balance, null, viewModel) { drillMinorId = hb.id } }
-                    }
-                }
-                4 -> { // Micro only
-                    val pos = microBalances.filter { it.balance > 0 }
-                    val neg = microBalances.filter { it.balance <= 0 }
-                    if (pos.isNotEmpty()) {
-                        item { Text(stringResource(R.string.label_assets), fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
-                        items(pos) { hb -> BalanceRow(hb.name, hb.balance, hb.icon, viewModel) { drillMicroId = hb.id } }
-                    }
-                    if (neg.isNotEmpty()) {
-                        item { Text(stringResource(R.string.label_liabilities), fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
-                        items(neg) { hb -> BalanceRow(hb.name, hb.balance, hb.icon, viewModel) { drillMicroId = hb.id } }
-                    }
-                }
-            }
-            
-            item {
-                val netPosition = microBalances.sumOf { it.balance }
-                Surface(
-                    color = MaterialTheme.colorScheme.primaryContainer, 
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
-                    shape = MaterialTheme.shapes.medium
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(stringResource(R.string.label_net_position), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Text(viewModel.formatAmount(netPosition), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(
+                        stringResource(R.string.label_net_position),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        viewModel.formatAmount(netPosition),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Card(
+                    modifier = Modifier.weight(1f),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF4CAF50).copy(alpha = 0.1f))
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            stringResource(R.string.label_available_balance),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color(0xFF4CAF50)
+                        )
+                        Text(
+                            viewModel.formatAmount(totalAssets),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF4CAF50)
+                        )
                     }
+                }
+                Card(
+                    modifier = Modifier.weight(1f),
+                    colors = CardDefaults.cardColors(containerColor = Color.Red.copy(alpha = 0.1f))
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            stringResource(R.string.label_payable),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.Red
+                        )
+                        Text(
+                            viewModel.formatAmount(totalLiabilities),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Red
+                        )
+                    }
+                }
+            }
+        }
+
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = { viewMode = (viewMode + 1) % 5 }) {
+                    Icon(Icons.Default.Layers, stringResource(R.string.label_toggle_mode))
+                }
+                Text(
+                    text = stringResource(R.string.label_as_of_colon, asOfDate),
+                    modifier = Modifier.clickable {
+                        val date = try { LocalDate.parse(asOfDate) } catch(e: Exception) { LocalDate.now() }
+                        DatePickerDialog(context, { _, year, month, day ->
+                            asOfDate = LocalDate.of(year, month + 1, day).format(DateTimeFormatter.ISO_DATE)
+                        }, date.year, date.monthValue - 1, date.dayOfMonth).show()
+                    }
+                )
+                IconButton(onClick = { exportLauncher.launch("balances_$asOfDate.csv") }) {
+                    Icon(Icons.Default.FileDownload, stringResource(R.string.label_export))
+                }
+            }
+        }
+
+        when (viewMode) {
+            0 -> { // Major only
+                val pos = majorBalances.filter { it.balance > 0 }
+                val neg = majorBalances.filter { it.balance <= 0 }
+                if (pos.isNotEmpty()) {
+                    item { Text(stringResource(R.string.label_assets), fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
+                    items(pos) { hb -> BalanceRow(hb.name, hb.balance, null, viewModel) { drillMajorId = hb.id } }
+                }
+                if (neg.isNotEmpty()) {
+                    item { Text(stringResource(R.string.label_liabilities), fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
+                    items(neg) { hb -> BalanceRow(hb.name, hb.balance, null, viewModel) { drillMajorId = hb.id } }
+                }
+            }
+            1 -> { // Major + Minor
+                val posMajor = majorBalances.filter { it.balance > 0 }
+                val negMajor = majorBalances.filter { it.balance <= 0 }
+                
+                if (posMajor.isNotEmpty()) {
+                    item { Text(stringResource(R.string.label_assets), fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
+                    posMajor.forEach { mhb ->
+                        item { Text(mhb.name, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(vertical = 4.dp)) }
+                        items(minorBalances.filter { it.majorHeadId == mhb.id }) { mihb ->
+                            BalanceRow(mihb.name, mihb.balance, null, viewModel, indent = true) { drillMinorId = mihb.id }
+                        }
+                    }
+                }
+                if (negMajor.isNotEmpty()) {
+                    item { Text(stringResource(R.string.label_liabilities), fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
+                    negMajor.forEach { mhb ->
+                        item { Text(mhb.name, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(vertical = 4.dp)) }
+                        items(minorBalances.filter { it.majorHeadId == mhb.id }) { mihb ->
+                            BalanceRow(mihb.name, mihb.balance, null, viewModel, indent = true) { drillMinorId = mihb.id }
+                        }
+                    }
+                }
+            }
+            2 -> { // Major + Minor + Micro
+                val posMajor = majorBalances.filter { it.balance > 0 }
+                val negMajor = majorBalances.filter { it.balance <= 0 }
+
+                if (posMajor.isNotEmpty()) {
+                    item { Text(stringResource(R.string.label_assets), fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
+                    posMajor.forEach { mhb ->
+                        item { Text(mhb.name, style = MaterialTheme.typography.titleSmall) }
+                        minorBalances.filter { it.majorHeadId == mhb.id }.forEach { mihb ->
+                            val mms = microBalances.filter { it.minorHeadId == mihb.id || (mihb.name == "Default" && mihb.majorHeadId == 10 && it.minorHeadId == null) }
+                            if (mms.isNotEmpty()) {
+                                item { Text(mihb.name, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = 16.dp)) }
+                                items(mms) { mb ->
+                                    BalanceRow(mb.name, mb.balance, mb.icon, viewModel, indent = true, doubleIndent = true) { drillMicroId = mb.id }
+                                }
+                            }
+                        }
+                    }
+                }
+                if (negMajor.isNotEmpty()) {
+                    item { Text(stringResource(R.string.label_liabilities), fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
+                    negMajor.forEach { mhb ->
+                        item { Text(mhb.name, style = MaterialTheme.typography.titleSmall) }
+                        minorBalances.filter { it.majorHeadId == mhb.id }.forEach { mihb ->
+                            val mms = microBalances.filter { it.minorHeadId == mihb.id || (mihb.name == "Default" && mihb.majorHeadId == 10 && it.minorHeadId == null) }
+                            if (mms.isNotEmpty()) {
+                                item { Text(mihb.name, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = 16.dp)) }
+                                items(mms) { mb ->
+                                    BalanceRow(mb.name, mb.balance, mb.icon, viewModel, indent = true, doubleIndent = true) { drillMicroId = mb.id }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            3 -> { // Minor only
+                val pos = minorBalances.filter { it.balance > 0 }
+                val neg = minorBalances.filter { it.balance <= 0 }
+                if (pos.isNotEmpty()) {
+                    item { Text(stringResource(R.string.label_assets), fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
+                    items(pos) { hb -> BalanceRow(hb.name, hb.balance, null, viewModel) { drillMinorId = hb.id } }
+                }
+                if (neg.isNotEmpty()) {
+                    item { Text(stringResource(R.string.label_liabilities), fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
+                    items(neg) { hb -> BalanceRow(hb.name, hb.balance, null, viewModel) { drillMinorId = hb.id } }
+                }
+            }
+            4 -> { // Micro only
+                val pos = microBalances.filter { it.balance > 0 }
+                val neg = microBalances.filter { it.balance <= 0 }
+                if (pos.isNotEmpty()) {
+                    item { Text(stringResource(R.string.label_assets), fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
+                    items(pos) { hb -> BalanceRow(hb.name, hb.balance, hb.icon, viewModel) { drillMicroId = hb.id } }
+                }
+                if (neg.isNotEmpty()) {
+                    item { Text(stringResource(R.string.label_liabilities), fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
+                    items(neg) { hb -> BalanceRow(hb.name, hb.balance, hb.icon, viewModel) { drillMicroId = hb.id } }
                 }
             }
         }
@@ -1347,7 +1682,7 @@ fun AssetsLiabilitiesView(viewModel: ExpenseViewModel) {
 }
 
 @Composable
-fun BalanceRow(name: String, balance: Double, icon: String?, viewModel: ExpenseViewModel, indent: Boolean = false, doubleIndent: Boolean = false, onClick: () -> Unit) {
+fun BalanceRow(name: String, balance: Long, icon: String?, viewModel: ExpenseViewModel, indent: Boolean = false, doubleIndent: Boolean = false, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1367,7 +1702,7 @@ fun BalanceRow(name: String, balance: Double, icon: String?, viewModel: ExpenseV
 @Composable
 fun DrillDownView(
     title: String, 
-    items: List<Pair<String, Double>>, 
+    items: List<Pair<String, Long>>, 
     onItemClick: (String) -> Unit, 
     onBack: () -> Unit, 
     viewModel: ExpenseViewModel,
@@ -1399,13 +1734,14 @@ fun DrillDownView(
                     (selectedAccountIds.isEmpty() || t.transaction.accountId in selectedAccountIds || t.transaction.toAccountId in selectedAccountIds || accountId in selectedAccountIds)
                 }
                 name to txns.sumOf { 
+                    val amt = it.transaction.amountMinorUnits ?: (it.transaction.amount * 100).toLong()
                     if (it.transaction.toAccountId == accountId || (it.transaction.accountId == accountId && it.categoryType == "income")) 
-                        it.transaction.amount 
+                        amt
                     else if (it.transaction.accountId == accountId)
-                        -it.transaction.amount
-                    else 0.0
+                        -amt
+                    else 0L
                 }
-            }.filter { it.second != 0.0 }
+            }.filter { it.second != 0L }
         }
     }
 
@@ -1509,7 +1845,7 @@ fun OnAccountPartyBalancesView(viewModel: ExpenseViewModel, asOfDate: String, on
 
     val displayParties = remember(allPartiesRaw, filterType, selectedTagIds.toList(), selectedCategoryIds.toList(), allTransactions, asOfDate) {
         allPartiesRaw.filter { it.isEnabled }.map { p ->
-            // Filter transactions associated with this party (either as sender or receiver)
+        
             val partyTxnsIn = allTransactions.filter { t ->
                 (t.transaction.toPartyId == p.id || (t.transaction.partyId == p.id && t.categoryType == "income")) &&
                 t.transaction.date <= asOfDate &&
@@ -1524,10 +1860,10 @@ fun OnAccountPartyBalancesView(viewModel: ExpenseViewModel, asOfDate: String, on
                 (selectedCategoryIds.isEmpty() || t.transaction.categoryId in selectedCategoryIds)
             }
             
-            val inc = partyTxnsIn.sumOf { it.transaction.amount }
-            val exp = partyTxnsOut.sumOf { it.transaction.amount }
+            val inc = partyTxnsIn.sumOf { it.transaction.amountMinorUnits ?: (it.transaction.amount * 100).toLong() }
+            val exp = partyTxnsOut.sumOf { it.transaction.amountMinorUnits ?: (it.transaction.amount * 100).toLong() }
             
-            val opening = if (selectedTagIds.isEmpty() && selectedCategoryIds.isEmpty()) p.openingBalance else 0.0
+            val opening = if (selectedTagIds.isEmpty() && selectedCategoryIds.isEmpty()) (p.openingBalanceMinorUnits ?: (p.openingBalance * 100).toLong()) else 0L
             val currentFilteredBalance = opening + inc - exp
             
             PartyBalance(p.id, p.name, currentFilteredBalance)
@@ -1710,7 +2046,7 @@ fun AccountBalanceRow(balance: AccountBalance, viewModel: ExpenseViewModel, onCl
 }
 
 @Composable
-fun SubtotalRow(label: String, total: Double, viewModel: ExpenseViewModel, color: Color) {
+fun SubtotalRow(label: String, total: Long, viewModel: ExpenseViewModel, color: Color) {
     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(label, fontWeight = FontWeight.Bold); Text(viewModel.formatAmount(total), color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
     }
@@ -1738,7 +2074,7 @@ fun AccountDetailView(viewModel: ExpenseViewModel, account: AccountBalance, onBa
     // Get opening balance
     val prevDate = try { LocalDate.parse(startDate).minusDays(1).format(DateTimeFormatter.ISO_DATE) } catch(e: Exception) { startDate }
     val openingBalances by viewModel.getAccountBalances(prevDate).collectAsState(initial = emptyList())
-    val openingBalance = remember(openingBalances, account.id) { openingBalances.find { it.id == account.id }?.balance ?: 0.0 }
+    val openingBalance = remember(openingBalances, account.id) { openingBalances.find { it.id == account.id }?.balance ?: 0L }
 
     val transactionsWithRunningBalance = remember(rawTransactions, openingBalance, filterTagIds.toList(), filterAccountIds.toList()) {
         val filtered = rawTransactions.filter { t ->
@@ -1748,7 +2084,7 @@ fun AccountDetailView(viewModel: ExpenseViewModel, account: AccountBalance, onBa
 
         var currentBal = openingBalance
         filtered.map { detail ->
-            val amount = detail.transaction.amount
+            val amount = detail.transaction.amountMinorUnits ?: (detail.transaction.amount * 100).toLong()
             val isIncoming = detail.transaction.toAccountId == account.id || (detail.transaction.accountId == account.id && detail.categoryType == "income")
             val isOutgoing = detail.transaction.accountId == account.id && detail.categoryType != "income"
             
@@ -1759,17 +2095,19 @@ fun AccountDetailView(viewModel: ExpenseViewModel, account: AccountBalance, onBa
         }.reversed()
     }
 
-    val additions = remember(transactionsWithRunningBalance) { 
+    val additionsTotal = remember(transactionsWithRunningBalance) { 
         transactionsWithRunningBalance.sumOf { item -> 
-            if (item.detail.transaction.toAccountId == account.id || (item.detail.transaction.accountId == account.id && item.detail.categoryType == "income")) item.detail.transaction.amount else 0.0 
+            if (item.detail.transaction.toAccountId == account.id || (item.detail.transaction.accountId == account.id && item.detail.categoryType == "income")) 
+                (item.detail.transaction.amountMinorUnits ?: (item.detail.transaction.amount * 100).toLong()) else 0L 
         } 
     }
-    val deletions = remember(transactionsWithRunningBalance) { 
+    val deletionsTotal = remember(transactionsWithRunningBalance) { 
         transactionsWithRunningBalance.sumOf { item -> 
-            if (item.detail.transaction.accountId == account.id && item.detail.categoryType != "income") item.detail.transaction.amount else 0.0
+            if (item.detail.transaction.accountId == account.id && item.detail.categoryType != "income") 
+                (item.detail.transaction.amountMinorUnits ?: (item.detail.transaction.amount * 100).toLong()) else 0L 
         } 
     }
-    val closingBalance = openingBalance + additions - deletions
+    val closingBalanceFinal = openingBalance + additionsTotal - deletionsTotal
 
     val exportLauncher = rememberLauncherForActivityResult(contract = ActivityResultContracts.CreateDocument("text/csv"), onResult = { uri -> uri?.let { exportToUri(context, transactionsWithRunningBalance.map { it.detail }, "CSV", it) } })
     Column(modifier = Modifier.fillMaxSize()) {
@@ -1813,9 +2151,9 @@ fun AccountDetailView(viewModel: ExpenseViewModel, account: AccountBalance, onBa
                 }
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(viewModel.formatAmount(openingBalance), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-                    Text(viewModel.formatAmount(additions), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = Color(0xFF4CAF50))
-                    Text(viewModel.formatAmount(deletions), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = Color.Red)
-                    Text(viewModel.formatAmount(closingBalance), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                    Text(viewModel.formatAmount(additionsTotal), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = Color(0xFF4CAF50))
+                    Text(viewModel.formatAmount(deletionsTotal), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = Color.Red)
+                    Text(viewModel.formatAmount(closingBalanceFinal), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -1889,7 +2227,7 @@ fun exportToUri(context: Context, data: List<TransactionWithDetails>, format: St
 }
 
 fun exportScheduleToUri(context: Context, data: List<AmortizationRow>, uri: Uri) {
-    // Need to resolve strings via context if not in Composable
+
     val successMsg = context.getString(R.string.msg_export_success)
     val failedMsgPrefix = context.getString(R.string.msg_export_failed_colon)
 
@@ -2127,7 +2465,7 @@ fun TransactionCalendarView(month: LocalDate, transactions: List<TransactionWith
                                 Column(verticalArrangement = Arrangement.spacedBy((-2).dp)) {
                                     if (totals.second > 0) {
                                         Text(
-                                            text = viewModel.formatAmount(totals.second).replace(".00", ""),
+                                            text = viewModel.formatAmount(totals.second),
                                             color = Color(0xFFF44336),
                                             fontSize = 10.sp,
                                             maxLines = 1,
@@ -2136,7 +2474,7 @@ fun TransactionCalendarView(month: LocalDate, transactions: List<TransactionWith
                                     }
                                     if (totals.first > 0) {
                                         Text(
-                                            text = viewModel.formatAmount(totals.first).replace(".00", ""),
+                                            text = viewModel.formatAmount(totals.first),
                                             color = Color(0xFF4CAF50),
                                             fontSize = 10.sp,
                                             maxLines = 1,

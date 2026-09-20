@@ -1,7 +1,17 @@
 <!--
- FinTrack
- SPDX-License-Identifier: GPL-3.0-or-later
- Copyright (C) 2026 Bhuvan
+ * FinTrack
+ * Copyright (C) 2026 Bhuvan (app.upstream242@passmail.com)
+ * SPDX-License-Identifier: GPL-3.0-or-later
+
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
 -->
 
 <resources>
@@ -212,6 +222,8 @@
     <string name="settings_regional">区域设置</string>
     <string name="settings_millions_system">使用百万/十亿进位</string>
     <string name="settings_tap_net_position">点击显示净头寸</string>
+    <string name="settings_decimal_places">小数位数</string>
+    <string name="settings_decimal_suffix">位</string>
     <string name="settings_data_entry">数据录入</string>
     <string name="settings_multi_tag">多标签选择</string>
     <string name="settings_auto_read">自动读取短信</string>
@@ -842,4 +854,117 @@
     <string name="shortcut_quick_entry_short">快速分录</string>
     <string name="shortcut_quick_entry_long">记录快速交易</string>
     <string name="btn_save_and_new">保存并新增</string>
+    <string name="menu_investments">投资</string>
+    <string name="label_current_value">当前价值</string>
+    <string name="label_adjustment_category">调整类别</string>
+    <string name="msg_investment_record_confirm">差额将记为收入或支出分录，账户余额将更新以匹配输入的当前值。是否继续？</string>
+    <string name="msg_adjustment_category_missing">请为所有有差额的行选择类别。未选择类别的行将被跳过。</string>
+    <string name="greeting_good_morning">早上好</string>
+    <string name="greeting_good_afternoon">下午好</string>
+    <string name="greeting_good_evening">晚上好</string>
+    <string name="msg_credit_card_tip_days">提示：建议使用“%1$s”以获得最长免息期（%2$d 天 vs %3$d 天）。</string>
+
+    <string name="label_transaction_status">交易状态</string>
+    <string name="status_pending">待处理</string>
+    <string name="status_verified">已核对</string>
+    <string name="status_void">已作废</string>
+    <string name="btn_mark_as_verified">标记为已核对</string>
+    <string name="btn_mark_as_void">标记为已作废</string>
+    <string name="btn_modify">修改</string>
+
+    <!-- Financial Goals -->
+    <string name="goal_title_financial_goals">财务目标</string>
+    <string name="goal_recurring_rules">循环规则</string>
+    <string name="goal_add_goal">添加目标</string>
+    <string name="goal_total_savings_progress">总存款进度</string>
+    <string name="goal_saved_format">已存: %1$s</string>
+    <string name="goal_target_format">目标: %1$s</string>
+    <string name="goal_no_goals_created">尚未创建财务目标。点击“+”添加一个！</string>
+    <string name="goal_no_deadline">无截止日期</string>
+    <string name="goal_expired">已过期</string>
+    <string name="goal_due_today">今天到期</string>
+    <string name="goal_days_left">剩余 %1$d 天</string>
+    <string name="goal_months_left">剩余 %1$d 个月</string>
+    <string name="goal_years_left">剩余 %1$d 年</string>
+    <string name="goal_delete_goal">删除目标</string>
+    <string name="goal_options">选项</string>
+    <string name="goal_create_financial_goal">创建财务目标</string>
+    <string name="goal_name_hint">目标名称 (如: 新车)</string>
+    <string name="goal_target_amount">目标金额</string>
+    <string name="goal_target_date_hint">目标日期 (YYYY-MM-DD)</string>
+    <string name="goal_accounts_funding">为此目标提供资金的账户</string>
+    <string name="goal_no_funds_allocated">尚未分配账户资金。</string>
+    <string name="goal_allocation_history">分配历史</string>
+    <string name="goal_allocation_history_desc">手动分配、循环规则和交易历史记录。</string>
+    <string name="goal_no_allocation_history">未记录分配历史。</string>
+    <string name="goal_allocation_transaction">分配交易</string>
+    <string name="goal_transaction_visibility">交易可见性</string>
+    <string name="goal_tap_transaction_details">点击任意交易查看详情。</string>
+    <string name="goal_no_transactions_linked">尚无交易与此目标关联。</string>
+    <string name="goal_allocate_funds">从账户分配资金</string>
+    <string name="goal_allocate_funds_title">分配资金到 %1$s</string>
+    <string name="goal_amount_to_allocate">分配金额</string>
+    <string name="goal_recurring_auto_contributions">定期自动出资</string>
+    <string name="goal_add_rule">添加规则</string>
+    <string name="goal_no_rules_set">未设置定期出资规则。</string>
+    <string name="goal_unknown_goal">未知目标</string>
+    <string name="goal_add_recurring_contribution">添加定期目标出资</string>
+    <string name="goal_select_goal">选择目标</string>
+    <string name="goal_frequency_format">频率: %1$s (第 %2$d 天)</string>
+    <string name="goal_trigger_day_hint">触发天数 / 日期 (例如 1)</string>
+    <string name="goal_save_rule">保存规则</string>
+    <string name="goal_checkbox_this_is_for_goal">这是针对目标的</string>
+    <string name="label_transaction">交易</string>
+    <string name="goal_select_account">选择账户</string>
+    <string name="goal_btn_allocate">分配</string>
+    <string name="goal_unknown">未知</string>
+    <string name="btn_catchup_missing_entries">补记 %1$d 条缺失条目</string>
+    <string name="title_catchup_missing_entries">补记缺失条目</string>
+    <string name="msg_catchup_missing_entries">自 \'%2$s\' 的最后一次记录以来，发现有 %1$d 个缺失周期。您要记入这些缺失的条目吗？</string>
+    <string name="msg_catchup_success">成功为 %2$s 补记了 %1$d 条条目</string>
+    <string name="msg_catchup_already_uptodate">订阅 \'%1$s\' 已经是最新状态，无需补记。</string>
+    <string name="btn_catch_up">补记</string>
+
+    <!-- Fixed Deposits -->
+    <string name="fd_title_dashboard">定期存款仪表板</string>
+    <string name="fd_no_active_fds">尚未记录活跃的定期存款。</string>
+    <string name="fd_acc_last_4">定期存款账户后4位：%1$s</string>
+    <string name="fd_minor_head">细分项目：%1$s</string>
+    <string name="fd_maturity_days_left">到期日：%1$s（还剩 %2$d 天）</string>
+    <string name="fd_maturity_date">到期日：%1$s</string>
+    <string name="fd_na">不适用</string>
+    <string name="fd_initial">初始金额：%1$s</string>
+    <string name="fd_outstanding">未结清：%1$s</string>
+    <string name="menu_fixed_deposits">定期存款</string>
+
+    <!-- Goals Localization -->
+    <string name="menu_goals">目标</string>
+    <string name="goal_see_account_balances">查看账户余额</string>
+    <string name="goal_transfer_funds_between_accounts">在账户之间转账资金</string>
+    <string name="goal_actual_balance">实际余额：%1$s</string>
+    <string name="goal_allocated_to_goal">已分配给目标：%1$s</string>
+    <string name="goal_true_balance_available">真实余额（可用）：%1$s</string>
+    <string name="goal_source_allocation">%1$s 分配</string>
+    <string name="goal_history_date_account">%1$s | 账户：%2$s</string>
+    <string name="goal_txn_date_account">%1$s | 账户：%2$s</string>
+    <string name="goal_transfer_allocation_title">转移 %1$s 的分配</string>
+    <string name="goal_from_account_allocated">转出账户（已分配：%1$s）</string>
+    <string name="goal_select_source_account">选择源账户</string>
+    <string name="goal_account_allocated_format">%1$s（已分配：%2$s）</string>
+    <string name="goal_to_account">转入账户</string>
+    <string name="goal_select_destination_account">选择目标账户</string>
+    <string name="goal_transfer_amount">转账金额</string>
+    <string name="goal_btn_transfer">转账</string>
+    <string name="goal_account_balance_format">%1$s（余额：%2$s）</string>
+    <string name="goal_rule_account_amt">账户：%1$s | 金额：%2$s</string>
+    <string name="goal_rule_freq_day">频率：%1$s（第 %2$d 天）</string>
+    <string name="goal_frequency_label">频率：%1$s</string>
+    <string name="goal_account_balances_allocations_title">账户余额与目标分配</string>
+    <string name="goal_actual_account_balance">实际账户余额：%1$s</string>
+    <string name="goal_allocations_label">分配：</string>
+    <string name="goal_true_available_balance">真实可用余额：%1$s</string>
+
+    <!-- Settings Tab Order -->
+    <string name="settings_tab_home_fixed">标签页 1：%1$s（固定）</string>
+    <string name="settings_tab_format">标签页 %1$d：%2$s</string>
 </resources>

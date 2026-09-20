@@ -1,6 +1,17 @@
 /*
+ * FinTrack
+ * Copyright (C) 2026 Bhuvan (app.upstream242@passmail.com)
  * SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (C) 2026 Bhuvan
+
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
  */
 
 package com.openapps.fintrack.ui
@@ -90,6 +101,14 @@ fun AddCategoryScreen(viewModel: ExpenseViewModel, onNavigate: (String) -> Unit,
     var billingCycleEnd by remember(editingAccount, draft) { mutableStateOf(draft?.billingCycleEnd ?: editingAccount?.billingCycleEnd ?: "") }
     var paymentDueDate by remember(editingAccount, draft) { mutableStateOf(draft?.paymentDueDate ?: editingAccount?.paymentDueDate ?: "") }
     var defaultDueDays by remember(editingAccount, draft) { mutableStateOf(draft?.defaultDueDays ?: editingAccount?.defaultDueDays?.toString() ?: "") }
+    var last4Digits by remember(editingAccount, draft) { mutableStateOf(draft?.last4Digits ?: editingAccount?.last4Digits ?: "") }
+    var ifscCode by remember(editingAccount, draft) { mutableStateOf(draft?.ifscCode ?: editingAccount?.ifscCode ?: "") }
+    var branchName by remember(editingAccount, draft) { mutableStateOf(draft?.branchName ?: editingAccount?.branchName ?: "") }
+    var websiteUrl by remember(editingAccount, draft) { mutableStateOf(draft?.websiteUrl ?: editingAccount?.websiteUrl ?: "") }
+    var contactPerson by remember(editingAccount, draft) { mutableStateOf(draft?.contactPerson ?: editingAccount?.contactPerson ?: "") }
+    var minimumBalance by remember(editingAccount, draft) { mutableStateOf(draft?.minimumBalance ?: editingAccount?.minimumBalance?.toString() ?: "") }
+    var maturityDate by remember(editingAccount, draft) { mutableStateOf(draft?.maturityDate ?: editingAccount?.maturityDate ?: "") }
+    var bankName by remember(editingAccount, draft) { mutableStateOf(draft?.bankName ?: editingAccount?.bankName ?: "") }
 
     val context = LocalContext.current
 
@@ -109,7 +128,15 @@ fun AddCategoryScreen(viewModel: ExpenseViewModel, onNavigate: (String) -> Unit,
                 paymentDueDate = paymentDueDate,
                 icon = icon,
                 isEmergencyFund = isEmergencyFund,
-                defaultDueDays = defaultDueDays
+                defaultDueDays = defaultDueDays,
+                last4Digits = last4Digits,
+                ifscCode = ifscCode,
+                branchName = branchName,
+                websiteUrl = websiteUrl,
+                contactPerson = contactPerson,
+                minimumBalance = minimumBalance,
+                maturityDate = maturityDate,
+                bankName = bankName
             )
         }
     }
@@ -203,7 +230,6 @@ fun AddCategoryScreen(viewModel: ExpenseViewModel, onNavigate: (String) -> Unit,
             }
 
             if (type == "accounts") {
-                // Major Head Dropdown
                 var majorExpanded by remember { mutableStateOf(false) }
                 val majorName = allMajorHeads.find { it.id == selectedMajorHeadId }?.name ?: stringResource(R.string.label_select_major_head)
                 
@@ -243,7 +269,6 @@ fun AddCategoryScreen(viewModel: ExpenseViewModel, onNavigate: (String) -> Unit,
                     }
                 }
 
-                // Minor Head Dropdown
                 var minorExpanded by remember { mutableStateOf(false) }
                 val filteredMinors = allMinorHeads.filter { it.majorHeadId == selectedMajorHeadId }
                 val minorName = filteredMinors.find { it.id == selectedMinorHeadId }?.name ?: stringResource(R.string.label_select_minor_head)
@@ -283,7 +308,6 @@ fun AddCategoryScreen(viewModel: ExpenseViewModel, onNavigate: (String) -> Unit,
                     }
                 }
 
-                // Credit Card specific fields
                 val currentMajorName = allMajorHeads.find { it.id == selectedMajorHeadId }?.name
                 if (currentMajorName?.equals("credit cards", ignoreCase = true) == true) {
                     OutlinedTextField(
@@ -367,6 +391,27 @@ fun AddCategoryScreen(viewModel: ExpenseViewModel, onNavigate: (String) -> Unit,
                         Checkbox(checked = isEmergencyFund, onCheckedChange = { isEmergencyFund = it })
                         Text(stringResource(R.string.label_is_emergency_fund), modifier = Modifier.clickable { isEmergencyFund = !isEmergencyFund })
                     }
+
+                    val selectedMinor = allMinorHeads.find { it.id == selectedMinorHeadId }
+                    val minorName = selectedMinor?.name.orEmpty()
+                    if (minorName.contains("Fixed Deposit", ignoreCase = true)) {
+                        HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                        Text("Fixed Deposit (FD) Details", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        OutlinedTextField(value = bankName, onValueChange = { bankName = it }, label = { Text("Bank Name") }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), shape = CircleShape)
+                        OutlinedTextField(value = branchName, onValueChange = { branchName = it }, label = { Text("Branch Name") }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), shape = CircleShape)
+                        OutlinedTextField(value = contactPerson, onValueChange = { contactPerson = it }, label = { Text("Contact Person") }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), shape = CircleShape)
+                    }
+                }
+
+                if (currentMajorName?.equals("Bank Accounts", ignoreCase = true) == true) {
+                    HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                    Text("Bank Account Details", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    OutlinedTextField(value = last4Digits, onValueChange = { last4Digits = it }, label = { Text("Last 4 Digits") }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), shape = CircleShape)
+                    OutlinedTextField(value = ifscCode, onValueChange = { ifscCode = it }, label = { Text("IFSC Code") }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), shape = CircleShape)
+                    OutlinedTextField(value = branchName, onValueChange = { branchName = it }, label = { Text("Branch Name") }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), shape = CircleShape)
+                    OutlinedTextField(value = websiteUrl, onValueChange = { websiteUrl = it }, label = { Text("Website URL") }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), shape = CircleShape)
+                    OutlinedTextField(value = contactPerson, onValueChange = { contactPerson = it }, label = { Text("Contact Person") }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), shape = CircleShape)
+                    OutlinedTextField(value = minimumBalance, onValueChange = { minimumBalance = it }, label = { Text("Minimum Balance") }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), shape = CircleShape, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                 }
             }
 
@@ -434,7 +479,15 @@ fun AddCategoryScreen(viewModel: ExpenseViewModel, onNavigate: (String) -> Unit,
                             paymentDueDate = paymentDueDate,
                             icon = icon,
                             isEmergencyFund = isEmergencyFund,
-                            defaultDueDays = defaultDueDays.toIntOrNull()
+                            defaultDueDays = defaultDueDays.toIntOrNull(),
+                            last4Digits = last4Digits,
+                            ifscCode = ifscCode,
+                            branchName = branchName,
+                            websiteUrl = websiteUrl,
+                            contactPerson = contactPerson,
+                            minimumBalance = minimumBalance.toDoubleOrNull(),
+                            maturityDate = maturityDate,
+                            bankName = bankName
                         )
                         viewModel.draftAccount = null
                     } else if (type == "party") {

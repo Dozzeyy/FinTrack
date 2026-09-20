@@ -1,6 +1,17 @@
 /*
+ * FinTrack
+ * Copyright (C) 2026 Bhuvan (app.upstream242@passmail.com)
  * SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (C) 2026 Bhuvan
+
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
  */
 
 package com.openapps.fintrack.ui
@@ -35,11 +46,13 @@ import androidx.compose.ui.res.stringResource
 import com.openapps.fintrack.R
 import com.openapps.fintrack.data.AppDatabase
 import com.openapps.fintrack.data.BackupWorker
+import com.openapps.fintrack.data.EncryptedPrefsHelper
 import com.openapps.fintrack.data.EncryptionService
 import com.openapps.fintrack.data.SafeLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.withLock
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -57,6 +70,9 @@ fun DatabaseScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
     var showRemoteEncryptPassDialog by remember { mutableStateOf(false) }
     var showDisableE2EEDialog by remember { mutableStateOf(false) }
     var showSecureModeE2EEPrompt by remember { mutableStateOf(false) }
+    var showDisableSecureModePasswordDialog by remember { mutableStateOf(false) }
+    var disableSecureModePassInput by remember { mutableStateOf("") }
+    var disableSecureModeError by remember { mutableStateOf<String?>(null) }
     
     var showImportPasswordDialog by remember { mutableStateOf(false) }
     
@@ -80,16 +96,23 @@ fun DatabaseScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                         return@launch
                     }
 
-                    if (EncryptionService.isValidSQLite(tempPicked)) {
-                        viewModel.refreshDatabase(enqueueWorker = false)
-                        if (importFileDirectly(context, tempPicked)) {
-                            Toast.makeText(context, context.getString(R.string.msg_db_imported_success), Toast.LENGTH_LONG).show()
-                            (context as Activity).recreate()
+                    if (EncryptionService.isEncrypted(tempPicked) || tempPicked.name.endsWith(".xpt")) {
+                        showImportPasswordDialog = true
+                    } else if (EncryptionService.isValidSQLite(tempPicked) || tempPicked.name.endsWith(".ftd")) {
+                        if (!validateDatabaseSchema(tempPicked)) {
+                            Toast.makeText(context, context.getString(R.string.msg_invalid_db_structure), Toast.LENGTH_LONG).show()
+                            return@launch
+                        }
+
+                        val importedVersion = getDatabaseVersion(tempPicked)
+                        Log.d("DatabaseImport", "Imported DB version: $importedVersion")
+                        
+                        if (importFileDirectly(context, tempPicked, viewModel)) {
+                            Toast.makeText(context, context.getString(R.string.msg_db_imported_success) + (if (importedVersion > 0) " (v$importedVersion)" else " (Legacy)"), Toast.LENGTH_LONG).show()
+                            restartApp(context)
                         } else {
                             Toast.makeText(context, context.getString(R.string.msg_import_failed), Toast.LENGTH_SHORT).show()
                         }
-                    } else if (EncryptionService.isEncrypted(tempPicked)) {
-                        showImportPasswordDialog = true
                     } else {
                         Toast.makeText(context, context.getString(R.string.msg_not_valid_db), Toast.LENGTH_LONG).show()
                     }
@@ -143,11 +166,10 @@ fun DatabaseScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                             }
                             
                             if (result.isSuccess && validateDatabaseSchema(decrypted)) {
-                                viewModel.refreshDatabase(enqueueWorker = false)
-                                if (importFileDirectly(context, decrypted)) {
+                                if (importFileDirectly(context, decrypted, viewModel, importPass)) {
                                     Toast.makeText(context, context.getString(R.string.msg_decrypted_imported_success), Toast.LENGTH_LONG).show()
                                     showImportPasswordDialog = false
-                                    (context as Activity).recreate()
+                                    restartApp(context)
                                 } else {
                                     Toast.makeText(context, context.getString(R.string.msg_import_failed_after_decryption), Toast.LENGTH_SHORT).show()
                                     isProcessing = false
@@ -411,19 +433,81 @@ fun DatabaseScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
 
             Text(stringResource(R.string.title_encryption_e2ee), style = MaterialTheme.typography.titleMedium)
             
-            // Secure Mode Toggle
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(stringResource(R.string.label_ultra_secure_mode), color = if (viewModel.secureModeEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
                     Text(stringResource(R.string.label_ultra_secure_desc), style = MaterialTheme.typography.labelSmall)
                 }
-                Switch(checked = viewModel.secureModeEnabled, onCheckedChange = { 
-                    if (it && !viewModel.encryptRemoteEnabled) {
-                        showSecureModeE2EEPrompt = true
+                Switch(checked = viewModel.secureModeEnabled, onCheckedChange = { checked ->
+                    if (checked) {
+                        val hasMasterPass = EncryptedPrefsHelper.getString("remote_master_password", "")?.isNotBlank() == true || viewModel.remoteMasterPassword.isNotEmpty()
+                        if (!hasMasterPass) {
+                            showRemoteEncryptPassDialog = true
+                        } else {
+                            if (!viewModel.encryptRemoteEnabled) {
+                                showSecureModeE2EEPrompt = true
+                            }
+                            viewModel.updateSecureMode(true)
+                        }
                     } else {
-                        viewModel.updateSecureMode(it)
+                        viewModel.disableUltraSecureMode(
+                            onRequirePassword = {
+                                disableSecureModePassInput = ""
+                                disableSecureModeError = null
+                                showDisableSecureModePasswordDialog = true
+                            }
+                        )
                     }
                 })
+            }
+
+            if (showDisableSecureModePasswordDialog) {
+                AlertDialog(
+                    onDismissRequest = { showDisableSecureModePasswordDialog = false },
+                    title = { Text("Enter Master Password") },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Enter your Master Password to decrypt your database and turn off Ultra Secure Mode.", style = MaterialTheme.typography.bodyMedium)
+                            OutlinedTextField(
+                                value = disableSecureModePassInput,
+                                onValueChange = {
+                                    disableSecureModePassInput = it
+                                    disableSecureModeError = null
+                                },
+                                label = { Text("Master Password") },
+                                visualTransformation = PasswordVisualTransformation(),
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            disableSecureModeError?.let { err ->
+                                Text(err, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    val success = viewModel.disableSecureModeWithPassword(disableSecureModePassInput)
+                                    if (success) {
+                                        showDisableSecureModePasswordDialog = false
+                                        Toast.makeText(context, "Ultra Secure Mode disabled and database decrypted.", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        disableSecureModeError = "Incorrect Master Password"
+                                    }
+                                }
+                            },
+                            enabled = disableSecureModePassInput.isNotEmpty()
+                        ) {
+                            Text(stringResource(R.string.btn_ok))
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showDisableSecureModePasswordDialog = false }) {
+                            Text(stringResource(R.string.btn_cancel))
+                        }
+                    }
+                )
             }
 
             if (showSecureModeE2EEPrompt) {
@@ -439,7 +523,6 @@ fun DatabaseScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
 
             Spacer(Modifier.height(8.dp))
 
-            // Encrypt Remote Toggle (E2EE)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                     Icon(Icons.Default.Lock, null, modifier = Modifier.size(16.dp))
@@ -505,6 +588,7 @@ fun DatabaseScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                             if (pass == confirmPass) {
                                 viewModel.updateRemoteMasterPassword(pass)
                                 viewModel.updateEncryptRemote(true)
+                                viewModel.updateSecureMode(true)
                                 showRemoteEncryptPassDialog = false
                             } else {
                                 error = context.getString(R.string.msg_passwords_not_match)
@@ -881,14 +965,39 @@ fun scheduleWebDavSync(context: Context, frequency: String) {
     SafeLogger.d("WebDAV Sync Scheduled for every $minutes minutes")
 }
 
+fun getDatabaseVersion(file: File): Int {
+    if (!EncryptionService.isValidSQLite(file)) return 0
+    var db: android.database.sqlite.SQLiteDatabase? = null
+    return try {
+        db = android.database.sqlite.SQLiteDatabase.openDatabase(file.path, null, android.database.sqlite.SQLiteDatabase.OPEN_READONLY)
+        db.version
+    } catch (e: Exception) {
+        Log.e("DatabaseVersion", "Failed to get version", e)
+        0
+    } finally {
+        db?.close()
+    }
+}
+
 fun validateDatabaseSchema(file: File): Boolean {
     if (!EncryptionService.isValidSQLite(file)) return false
     var db: android.database.sqlite.SQLiteDatabase? = null
     return try {
-
-        db = android.database.sqlite.SQLiteDatabase.openDatabase(file.path, null, android.database.sqlite.SQLiteDatabase.OPEN_READONLY)
+        db = try {
+            android.database.sqlite.SQLiteDatabase.openDatabase(file.path, null, android.database.sqlite.SQLiteDatabase.OPEN_READWRITE)
+        } catch (e: Exception) {
+            android.database.sqlite.SQLiteDatabase.openDatabase(file.path, null, android.database.sqlite.SQLiteDatabase.OPEN_READONLY)
+        }
         
-        val tablesToCheck = listOf("transactions", "major_heads", "minor_heads", "accounts", "categories")
+        val version = db.version
+        Log.d("DatabaseValidator", "Imported DB version: $version")
+        
+        if (version > 100) {
+            Log.e("DatabaseValidator", "Imported database version ($version) is higher than supported (100)")
+            return false
+        }
+
+        val tablesToCheck = listOf("accounts", "categories")
         var allTablesExist = true
         
         for (tableName in tablesToCheck) {
@@ -896,8 +1005,25 @@ fun validateDatabaseSchema(file: File): Boolean {
             val exists = cursor.count > 0
             cursor.close()
             if (!exists) {
+                Log.w("DatabaseValidator", "Core table $tableName missing in imported DB")
                 allTablesExist = false
                 break
+            }
+        }
+
+        if (allTablesExist) {
+        
+            val txnTables = listOf("transactions", "transaction_headers")
+            var foundTxn = false
+            for (t in txnTables) {
+                val c = db.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name=?", arrayOf(t))
+                if (c.count > 0) foundTxn = true
+                c.close()
+                if (foundTxn) break
+            }
+            if (!foundTxn) {
+                Log.w("DatabaseValidator", "No transaction tables found")
+                allTablesExist = false
             }
         }
         
@@ -910,26 +1036,75 @@ fun validateDatabaseSchema(file: File): Boolean {
     }
 }
 
-suspend fun importFileDirectly(context: Context, file: File): Boolean = withContext(Dispatchers.IO) {
-    try {
-        val dbFile = context.getDatabasePath("expenses_database")
-        
-        File(dbFile.path).delete()
-        File(dbFile.path + "-shm").delete()
-        File(dbFile.path + "-wal").delete()
-        File(dbFile.path + "-journal").delete()
+suspend fun importFileDirectly(
+    context: Context, 
+    file: File, 
+    viewModel: ExpenseViewModel? = null,
+    importPassword: String? = null
+): Boolean = withContext(Dispatchers.IO) {
+    if (viewModel != null) viewModel.isImportingDatabase = true
+    AppDatabase.databaseMutex.withLock {
+        try {
+            val dbFile = context.getDatabasePath("expenses_database")
+            val xptFile = File(dbFile.path + ".xpt")
+            
+            AppDatabase.closeDatabase()
 
-        FileInputStream(file).use { input ->
-            dbFile.outputStream().use { output ->
-                input.copyTo(output)
+            val filesToDelete = listOf(
+                dbFile,
+                File(dbFile.path + "-shm"),
+                File(dbFile.path + "-wal"),
+                File(dbFile.path + "-journal"),
+                xptFile,
+                File(dbFile.path + ".bak")
+            )
+            
+            filesToDelete.forEach { f ->
+                if (f.exists()) {
+                    f.delete()
+                }
             }
+
+            dbFile.parentFile?.mkdirs()
+
+            FileInputStream(file).use { input ->
+                FileOutputStream(dbFile).use { output ->
+                    input.copyTo(output)
+                }
+            }
+
+            if (!importPassword.isNullOrEmpty()) {
+                EncryptedPrefsHelper.putString("remote_master_password", importPassword)
+                if (viewModel != null) {
+                    viewModel.remoteMasterPassword = importPassword.toCharArray()
+                }
+            }
+
+            if (viewModel != null) viewModel.isDatabaseDecrypted = true
+            context.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+                .edit()
+                .putBoolean("db_encrypted_at_rest", false)
+                .apply()
+            
+            Log.d("DatabaseImport", "Database file replaced successfully: ${dbFile.length()} bytes")
+            true
+        } catch (e: Exception) {
+            Log.e("DatabaseImport", "Failed to import file", e)
+            false
         }
-        
-        Log.d("DatabaseImport", "Full 360-degree file replacement successful")
-        true
-    } catch (e: Exception) {
-        Log.e("DatabaseImport", "Failed to import file", e)
-        false
+    }
+}
+
+fun restartApp(context: Context) {
+    val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
+    if (intent != null) {
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        context.startActivity(intent)
+        (context as? Activity)?.finishAffinity()
+        android.os.Process.killProcess(android.os.Process.myPid())
+        kotlin.system.exitProcess(0)
+    } else {
+        (context as? Activity)?.recreate()
     }
 }
 

@@ -1,11 +1,22 @@
 /*
+ * FinTrack
+ * Copyright (C) 2026 Bhuvan (app.upstream242@passmail.com)
  * SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (C) 2026 Bhuvan
+
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
  */
 
 package com.openapps.fintrack.data
 
-import com.openapps.fintrack.ui.BudgetVsActual
+import com.openapps.fintrack.domain.model.BudgetVsActual
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 import kotlin.math.abs
@@ -50,13 +61,15 @@ class FinancialInsightEngine {
             .groupBy { it.transaction.date.substring(0, 7) }
             .mapValues { it.value.sumOf { t -> t.transaction.amount } }
 
+        val bankMajorId = majorHeads.find { it.name.equals("Bank Accounts", true) || it.name.contains("Bank", true) }?.id
+
         // 1. Credit Score Impact Predictor
         accounts.forEach { acc ->
             val minor = minorHeads.find { it.id == acc.minorHeadId }
             if (minor?.majorHeadId == 8) { 
-                val limit = acc.creditLimit ?: 0.0
+                val limit = (acc.creditLimit ?: 0L).toDouble() / 100.0
                 if (limit > 0) {
-                    val utilization = (abs(acc.balance) / limit) * 100
+                    val utilization = (abs(acc.balance.toDouble() / 100.0) / limit) * 100
                     if (utilization > 30) {
                         insights.add(FinancialInsight(
                             "credit_util_${acc.id}",
@@ -65,6 +78,23 @@ class FinancialInsightEngine {
                             InsightType.WARNING
                         ))
                     }
+                }
+            }
+        }
+
+        // 1b. Minimum Balance Warning for Bank Accounts
+        accounts.forEach { acc ->
+            val minor = minorHeads.find { it.id == acc.minorHeadId }
+            val minBal = acc.minimumBalance
+            if (minBal != null && minBal > 0.0 && (minor?.majorHeadId == bankMajorId || acc.name.contains("bank", true))) {
+                val currentBal = acc.balance.toDouble() / 100.0
+                if (currentBal < minBal) {
+                    insights.add(FinancialInsight(
+                        "min_bal_${acc.id}",
+                        "Minimum Balance Warning",
+                        "Account '${acc.name}' balance ($currentBal) has fallen below its required minimum balance of $minBal.",
+                        InsightType.WARNING
+                    ))
                 }
             }
         }
@@ -199,17 +229,16 @@ class FinancialInsightEngine {
         }
 
         // 8. Bank Balance vs Monthly Expenses
-        val bankMajorId = majorHeads.find { it.name.contains("Bank", true) }?.id
         val bankBalance = accounts.filter { a -> 
             val minor = minorHeads.find { it.id == a.minorHeadId }
             minor?.majorHeadId == bankMajorId
-        }.sumOf { it.balance }
+        }.sumOf { it.balance.toDouble() / 100.0 }
 
         val ccMajorId = majorHeads.find { it.name.contains("Credit Card", true) }?.id
         val ccLiabilities = abs(accounts.filter { a -> 
             val minor = minorHeads.find { it.id == a.minorHeadId }
             minor?.majorHeadId == ccMajorId
-        }.sumOf { it.balance })
+        }.sumOf { it.balance.toDouble() / 100.0 })
         val trueBankBalance = bankBalance - ccLiabilities
 
         if (bankBalance < avgMonthlyExp && avgMonthlyExp > 0) {
@@ -347,16 +376,16 @@ class FinancialInsightEngine {
             insights.add(FinancialInsight("correlation_work_food", "Spending Pattern", "You tend to spend more on outside food on days you work late or travel for work.", InsightType.TREND))
         }
 
-        // 17. Idle Cash Investment Alert (True Bank bal > 25% of 3mo avg expense)
+        // 17. Idle Cash Investment Alert (True Bank bal > 60% of 3mo avg expense)
         val last3MonthExpsList = monthlyExpenses.values.toList().takeLast(3)
         val avg3MonthExp = if (last3MonthExpsList.isNotEmpty()) last3MonthExpsList.average() else 0.0
         
-        if (avg3MonthExp > 0 && trueBankBalance > avg3MonthExp * 0.25) {
-             insights.add(FinancialInsight("idle_cash", "Investment Opportunity", "Your net bank balance (after credit card liabilities) of ${trueBankBalance} exceeds 25% of your 3-month average expenses(which is ${avg3MonthExp}). Consider investing the surplus to earn better returns.", InsightType.OPPORTUNITY))
+        if (avg3MonthExp > 0 && trueBankBalance > avg3MonthExp * 0.60) {
+             insights.add(FinancialInsight("idle_cash", "Investment Opportunity", "Your net bank balance (after credit card liabilities) of ${trueBankBalance} exceeds 60% of your 3-month average expenses (which is ${avg3MonthExp}). Consider investing the surplus to earn better returns.", InsightType.OPPORTUNITY))
         }
 
         // 18. Emergency Fund Adequacy Score
-        val emergencyFunds = accounts.filter { it.isEmergencyFund }.sumOf { it.balance }
+        val emergencyFunds = accounts.filter { it.isEmergencyFund }.sumOf { it.balance.toDouble() / 100.0 }
         
         val last3MonthsList = (1..3).map { today.minusMonths(it.toLong()).toString().substring(0, 7) }
         val eligibleMonthsExpenses = last3MonthsList.mapNotNull { monthStr ->
@@ -403,9 +432,8 @@ class FinancialInsightEngine {
         months.forEach { month ->
             val endOfMonth = LocalDate.parse("$month-01").plusMonths(1).minusDays(1).toString()
             val assets = accounts.filter { it.type == "asset" }.sumOf { acc ->
-                val currentBal = acc.balance
+                var historicalBal = acc.balance.toDouble() / 100.0
                 val txnsAfter = transactions.filter { it.transaction.date > endOfMonth && (it.transaction.accountId == acc.id || it.transaction.toAccountId == acc.id) }
-                var historicalBal = currentBal
                 txnsAfter.forEach { t ->
                     if (t.transaction.toAccountId == acc.id) {
                         historicalBal -= t.transaction.amount
@@ -420,9 +448,8 @@ class FinancialInsightEngine {
                 historicalBal
             }
             val liabilities = accounts.filter { it.type == "liability" }.sumOf { acc ->
-                val currentBal = acc.balance
+                var historicalBal = acc.balance.toDouble() / 100.0
                 val txnsAfter = transactions.filter { it.transaction.date > endOfMonth && (it.transaction.accountId == acc.id || it.transaction.toAccountId == acc.id) }
-                var historicalBal = currentBal
                 txnsAfter.forEach { t ->
                     if (t.transaction.toAccountId == acc.id) {
                         historicalBal -= t.transaction.amount
@@ -495,6 +522,78 @@ class FinancialInsightEngine {
                         InsightType.TREND
                     ))
                 }
+            }
+        }
+
+        // 22. Weekend vs. Weekday Bias
+        if (currentMonthExp > 0) {
+            val weekendExp = currentMonthTxns.filter { 
+                val d = LocalDate.parse(it.transaction.date)
+                d.dayOfWeek.value >= 6 // 6 = Saturday, 7 = Sunday
+            }.sumOf { it.transaction.amount }
+            
+            val weekendPct = (weekendExp / currentMonthExp) * 100
+            if (weekendPct > 50) {
+                insights.add(FinancialInsight(
+                    "weekend_bias",
+                    "Weekend Spending Spike",
+                    "You spend ${weekendPct.toInt()}% of your monthly expenses on Saturdays and Sundays. Consider a 'No-Spend' weekend to boost your savings rate.",
+                    InsightType.TREND
+                ))
+            }
+        }
+
+        // 23. Subscription "Death by a Thousand Cuts"
+        val incomeToUseForSubs = if (totalIncomePrevMonth > 0) totalIncomePrevMonth else currentMonthIncome
+        if (incomeToUseForSubs > 0) {
+
+            val currentSubs = transactions.filter { 
+                it.transaction.date.startsWith(currentMonthStr) && 
+                it.categoryType == "expense" && 
+                (it.transaction.subFrequency != null || !it.transaction.subName.isNullOrEmpty()) 
+            }
+            
+            val monthlyNormalizedSubTotal = currentSubs.sumOf { 
+                val freq = it.transaction.subFrequency ?: 1
+                it.transaction.amount / freq.toDouble()
+            }
+            
+            val subPct = (monthlyNormalizedSubTotal / incomeToUseForSubs) * 100
+            
+            if (subPct > 5) { 
+                val sixMonthsAgo = today.minusMonths(6).toString().substring(0, 7)
+                val historicalSubs = transactions.filter { it.transaction.date.startsWith(sixMonthsAgo) && (it.transaction.subFrequency != null || !it.transaction.subName.isNullOrEmpty()) }
+                val currentUniqueSubs = currentSubs.mapNotNull { it.transaction.subName }.distinct().size
+                val pastUniqueSubs = historicalSubs.mapNotNull { it.transaction.subName }.distinct().size
+                val diff = currentUniqueSubs - pastUniqueSubs
+                
+                var desc = String.format(java.util.Locale.US, "Fixed subscriptions now consume %.1f%% (Cost: %.0f) of your take-home pay (%.0f).", subPct, monthlyNormalizedSubTotal, incomeToUseForSubs)
+                if (diff > 0 && pastUniqueSubs > 0) desc += " You have $diff more active subscriptions than you did 6 months ago."
+                
+                insights.add(FinancialInsight(
+                    "subscription_drain",
+                    "Subscription Audit",
+                    desc,
+                    InsightType.WARNING
+                ))
+            }
+        }
+
+        // 24. The "Others" Trap (Savings Leakage)
+        if (currentMonthExp > 0) {
+            val othersKeywords = listOf("other", "misc", "miscellaneous", "uncategorized", "general")
+            val othersTotal = currentMonthTxns.filter { t ->
+                othersKeywords.any { t.categoryName?.contains(it, ignoreCase = true) == true } || t.categoryName == null
+            }.sumOf { it.transaction.amount }
+            
+            val othersPct = (othersTotal / currentMonthExp) * 100
+            if (othersPct > 10) {
+                insights.add(FinancialInsight(
+                    "others_trap",
+                    "Savings Leakage (The Others Trap)",
+                    "${othersPct.toInt()}% of your spending this month is categorized as 'Others' or similar. Identifying these leaks could help you save an extra ${othersTotal.toInt()} units per month.",
+                    InsightType.OPPORTUNITY
+                ))
             }
         }
 

@@ -1,6 +1,17 @@
 /*
+ * FinTrack
+ * Copyright (C) 2026 Bhuvan (app.upstream242@passmail.com)
  * SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (C) 2026 Bhuvan
+
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
  */
 
 package com.openapps.fintrack.ui
@@ -40,7 +51,7 @@ import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-fun CreditCardDashboard(viewModel: ExpenseViewModel, onBack: () -> Unit) {
+fun CreditCardDashboard(viewModel: ExpenseViewModel, onBack: () -> Unit, isEmbedded: Boolean = false) {
     val accounts by viewModel.getEnabledAccounts().collectAsState(initial = emptyList())
     val minorHeads by viewModel.getAllMinorHeads().collectAsState(initial = emptyList())
     val allMajorHeads by viewModel.getAllMajorHeads().collectAsState(initial = emptyList())
@@ -83,18 +94,21 @@ fun CreditCardDashboard(viewModel: ExpenseViewModel, onBack: () -> Unit) {
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.menu_credit_cards)) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.btn_back)) } }
-            )
+            if (!isEmbedded) {
+                TopAppBar(
+                    title = { Text(stringResource(R.string.menu_credit_cards)) },
+                    navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.btn_back)) } }
+                )
+            }
         }
     ) { padding ->
+        val contentPadding = if (isEmbedded) PaddingValues(0.dp) else padding
         if (ccAccounts.isEmpty()) {
-            Box(Modifier.padding(padding).fillMaxSize(), contentAlignment = Alignment.Center) {
+            Box(Modifier.padding(contentPadding).fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(stringResource(R.string.msg_no_cc_accounts))
             }
         } else {
-            Column(modifier = Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState())) {
+            Column(modifier = Modifier.padding(contentPadding).fillMaxSize().verticalScroll(rememberScrollState())) {
                 HorizontalPager(
                     state = pagerState,
                     modifier = Modifier.fillMaxWidth(),
@@ -182,7 +196,7 @@ fun CCSummaryCard(
         t.transaction.toAccountId == account.id &&
         t.transaction.date > cycleEnd.format(DateTimeFormatter.ISO_DATE) &&
         t.transaction.date <= today.format(DateTimeFormatter.ISO_DATE) &&
-        t.transaction.categoryId == null // Pure transfers
+        t.transaction.categoryId == null 
     }
     val lastPaidAmount = paymentsAfterCycle.sumOf { it.transaction.amount }
     val lastPaidDate = paymentsAfterCycle.maxByOrNull { it.transaction.date }?.transaction?.date

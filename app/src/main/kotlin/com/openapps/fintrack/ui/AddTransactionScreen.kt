@@ -1,6 +1,17 @@
 /*
+ * FinTrack
+ * Copyright (C) 2026 Bhuvan (app.upstream242@passmail.com)
  * SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (C) 2026 Bhuvan
+
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
  */
 
 package com.openapps.fintrack.ui
@@ -9,6 +20,7 @@ import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.os.Bundle
 import android.widget.Toast
+import com.openapps.fintrack.data.FdDashboardItem
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
@@ -30,16 +42,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import com.openapps.fintrack.R
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.openapps.fintrack.data.Template
+import com.openapps.fintrack.data.Account
+import com.openapps.fintrack.data.Category
+import com.openapps.fintrack.data.RawTransactionHelper
+import com.openapps.fintrack.data.TemplateLegacy
 import com.openapps.fintrack.data.Party
-import com.openapps.fintrack.data.Transaction
+import com.openapps.fintrack.data.TransactionLegacy
 import com.openapps.fintrack.data.TransactionWithDetails
 import kotlinx.serialization.Serializable
 import kotlinx.coroutines.CoroutineScope
@@ -60,6 +77,7 @@ data class MultiEntryRow(
     var accountId: Int? = null,
     var amount: String = "",
     var note: String? = null,
+    var tags: String? = null,
     var currencyCode: String? = null
 )
 
@@ -122,6 +140,15 @@ class AddTransactionState(
     var invoiceNumber by mutableStateOf("")
     var dueDays by mutableStateOf("")
     val selectedInvoiceIds = mutableStateListOf<Int>()
+
+    var isForGoal by mutableStateOf(false)
+    var selectedGoalId by mutableStateOf<Int?>(null)
+
+    var fdLast4 by mutableStateOf("")
+    var fdMaturityDate by mutableStateOf("")
+    var selectedFdCreationHeaderId by mutableStateOf<Int?>(null)
+    var selectedFdItem by mutableStateOf<FdDashboardItem?>(null)
+    var showFdRedemptionDialog by mutableStateOf(false)
 }
 
 @Composable
@@ -129,7 +156,7 @@ fun rememberAddTransactionState(
     viewModel: ExpenseViewModel,
     txnDetail: TransactionWithDetails?,
     draft: DraftTransaction?,
-    editingTemplate: Template?,
+    editingTemplate: TemplateLegacy?,
     initialData: Bundle?
 ): AddTransactionState {
     val initialType = remember {
@@ -199,19 +226,32 @@ fun rememberAddTransactionState(
         }
     }
 
+    val headerDetailed by remember(txnDetail?.transaction?.id) {
+        if (txnDetail != null) viewModel.getTransactionHeaderWithLines(txnDetail.transaction.id)
+        else kotlinx.coroutines.flow.flowOf(null)
+    }.collectAsState(initial = null)
+
+    LaunchedEffect(headerDetailed) {
+        if (headerDetailed != null) {
+            val firstLine = headerDetailed?.lines?.firstOrNull()?.line
+            state.fdLast4 = firstLine?.fdLast4 ?: ""
+            state.fdMaturityDate = firstLine?.fdMaturityDate ?: ""
+        }
+    }
+
     LaunchedEffect(draft, editingTemplate, txnDetail) {
         if (state.multiEntryRows.isEmpty()) {
             if (draft?.isMultiEntry == true) {
                 state.isMultiEntry = true
                 state.multiEntryType = draft.multiEntryType
-                state.multiEntryRows.addAll(draft.multiEntryRows.map { MultiEntryRow(categoryId = it.categoryId, accountId = it.accountId, amount = it.amount, note = it.note, currencyCode = it.currencyCode) })
+                state.multiEntryRows.addAll(draft.multiEntryRows.map { MultiEntryRow(categoryId = it.categoryId, accountId = it.accountId, amount = it.amount, note = it.note, tags = it.tags, currencyCode = it.currencyCode) })
             } else if (editingTemplate?.multiEntries != null) {
                 state.isMultiEntry = true
                 state.multiEntryType = "Category" 
                 editingTemplate.multiEntries.split("|").forEach { entry ->
                     val parts = entry.split(":")
                     if (parts.size >= 2) {
-                        state.multiEntryRows.add(MultiEntryRow(categoryId = parts[0].toIntOrNull(), amount = parts[1], note = parts.getOrNull(2), currencyCode = parts.getOrNull(3)))
+                        state.multiEntryRows.add(MultiEntryRow(categoryId = parts[0].toIntOrNull(), amount = parts[1], note = parts.getOrNull(2)?.ifBlank { null }, currencyCode = parts.getOrNull(3)?.ifBlank { null }, tags = parts.getOrNull(4)?.ifBlank { null }))
                     }
                 }
             } else if (!state.isMultiEntry) {
@@ -311,6 +351,34 @@ fun AddTransactionScreen(
     val allTransactions by viewModel.allTransactions.collectAsState(initial = emptyList())
     val exchangeRates by viewModel.getExchangeRates().collectAsState(initial = emptyList())
     val masterSubscriptions by viewModel.getAllSubscriptionsMaster().collectAsState(initial = emptyList())
+    val allAllocations by viewModel.allAllocations.collectAsState(initial = emptyList())
+
+    val clipboardManager = LocalClipboardManager.current
+    val allAccountsList by viewModel.getAllAccounts().collectAsState(initial = emptyList())
+    val allCategories by viewModel.getAllCategories().collectAsState(initial = emptyList())
+    val dbParties by viewModel.getAllParties().collectAsState(initial = emptyList())
+
+    var showRawStringPasteDialog by remember { mutableStateOf(false) }
+    var rawStringInput by remember { mutableStateOf("") }
+    var rawStringErrorMessage by remember { mutableStateOf<String?>(null) }
+
+    val totalGoalAllocated = remember(state.selectedAccountId, allAllocations) {
+        if (state.selectedAccountId != null) {
+            allAllocations.filter { it.accountId == state.selectedAccountId }.sumOf { it.allocatedAmount }
+        } else 0.0
+    }
+    val currentAccountBalance = remember(state.selectedAccountId, accountBalances) {
+        if (state.selectedAccountId != null) {
+            val balMinor = accountBalances.find { it.id == state.selectedAccountId }?.balance ?: 0L
+            balMinor.toDouble() / 100.0
+        } else 0.0
+    }
+    val enteredAmount = evaluateExpression(state.amount)
+    val remainingBalance = currentAccountBalance - enteredAmount
+    val isGoalDiversion = state.selectedAccountId != null &&
+            totalGoalAllocated > 0.0 &&
+            enteredAmount > 0.0 &&
+            remainingBalance < totalGoalAllocated
 
     if (showSavedDialog) {
         AlertDialog(
@@ -353,7 +421,8 @@ fun AddTransactionScreen(
     }
 
     val categories by viewModel.getEnabledCategoriesByType(state.type).collectAsState(initial = emptyList())
-    val allTags by viewModel.getEnabledTags().collectAsState(initial = emptyList())
+    val allTags by viewModel.getAllTags().collectAsState(initial = emptyList())
+    val ccCycles by viewModel.ccCycles.collectAsState(initial = emptyList())
 
     val isFromOnAccount = remember(state.selectedAccountId, allMinorHeads, accountsRaw) {
         val acc = accountsRaw.find { it.id == state.selectedAccountId }
@@ -378,8 +447,231 @@ fun AddTransactionScreen(
         list
     }
 
+    val headerDetailed by remember(txnDetail?.transaction?.id) {
+        if (txnDetail != null) viewModel.getTransactionHeaderWithLines(txnDetail.transaction.id)
+        else kotlinx.coroutines.flow.flowOf(null)
+    }.collectAsState(initial = null)
+
+    LaunchedEffect(headerDetailed) {
+        headerDetailed?.let { h ->
+            val numLines = h.lines.size
+            val isMulti = numLines > 1 || h.header.transactionNumber.startsWith("MEXP") || h.header.transactionNumber.startsWith("MINC")
+            
+            if (isMulti) {
+                state.isMultiEntry = true
+                val distinctCats = h.lines.mapNotNull { it.line.categoryId }.distinct()
+                val distinctAccs = h.lines.mapNotNull { it.line.accountId }.distinct()
+                state.multiEntryType = if (distinctAccs.size > 1 && distinctCats.size <= 1) "Account" else "Category"
+
+                state.multiEntryRows.clear()
+                val rowTagIds = mutableSetOf<Int>()
+
+                h.lines.forEach { l ->
+                    val rowTagsStr = l.line.tags
+                    if (!rowTagsStr.isNullOrBlank()) {
+                        rowTagsStr.split(",").mapNotNull { it.trim().toIntOrNull() }.forEach { rowTagIds.add(it) }
+                    }
+                    state.multiEntryRows.add(
+                        MultiEntryRow(
+                            categoryId = l.line.categoryId,
+                            accountId = l.line.accountId,
+                            amount = (l.line.amountOriginal ?: l.line.amount).toString(),
+                            note = l.line.note,
+                            tags = rowTagsStr,
+                            currencyCode = l.line.currencyCode
+                        )
+                    )
+                }
+
+                val totalSum = h.lines.sumOf { it.line.amountOriginal ?: it.line.amount }
+                state.amount = totalSum.toString()
+                if (viewModel.enableMultiCurrency) {
+                    state.amountForeign = totalSum.toString()
+                }
+
+                if (!h.header.note.isNullOrBlank()) {
+                    state.note = h.header.note
+                }
+
+                selectedTagIds.clear()
+                val commonTagIds = h.tags.map { it.id }.filter { it !in rowTagIds }
+                selectedTagIds.addAll(commonTagIds)
+            }
+        }
+    }
+
     val context = LocalContext.current
     val scrollState = rememberScrollState()
+
+    fun handleRawStringImport(rawInput: String) {
+        if (rawInput.isBlank()) return
+
+        val parseResult = RawTransactionHelper.parse(rawInput)
+        if (parseResult.isFailure) {
+            rawStringErrorMessage = "Invalid Raw String JSON format:\n${parseResult.exceptionOrNull()?.localizedMessage}"
+            return
+        }
+
+        val rawData = parseResult.getOrThrow()
+        val missingEntities = mutableListOf<String>()
+
+        fun findAccount(name: String?): Account? {
+            if (name.isNullOrBlank()) return null
+            return allAccountsList.find { it.name.trim().equals(name.trim(), ignoreCase = true) }
+                ?: accountsRaw.find { it.name.trim().equals(name.trim(), ignoreCase = true) }
+        }
+
+        fun findCategory(name: String?): Category? {
+            if (name.isNullOrBlank()) return null
+            return allCategories.find { it.name.trim().equals(name.trim(), ignoreCase = true) }
+        }
+
+        fun findParty(name: String?): Any? {
+            if (name.isNullOrBlank()) return null
+            return dbParties.find { it.name.trim().equals(name.trim(), ignoreCase = true) }
+                ?: onAccountMicroAccounts.find { it.name.trim().equals(name.trim(), ignoreCase = true) }
+                ?: allAccountsList.find { it.name.trim().equals(name.trim(), ignoreCase = true) }
+        }
+
+        val matchedAccount = if (!rawData.accountName.isNullOrBlank()) {
+            val acc = findAccount(rawData.accountName)
+            if (acc == null) missingEntities.add("- Account: ${rawData.accountName}")
+            acc
+        } else null
+
+        val matchedToAccount = if (!rawData.toAccountName.isNullOrBlank()) {
+            val acc = findAccount(rawData.toAccountName)
+            if (acc == null) missingEntities.add("- To Account: ${rawData.toAccountName}")
+            acc
+        } else null
+
+        val matchedCategory = if (!rawData.categoryName.isNullOrBlank()) {
+            val cat = findCategory(rawData.categoryName)
+            if (cat == null) missingEntities.add("- Category: ${rawData.categoryName}")
+            cat
+        } else null
+
+        val matchedParty = if (!rawData.partyName.isNullOrBlank()) {
+            val p = findParty(rawData.partyName)
+            if (p == null) missingEntities.add("- Party: ${rawData.partyName}")
+            p
+        } else null
+
+        val matchedToParty = if (!rawData.toPartyName.isNullOrBlank()) {
+            val p = findParty(rawData.toPartyName)
+            if (p == null) missingEntities.add("- To Party: ${rawData.toPartyName}")
+            p
+        } else null
+
+        rawData.multiLines.forEachIndexed { idx, line ->
+            if (!line.accountName.isNullOrBlank() && findAccount(line.accountName) == null) {
+                missingEntities.add("- Line ${idx + 1} Account: ${line.accountName}")
+            }
+            if (!line.toAccountName.isNullOrBlank() && findAccount(line.toAccountName) == null) {
+                missingEntities.add("- Line ${idx + 1} To Account: ${line.toAccountName}")
+            }
+            if (!line.categoryName.isNullOrBlank() && findCategory(line.categoryName) == null) {
+                missingEntities.add("- Line ${idx + 1} Category: ${line.categoryName}")
+            }
+        }
+
+        if (missingEntities.isNotEmpty()) {
+            rawStringErrorMessage = "The following entities from the raw string do not exist in your database:\n" + missingEntities.joinToString("\n")
+            return
+        }
+
+        showRawStringPasteDialog = false
+        rawStringInput = ""
+
+        if (rawData.type.isNotBlank()) state.type = rawData.type
+        if (rawData.date.isNotBlank()) state.date = rawData.date
+        if (rawData.time.isNotBlank()) state.time = rawData.time
+
+        if (matchedAccount != null) state.selectedAccountId = matchedAccount.id
+        if (matchedToAccount != null) state.selectedToAccountId = matchedToAccount.id
+        if (matchedCategory != null) state.selectedCategoryId = matchedCategory.id
+
+        val amt = rawData.originalAmount ?: rawData.baseAmount
+        if (amt != null) {
+            state.amount = if (amt == 0.0) "" else amt.toString()
+            state.amountForeign = if (amt == 0.0) "" else amt.toString()
+        }
+        if (!rawData.currencyCode.isNullOrBlank()) {
+            state.foreignCurrency = rawData.currencyCode
+        }
+        if (rawData.baseAmount != null) {
+            state.amountLocal = rawData.baseAmount.toString()
+        }
+
+        state.note = rawData.note ?: ""
+        state.merchantName = rawData.merchantName ?: ""
+        state.isDiscretionary = rawData.isDiscretionary
+        state.isNegotiated = rawData.isNegotiated
+        state.negotiationAmountOriginal = rawData.negotiationAmountOriginal?.toString() ?: ""
+
+        if (matchedParty != null) {
+            state.selectedPartyId = when (matchedParty) {
+                is Party -> matchedParty.id
+                is Account -> matchedParty.id
+                else -> null
+            }
+        }
+        if (matchedToParty != null) {
+            state.selectedToPartyId = when (matchedToParty) {
+                is Party -> matchedToParty.id
+                is Account -> matchedToParty.id
+                else -> null
+            }
+        }
+
+        state.invoiceNumber = rawData.invoiceNumber ?: ""
+        state.dueDays = rawData.dueDays?.toString() ?: ""
+
+        if (!rawData.subName.isNullOrBlank()) {
+            state.isSubscription = true
+            state.subName = rawData.subName
+            state.subFrequency = rawData.subFrequency?.toString() ?: ""
+        } else {
+            state.isSubscription = false
+            state.subName = ""
+            state.subFrequency = ""
+        }
+
+        state.fdLast4 = rawData.fdLast4 ?: ""
+        state.fdMaturityDate = rawData.fdMaturityDate ?: ""
+
+        selectedTagIds.clear()
+        rawData.tagNames.forEach { tagName ->
+            allTags.find { it.name.trim().equals(tagName.trim(), ignoreCase = true) }?.let { tag ->
+                selectedTagIds.add(tag.id)
+            }
+        }
+
+        if (rawData.multiLines.isNotEmpty()) {
+            state.isMultiEntry = true
+            state.multiEntryRows.clear()
+            rawData.multiLines.forEach { line ->
+                val lineCatId = findCategory(line.categoryName)?.id
+                val lineAccId = findAccount(line.accountName)?.id
+                val lineTagIdsStr = line.tagNames.mapNotNull { tn ->
+                    allTags.find { it.name.trim().equals(tn.trim(), ignoreCase = true) }?.id?.toString()
+                }.joinToString(",").takeIf { it.isNotBlank() }
+
+                state.multiEntryRows.add(
+                    MultiEntryRow(
+                        categoryId = lineCatId,
+                        accountId = lineAccId,
+                        amount = if (line.amount == 0.0) "" else line.amount.toString(),
+                        note = line.note,
+                        tags = lineTagIdsStr,
+                        currencyCode = line.currencyCode
+                    )
+                )
+            }
+        }
+
+        Toast.makeText(context, "Transaction details imported from Raw String!", Toast.LENGTH_SHORT).show()
+    }
 
     LaunchedEffect(state.foreignCurrency, exchangeRates) {
         if (state.foreignCurrency == viewModel.baseCurrency) {
@@ -428,7 +720,7 @@ fun AddTransactionScreen(
                 categoryId = state.selectedCategoryId,
                 selectedTagIds = selectedTagIds.toList(),
                 isMultiEntry = state.isMultiEntry,
-                multiEntryRows = state.multiEntryRows.map { DraftMultiEntryRow(it.categoryId, it.accountId, it.amount, it.note, it.currencyCode) },
+                multiEntryRows = state.multiEntryRows.map { DraftMultiEntryRow(it.categoryId, it.accountId, it.amount, it.note, it.currencyCode, it.tags) },
                 multiEntryType = state.multiEntryType,
                 selectedPartyId = state.selectedPartyId,
                 selectedToPartyId = state.selectedToPartyId,
@@ -465,10 +757,89 @@ fun AddTransactionScreen(
                     IconButton(onClick = { saveAsDraft(); onBack() }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.btn_back))
                     }
+                },
+                actions = {
+                    if (isActuallyReadOnly && txnDetail != null) {
+                        IconButton(onClick = {
+                            val rawData = if (headerDetailed != null) {
+                                RawTransactionHelper.fromTransactionWithLinesAndDetails(headerDetailed!!, allTags)
+                            } else {
+                                RawTransactionHelper.fromTransactionWithDetails(txnDetail, allTags)
+                            }
+                            val jsonStr = RawTransactionHelper.toJson(rawData)
+                            clipboardManager.setText(AnnotatedString(jsonStr))
+                            Toast.makeText(context, "Transaction Raw String copied to clipboard!", Toast.LENGTH_SHORT).show()
+                        }) {
+                            Icon(
+                                imageVector = Icons.Default.ContentCopy,
+                                contentDescription = "Copy Raw String"
+                            )
+                        }
+                    }
                 }
             )
         }
     ) { padding ->
+        if (showRawStringPasteDialog) {
+            AlertDialog(
+                onDismissRequest = { showRawStringPasteDialog = false },
+                title = { Text("Import Transaction Raw String") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = "Paste or enter transaction Raw String (JSON):",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        OutlinedTextField(
+                            value = rawStringInput,
+                            onValueChange = { rawStringInput = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            minLines = 4,
+                            maxLines = 8,
+                            placeholder = { Text("{\n  \"type\": \"expense\",\n  ...\n}") }
+                        )
+                        Button(
+                            onClick = {
+                                val clipData = clipboardManager.getText()
+                                if (clipData != null) {
+                                    rawStringInput = clipData.text
+                                }
+                            },
+                            modifier = Modifier.align(Alignment.End)
+                        ) {
+                            Icon(Icons.Default.ContentPaste, null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Paste Clipboard")
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(onClick = { handleRawStringImport(rawStringInput) }) {
+                        Text("Import")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showRawStringPasteDialog = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+
+        if (rawStringErrorMessage != null) {
+            AlertDialog(
+                onDismissRequest = { rawStringErrorMessage = null },
+                title = { Text("Import Error") },
+                text = {
+                    Text(rawStringErrorMessage!!)
+                },
+                confirmButton = {
+                    Button(onClick = { rawStringErrorMessage = null }) {
+                        Text(stringResource(R.string.btn_ok))
+                    }
+                }
+            )
+        }
         if (state.showMismatchDialog) {
             AlertDialog(
                 onDismissRequest = { state.showMismatchDialog = false },
@@ -494,10 +865,10 @@ fun AddTransactionScreen(
                 onSave = { name ->
                     val tagsString = if (selectedTagIds.isEmpty()) null else selectedTagIds.joinToString(",")
                     val multiStr = if (state.isMultiEntry) {
-                        state.multiEntryRows.joinToString("|") { "${it.categoryId}:${it.amount}:${it.note ?: ""}:${it.currencyCode ?: ""}" }
+                        state.multiEntryRows.joinToString("|") { "${it.categoryId}:${it.amount}:${it.note ?: ""}:${it.currencyCode ?: ""}:${it.tags ?: ""}" }
                     } else null
 
-                    val newTemplate = Template(
+                    val newTemplate = TemplateLegacy(
                         name = name,
                         type = state.type,
                         accountId = state.selectedAccountId,
@@ -546,7 +917,7 @@ fun AddTransactionScreen(
                         t.multiEntries.split("|").forEach { entry ->
                             val parts = entry.split(":")
                             if (parts.size >= 2) {
-                                state.multiEntryRows.add(MultiEntryRow(categoryId = parts[0].toIntOrNull(), amount = parts[1], note = parts.getOrNull(2), currencyCode = parts.getOrNull(3)))
+                                state.multiEntryRows.add(MultiEntryRow(categoryId = parts[0].toIntOrNull(), amount = parts[1], note = parts.getOrNull(2)?.ifBlank { null }, currencyCode = parts.getOrNull(3)?.ifBlank { null }, tags = parts.getOrNull(4)?.ifBlank { null }))
                             }
                         }
                     } else {
@@ -584,21 +955,104 @@ fun AddTransactionScreen(
                 )
             }
 
-            if (isActuallyReadOnly && txnDetail?.transaction?.transactionNumber != null) {
-                OutlinedTextField(
-                    value = txnDetail.transaction.transactionNumber,
-                    onValueChange = {},
-                    label = { Text(stringResource(R.string.label_txn_no_colon)) },
-                    readOnly = true,
-                    enabled = false,
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                    shape = CircleShape,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        disabledTextColor = MaterialTheme.colorScheme.primary,
-                        disabledBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
-                        disabledLabelColor = MaterialTheme.colorScheme.primary
+            if (txnDetail != null) {
+                val currentStatus = txnDetail.transaction.reconciliationStatus.ifBlank {
+                    if (txnDetail.transaction.isReconciled) "VERIFIED" else "PENDING"
+                }
+
+                Column(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+                    Text(
+                        text = stringResource(R.string.label_transaction_status),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 6.dp)
                     )
-                )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        
+                        val isPending = currentStatus.equals("PENDING", ignoreCase = true)
+                        FilterChip(
+                            selected = isPending,
+                            onClick = {
+                                viewModel.updateTransactionStatus(txnDetail.transaction.id, "PENDING")
+                            },
+                            label = { Text(stringResource(R.string.status_pending)) },
+                            leadingIcon = if (isPending) {
+                                { Icon(Icons.Default.Schedule, null, modifier = Modifier.size(16.dp)) }
+                            } else null,
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                selectedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        
+                        val isVerified = currentStatus.equals("VERIFIED", ignoreCase = true)
+                        FilterChip(
+                            selected = isVerified,
+                            onClick = {
+                                viewModel.updateTransactionStatus(txnDetail.transaction.id, "VERIFIED")
+                            },
+                            label = { Text(stringResource(R.string.status_verified)) },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Default.CheckCircle,
+                                    null,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = if (isVerified) Color(0xFF4CAF50) else Color.Gray
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Color(0xFF4CAF50).copy(alpha = 0.15f),
+                                selectedLabelColor = Color(0xFF2E7D32)
+                            ),
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        val isVoid = currentStatus.equals("VOID", ignoreCase = true)
+                        FilterChip(
+                            selected = isVoid,
+                            onClick = {
+                                viewModel.updateTransactionStatus(txnDetail.transaction.id, "VOID")
+                            },
+                            label = { Text(stringResource(R.string.status_void)) },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Default.Warning,
+                                    null,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = if (isVoid) Color(0xFFF44336) else Color.Gray
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Color(0xFFF44336).copy(alpha = 0.15f),
+                                selectedLabelColor = Color(0xFFC62828)
+                            ),
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+
+                if (txnDetail.transaction.transactionNumber != null) {
+                    OutlinedTextField(
+                        value = txnDetail.transaction.transactionNumber,
+                        onValueChange = {},
+                        label = { Text(stringResource(R.string.label_txn_no_colon)) },
+                        readOnly = true,
+                        enabled = false,
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                        shape = CircleShape,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            disabledTextColor = MaterialTheme.colorScheme.primary,
+                            disabledBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                            disabledLabelColor = MaterialTheme.colorScheme.primary
+                        )
+                    )
+                }
             }
 
             TransactionTypeRow(state, isActuallyReadOnly, isTemplateMode, viewModel)
@@ -606,7 +1060,7 @@ fun AddTransactionScreen(
             Spacer(Modifier.height(8.dp))
 
             if (!isTemplateMode) {
-                DateTimeSection(state, isActuallyReadOnly, context, (txnDetail != null))
+                DateTimeSection(state, isActuallyReadOnly, context, (txnDetail != null), onPasteRawStringClick = { showRawStringPasteDialog = true })
             }
 
             SubscriptionSection(state, viewModel, allTransactions, isActuallyReadOnly)
@@ -643,44 +1097,28 @@ fun AddTransactionScreen(
                 }
             }
 
-            if (!isActuallyReadOnly && state.type == "expense" && state.selectedAccountId != null) {
-                val selectedAcc = accountsRaw.find { it.id == state.selectedAccountId }
-                val selectedMinor = allMinorHeads.find { it.id == selectedAcc?.minorHeadId }
-                if (selectedMinor?.majorHeadId == 8) { 
-                    val otherCCs = accountsRaw.filter { a -> 
-                        a.id != state.selectedAccountId && 
-                        allMinorHeads.find { it.id == a.minorHeadId }?.majorHeadId == 8 
-                    }
-                    if (otherCCs.isNotEmpty()) {
-                        val todayDay = LocalDate.now().dayOfMonth
-                        val selectedCycleStart = selectedAcc?.billingCycleStart?.toIntOrNull() ?: 1
-                        val selectedFloat: Int = if (todayDay >= selectedCycleStart) todayDay - selectedCycleStart else todayDay + (30 - selectedCycleStart)
-                        
-                        val betterCard = otherCCs.minByOrNull { a ->
-                            val cycleStart = a.billingCycleStart?.toIntOrNull() ?: 1
-                            val f: Int = if (todayDay >= cycleStart) todayDay - cycleStart else todayDay + (30 - cycleStart)
-                            f
-                        }
-                        
-                        val betterCycleStart = betterCard?.billingCycleStart?.toIntOrNull() ?: 1
-                        val betterFloat: Int = if (todayDay >= betterCycleStart) todayDay - betterCycleStart else todayDay + (30 - betterCycleStart)
-                        
-                        if (betterFloat < selectedFloat && betterCard != null) {
-                            Surface(
-                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                            ) {
-                                Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Lightbulb, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-                                    Spacer(Modifier.width(8.dp))
-                                    Text(
-                                        stringResource(R.string.msg_credit_card_tip, betterCard.name),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                                    )
-                                }
-                            }
+            val selectedCc = ccCycles.find { it.accountId == state.selectedAccountId }
+            if (!isActuallyReadOnly && selectedCc != null) {
+                val bestCc = ccCycles.maxByOrNull { it.interestFreeDaysLeft }
+                if (bestCc != null && bestCc.accountId != selectedCc.accountId && bestCc.interestFreeDaysLeft > selectedCc.interestFreeDaysLeft) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                    ) {
+                        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Lightbulb, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                stringResource(
+                                    R.string.msg_credit_card_tip_days,
+                                    bestCc.accountName,
+                                    bestCc.interestFreeDaysLeft,
+                                    selectedCc.interestFreeDaysLeft
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
                         }
                     }
                 }
@@ -697,6 +1135,29 @@ fun AddTransactionScreen(
             }
 
             AmountAndCurrencySection(state, viewModel, isActuallyReadOnly, hideCurrencyPicker = state.isMultiEntry)
+
+            if (isGoalDiversion) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.9f)
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "⚠️ Goal Diversion Warning: This transaction will divert funds allocated for your goals. Total Goal Allocation for this account: ${viewModel.formatAmount(totalGoalAllocated)} | Remaining Balance After Transaction: ${viewModel.formatAmount(remainingBalance)}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
 
             if (state.type != "transfer" && viewModel.negotiationTrackerEnabled && !isActuallyReadOnly) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
@@ -805,6 +1266,56 @@ fun AddTransactionScreen(
             }
 
             if (!isActuallyReadOnly) {
+                val goals by viewModel.allGoals.collectAsState(initial = emptyList())
+                if (goals.isNotEmpty()) {
+                    Spacer(Modifier.height(8.dp))
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("This is for Goal", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                                Checkbox(
+                                    checked = state.isForGoal,
+                                    onCheckedChange = { state.isForGoal = it }
+                                )
+                            }
+                            if (state.isForGoal) {
+                                Spacer(Modifier.height(4.dp))
+                                var goalExpanded by remember { mutableStateOf(false) }
+                                val selectedGoal = goals.find { it.id == state.selectedGoalId }
+                                Box(modifier = Modifier.fillMaxWidth()) {
+                                    OutlinedButton(
+                                        onClick = { goalExpanded = true },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text(selectedGoal?.name ?: "Select Goal")
+                                    }
+                                    DropdownMenu(expanded = goalExpanded, onDismissRequest = { goalExpanded = false }) {
+                                        goals.forEach { goal ->
+                                            DropdownMenuItem(
+                                                text = { Text(goal.name) },
+                                                onClick = {
+                                                    state.selectedGoalId = goal.id
+                                                    goalExpanded = false
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (!isActuallyReadOnly) {
                 ActionButtons(
                     state = state,
                     viewModel = viewModel,
@@ -891,20 +1402,17 @@ fun TransactionTypeRow(state: AddTransactionState, readOnly: Boolean, isTemplate
                 IconButton(onClick = {
                     when {
                         !state.isMultiEntry -> {
-                            // Single -> Multi Category
                             state.multiEntryType = "Category"
                             state.isMultiEntry = true
                             state.multiEntryRows.clear()
                             state.multiEntryRows.add(MultiEntryRow(categoryId = state.selectedCategoryId, accountId = state.selectedAccountId, amount = state.amount, currencyCode = viewModel.baseCurrency))
                         }
                         state.multiEntryType == "Category" -> {
-                            // Multi Category -> Multi Account
                             state.multiEntryType = "Account"
                             state.multiEntryRows.clear()
                             state.multiEntryRows.add(MultiEntryRow(categoryId = state.selectedCategoryId, accountId = state.selectedAccountId, amount = state.amount, currencyCode = viewModel.baseCurrency))
                         }
                         else -> {
-                            // Multi Account -> Single
                             state.isMultiEntry = false
                         }
                     }
@@ -932,7 +1440,13 @@ fun TransactionTypeRow(state: AddTransactionState, readOnly: Boolean, isTemplate
 }
 
 @Composable
-fun DateTimeSection(state: AddTransactionState, readOnly: Boolean, context: android.content.Context, isEditMode: Boolean) {
+fun DateTimeSection(
+    state: AddTransactionState,
+    readOnly: Boolean,
+    context: android.content.Context,
+    isEditMode: Boolean,
+    onPasteRawStringClick: (() -> Unit)? = null
+) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
         if (!readOnly) {
             IconButton(onClick = {
@@ -998,6 +1512,19 @@ fun DateTimeSection(state: AddTransactionState, readOnly: Boolean, context: andr
                     disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             )
+        }
+
+        if (!readOnly && onPasteRawStringClick != null) {
+            IconButton(
+                onClick = onPasteRawStringClick,
+                modifier = Modifier.size(36.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.ContentPaste,
+                    contentDescription = "Paste Raw String",
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
         }
     }
 }
@@ -1179,6 +1706,87 @@ fun AccountSection(
             isError = state.toAccountError != null
         )
         state.toAccountError?.let { Text(it, color = Color.Red, style = MaterialTheme.typography.labelSmall) }
+
+        val toAcc = accounts.find { it.id == state.selectedToAccountId }
+        val toMinor = minorHeads.find { it.id == toAcc?.minorHeadId }
+        val isToFd = (toMinor?.name?.contains("Fixed Deposit", true) == true ||
+                      toMinor?.name?.contains("FD", true) == true ||
+                      toAcc?.name?.contains("Fixed Deposit", true) == true ||
+                      toAcc?.name?.contains("FD", true) == true)
+
+        if (isToFd) {
+            Spacer(Modifier.height(8.dp))
+            OutlinedTextField(
+                value = state.fdLast4,
+                onValueChange = { if (it.length <= 4) state.fdLast4 = it },
+                label = { Text("Last 4 Digits of FD No.") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                enabled = !readOnly
+            )
+            Spacer(Modifier.height(8.dp))
+            OutlinedTextField(
+                value = state.fdMaturityDate,
+                onValueChange = { state.fdMaturityDate = it },
+                label = { Text("FD Maturity Date (YYYY-MM-DD)") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                enabled = !readOnly
+            )
+        }
+
+        val fromAcc = accounts.find { it.id == state.selectedAccountId }
+        val fromMinor = minorHeads.find { it.id == fromAcc?.minorHeadId }
+        val isFromFd = (fromMinor?.name?.contains("Fixed Deposit", true) == true ||
+                        fromMinor?.name?.contains("FD", true) == true ||
+                        fromAcc?.name?.contains("Fixed Deposit", true) == true ||
+                        fromAcc?.name?.contains("FD", true) == true)
+
+        if (isFromFd) {
+            Spacer(Modifier.height(8.dp))
+            val selectedFd = state.selectedFdItem
+            if (selectedFd != null) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text("Selected FD for Redemption:", fontWeight = FontWeight.Bold)
+                        Text("FD Last 4: ${selectedFd.fdLast4 ?: "----"}")
+                        Text("Maturity Date: ${selectedFd.maturityDate ?: "N/A"}")
+                        Text("Outstanding: ${viewModel.formatAmount(selectedFd.outstandingAmount)}")
+                        Spacer(Modifier.height(4.dp))
+                        OutlinedButton(onClick = { state.showFdRedemptionDialog = true }, enabled = !readOnly) {
+                            Text("Change FD")
+                        }
+                    }
+                }
+            } else {
+                Button(
+                    onClick = { state.showFdRedemptionDialog = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !readOnly
+                ) {
+                    Text("Select FD to Redeem/Withdraw")
+                }
+            }
+            if (state.showFdRedemptionDialog && state.selectedAccountId != null) {
+                FdRedemptionDialog(
+                    viewModel = viewModel,
+                    accountId = state.selectedAccountId!!,
+                    onDismiss = { state.showFdRedemptionDialog = false },
+                    onSelect = { fd ->
+                        state.selectedFdCreationHeaderId = fd.creationHeaderId
+                        state.selectedFdItem = fd
+                        if (state.amountForeign.isBlank() || state.amountForeign == "0" || state.amountForeign == "0.0") {
+                            state.amountForeign = fd.outstandingAmount.toString()
+                            state.amountLocal = fd.outstandingAmount.toString()
+                        }
+                        state.showFdRedemptionDialog = false
+                    }
+                )
+            }
+        }
     } else {
         AccountSelectionDialog(
             label = stringResource(R.string.label_account),
@@ -1391,10 +1999,49 @@ fun MultiEntryRowItem(
                 }
             }
         }
+
+        Spacer(Modifier.height(4.dp))
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(
+                value = row.note ?: "",
+                onValueChange = { newNote ->
+                    state.multiEntryRows[index] = row.copy(note = newNote.ifBlank { null })
+                },
+                label = { Text(stringResource(R.string.label_note)) },
+                modifier = Modifier.weight(0.55f),
+                readOnly = readOnly,
+                shape = CircleShape,
+                singleLine = true
+            )
+
+            Spacer(Modifier.width(8.dp))
+
+            val allTags by viewModel.getEnabledTags().collectAsState(initial = emptyList())
+            val rowTagIds = remember(row.tags) {
+                row.tags?.split(",")?.mapNotNull { it.trim().toIntOrNull() }?.toMutableStateList() ?: mutableStateListOf()
+            }
+
+            LaunchedEffect(rowTagIds.toList()) {
+                val newTagsStr = if (rowTagIds.isEmpty()) null else rowTagIds.joinToString(",")
+                if (row.tags != newTagsStr) {
+                    state.multiEntryRows[index] = row.copy(tags = newTagsStr)
+                }
+            }
+
+            Box(modifier = Modifier.weight(0.45f)) {
+                TagSelectionPopup(
+                    allTags = allTags,
+                    selectedIds = rowTagIds,
+                    multiSelect = viewModel.multiTagEnabled,
+                    enabled = !readOnly,
+                    onAdd = { onNavigate?.invoke("add_tag") }
+                )
+            }
+        }
     }
 }
 
-@Composable
+@Composable 
 fun AmountAndCurrencySection(state: AddTransactionState, viewModel: ExpenseViewModel, readOnly: Boolean, hideCurrencyPicker: Boolean = false) {
     if (viewModel.enableMultiCurrency && state.type != "transfer") {
         MultiCurrencyAmountSection(
@@ -1513,7 +2160,6 @@ fun SubscriptionSection(state: AddTransactionState, viewModel: ExpenseViewModel,
                         state.isExistingSubscription = true
                         subExpanded = false
                         
-                        // Auto-fill logic
                         scope.launch {
                             val lastTxn = viewModel.getLastTransactionForSubscription(name)
                             if (lastTxn != null) {
@@ -1617,7 +2263,7 @@ fun ActionButtons(
                 val multiStr = if (state.isMultiEntry) {
                     state.multiEntryRows.joinToString("|") { "${it.categoryId}:${it.amount}:${it.note ?: ""}:${it.currencyCode ?: ""}" }
                 } else null
-                val templateToSave = Template(
+                val templateToSave = TemplateLegacy(
                     name = templateName, 
                     type = state.type, 
                     accountId = state.selectedAccountId, 
@@ -1690,7 +2336,6 @@ fun validateAndSave(
     }
 
     if (isTemplateMode) {
-        // Added as safety - This shouldn't be reached if UI logic is correct.
         Toast.makeText(context, context.getString(R.string.msg_cannot_save_template_mode), Toast.LENGTH_SHORT).show()
         return false
     }
@@ -1705,28 +2350,41 @@ fun validateAndSave(
             state.showMismatchDialog = true
             return false
         }
-        
+
+        fun combineNotes(rowNote: String?, commonNote: String): String? {
+            val r = rowNote?.trim().orEmpty()
+            val c = commonNote.trim()
+            return when {
+                r.isNotEmpty() && c.isNotEmpty() -> "$r / $c"
+                r.isNotEmpty() -> r
+                c.isNotEmpty() -> c
+                else -> null
+            }
+        }
+
         if (state.multiEntryType == "Account") {
-            // Multi-account mode
             val entries = state.multiEntryRows.map { r ->
+                val rowTags = if (!r.tags.isNullOrBlank()) r.tags else tagsString
                 com.openapps.fintrack.ui.MultiEntryRowData(
                     state.selectedCategoryId!!,
                     r.accountId,
                     evaluateExpression(r.amount),
-                    r.note ?: state.note,
-                    state.foreignCurrency
+                    combineNotes(r.note, state.note),
+                    state.foreignCurrency,
+                    rowTags
                 )
             }
             viewModel.addMultiEntryTransactionExtended(state.date, state.time, 0, entries, tagsString, state.type, state.selectedPartyId, state.subName, state.subFrequency.toIntOrNull(), updateId)
         } else {
-            // Multi-category mode
             val entries = state.multiEntryRows.map { r ->
+                val rowTags = if (!r.tags.isNullOrBlank()) r.tags else tagsString
                 com.openapps.fintrack.ui.MultiEntryRowData(
                     r.categoryId!!,
                     state.selectedAccountId,
                     evaluateExpression(r.amount),
-                    r.note ?: state.note,
-                    state.foreignCurrency
+                    combineNotes(r.note, state.note),
+                    state.foreignCurrency,
+                    rowTags
                 )
             }
             viewModel.addMultiEntryTransactionExtended(state.date, state.time, state.selectedAccountId ?: 0, entries, tagsString, state.type, state.selectedPartyId, state.subName, state.subFrequency.toIntOrNull(), updateId)
@@ -1759,7 +2417,7 @@ fun validateAndSave(
         }
 
         if (state.type == "transfer") {
-            viewModel.addTransaction(state.date, state.time, state.selectedAccountId!!, null, amtBase, state.note, state.selectedToAccountId, tagsString, state.type, state.selectedPartyId, state.selectedToPartyId, subNameVal, subFreqVal, updateId = updateId, isNegotiated = state.isNegotiated, negotiationAmountOriginal = state.negotiationAmountOriginal.toDoubleOrNull(), merchantName = state.merchantName, isDiscretionary = state.isDiscretionary, clearInvoiceIds = state.selectedInvoiceIds.toList())
+            viewModel.addTransaction(state.date, state.time, state.selectedAccountId!!, null, amtBase, state.note, state.selectedToAccountId, tagsString, state.type, state.selectedPartyId, state.selectedToPartyId, subNameVal, subFreqVal, updateId = updateId, isNegotiated = state.isNegotiated, negotiationAmountOriginal = state.negotiationAmountOriginal.toDoubleOrNull(), merchantName = state.merchantName, isDiscretionary = state.isDiscretionary, clearInvoiceIds = state.selectedInvoiceIds.toList(), goalId = if (state.isForGoal) state.selectedGoalId else null, fdLast4 = state.fdLast4.ifBlank { null }, fdMaturityDate = state.fdMaturityDate.ifBlank { null }, selectedFdCreationHeaderId = state.selectedFdCreationHeaderId)
             
             if (subNameVal?.startsWith("LOAN:") == true && updateId == null) {
                 val loanId = subNameVal.removePrefix("LOAN:").toLongOrNull()
@@ -1768,7 +2426,15 @@ fun validateAndSave(
                 }
             }
         } else {
-            viewModel.addTransaction(state.date, state.time, state.selectedAccountId!!, state.selectedCategoryId, amtBase, state.note, null, tagsString, state.type, state.selectedPartyId, null, subNameVal, subFreqVal, amtOriginal, state.foreignCurrency, amtBase, updateId = updateId, isNegotiated = state.isNegotiated, negotiationAmountOriginal = state.negotiationAmountOriginal.toDoubleOrNull(), merchantName = state.merchantName, isDiscretionary = state.isDiscretionary, invoiceNumber = if (viewModel.invoiceAgeTrackingEnabled) state.invoiceNumber else null, dueDays = if (viewModel.invoiceAgeTrackingEnabled) state.dueDays.toIntOrNull() else null)
+            viewModel.addTransaction(state.date, state.time, state.selectedAccountId!!, state.selectedCategoryId, amtBase, state.note, null, tagsString, state.type, state.selectedPartyId, null, subNameVal, subFreqVal, amtOriginal, state.foreignCurrency, amtBase, updateId = updateId, isNegotiated = state.isNegotiated, negotiationAmountOriginal = state.negotiationAmountOriginal.toDoubleOrNull(), merchantName = state.merchantName, isDiscretionary = state.isDiscretionary, invoiceNumber = if (viewModel.invoiceAgeTrackingEnabled) state.invoiceNumber else null, dueDays = if (viewModel.invoiceAgeTrackingEnabled) state.dueDays.toIntOrNull() else null, goalId = if (state.isForGoal) state.selectedGoalId else null)
+        }
+
+        if (state.isForGoal && state.selectedGoalId != null) {
+            val targetAccId = if (state.type == "transfer") state.selectedToAccountId ?: state.selectedAccountId else state.selectedAccountId
+            if (targetAccId != null) {
+                val delta = if (state.type == "expense") -amtBase else amtBase
+                viewModel.adjustGoalAllocation(state.selectedGoalId!!, targetAccId, delta)
+            }
         }
 
         viewModel.currentRecordingImportTxnKey?.let { key ->
@@ -1797,7 +2463,7 @@ fun TemplateNameDialog(onDismiss: () -> Unit, onSave: (String) -> Unit) {
 }
 
 @Composable
-fun TemplateSelectionDialog(templates: List<Template>, onDismiss: () -> Unit, onNavigate: ((String) -> Unit)?, onSelected: (Template) -> Unit) {
+fun TemplateSelectionDialog(templates: List<TemplateLegacy>, onDismiss: () -> Unit, onNavigate: ((String) -> Unit)?, onSelected: (TemplateLegacy) -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.title_templates)) },
@@ -1814,6 +2480,50 @@ fun TemplateSelectionDialog(templates: List<Template>, onDismiss: () -> Unit, on
         },
         confirmButton = { if (templates.isEmpty()) Button(onClick = { onDismiss(); onNavigate?.invoke("templates") }) { Text(stringResource(R.string.menu_templates)) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.btn_cancel)) } }
+    )
+}
+
+@Composable
+fun FdRedemptionDialog(
+    viewModel: ExpenseViewModel,
+    accountId: Int,
+    onDismiss: () -> Unit,
+    onSelect: (FdDashboardItem) -> Unit
+) {
+    val activeFds by viewModel.getAllActiveFdsForAccount(accountId).collectAsState(initial = emptyList())
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Select FD to Redeem/Withdraw") },
+        text = {
+            if (activeFds.isEmpty()) {
+                Text("No active Fixed Deposits found for this account.")
+            } else {
+                Box(modifier = Modifier.heightIn(max = 300.dp)) {
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(activeFds) { fd ->
+                            Card(
+                                onClick = { onSelect(fd) },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Text("FD Last 4: ${fd.fdLast4 ?: "----"}", fontWeight = FontWeight.Bold)
+                                    Text("Maturity Date: ${fd.maturityDate ?: "N/A"}", style = MaterialTheme.typography.bodySmall)
+                                    Text("Outstanding: ${viewModel.formatAmount(fd.outstandingAmount)}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.btn_cancel))
+            }
+        }
     )
 }
 
@@ -2124,7 +2834,7 @@ fun AccountSelectionDialog(
                             }
                         }
                         items(filteredAccounts) { account ->
-                            val bal = balances.find { it.id == account.id }?.balance ?: 0.0
+                            val bal = balances.find { it.id == account.id }?.balance ?: 0L
                             val minor = minorHeads.find { it.id == account.minorHeadId }
                             val major = majorHeads.find { it.id == minor?.majorHeadId }
                             
@@ -2312,7 +3022,9 @@ fun TagSelectionPopup(
     onAdd: () -> Unit = {}
 ) {
     var showDialog by remember { mutableStateOf(false) }
-    val selectedNames = allTags.filter { it.id in selectedIds }.map { it.name }.joinToString(", ")
+    val selectedNames = remember(allTags, selectedIds.toList()) {
+        allTags.filter { it.id in selectedIds }.map { it.name }.joinToString(", ")
+    }
     val displayText = if (selectedNames.isEmpty()) stringResource(R.string.label_select_tags) else selectedNames
 
     Box(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable(enabled = enabled) { showDialog = true }) {
