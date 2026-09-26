@@ -13,7 +13,6 @@
  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  GNU General Public License for more details.
 -->
-
 <resources>
     <string name="app_name">FinTrack</string>
 
@@ -257,6 +256,8 @@
     <string name="msg_template_exists">Шаблон с таким именем уже есть</string>
     <string name="title_database_management">Управление базой</string>
     <string name="label_current_database">Текущая база:</string>
+    <string name="btn_database_info">Инфо о базе</string>
+    <string name="title_database_info">Детали базы данных</string>
     <string name="btn_backup_database">Бэкап базы</string>
     <string name="btn_schedule_backup">Бэкап по расписанию</string>
     <string name="btn_open_different_db">Открыть другую базу</string>
@@ -459,12 +460,12 @@
     <string name="msg_extracting_txns">Извлечение...</string>
     <string name="msg_no_new_txns">Новых записей нет.</string>
     <string name="msg_found_n_txns">Найдено новых: %1$d</string>
-    <string name="title_import_statement">Импорт выписки (CSV)</string>
+    <string name="title_import_statement">Импорт выписки (CSV/Excel)</string>
     <string name="btn_bulk_record">Массовая запись</string>
     <string name="btn_reset">Сброс</string>
     <string name="label_how_it_works">Как это работает</string>
     <string name="label_choose_account">Выбор счета</string>
-    <string name="btn_select_csv_file">Выбрать CSV</string>
+    <string name="btn_select_csv_file">Выбрать CSV/Excel</string>
     <string name="title_confirm_col_mapping">Привязка столбцов</string>
     <string name="msg_col_mapping_desc">Нажмите на заголовки для привязки (Дата, Сумма и т.д.).</string>
     <string name="btn_confirm_extract">Подтвердить и извлечь</string>
@@ -967,4 +968,16 @@
     <!-- Settings Tab Order -->
     <string name="settings_tab_home_fixed">Вкладка 1: %1$s (Фиксированная)</string>
     <string name="settings_tab_format">Вкладка %1$d: %2$s</string>
+    <string name="settings_attachments">Вложения</string>
+    <string name="settings_enable_attachments">Включить вложения</string>
+    <string name="settings_change_attachment_folder">Изменить папку вложений</string>
+    <string name="settings_select_attachment_folder">Выбрать папку вложений</string>
+    <string name="title_warning">Внимание</string>
+    <string name="msg_attachment_backup_warning">Резервная копия базы данных не будет включать вложения. Вам придется регулярно делать резервные копии вложений вручную.</string>
+    <string name="label_attachment">Вложение</string>
+    <string name="label_new_attachment">Новое вложение %1$d</string>
+    <string name="btn_attach">Прикрепить</string>
+    <string name="title_add_attachment">Добавить вложение</string>
+    <string name="btn_upload_from_gallery">Загрузить из галереи</string>
+    <string name="btn_capture_from_camera">Сделать снимок</string>
 </resources>

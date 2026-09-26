@@ -257,6 +257,8 @@
     <string name="msg_template_exists">Ya existe una plantilla con este nombre</string>
     <string name="title_database_management">Gestión de Base de Datos</string>
     <string name="label_current_database">Base de Datos Actual:</string>
+    <string name="btn_database_info">Información BD</string>
+    <string name="title_database_info">Detalles de la Base de Datos</string>
     <string name="btn_backup_database">Respaldar Base de Datos Actual</string>
     <string name="btn_schedule_backup">Programar Respaldo</string>
     <string name="btn_open_different_db">Abrir Base de Datos Diferente</string>
@@ -455,16 +457,16 @@
     <string name="btn_resume">Reanudar</string>
     <string name="btn_stop">Detener</string>
     <string name="label_total_paid">Total Pagado</string>
-    <string name="msg_parsing_csv">Analizando CSV...</string>
+    <string name="msg_parsing_csv">Analizando archivo (CSV/Excel)...</string>
     <string name="msg_extracting_txns">Extrayendo Transacciones...</string>
     <string name="msg_no_new_txns">No se encontraron nuevas transacciones.</string>
     <string name="msg_found_n_txns">Se encontraron %1$d nuevas entradas.</string>
-    <string name="title_import_statement">Importar Estado (CSV)</string>
+    <string name="title_import_statement">Importar Estado (CSV / Excel)</string>
     <string name="btn_bulk_record">Registro Masivo</string>
     <string name="btn_reset">Reiniciar</string>
     <string name="label_how_it_works">Cómo funciona</string>
     <string name="label_choose_account">Elegir Cuenta</string>
-    <string name="btn_select_csv_file">Seleccionar Archivo CSV</string>
+    <string name="btn_select_csv_file">Seleccionar Archivo (CSV / Excel)</string>
     <string name="title_confirm_col_mapping">Confirmar Mapeo de Columnas</string>
     <string name="msg_col_mapping_desc">Toque los encabezados para reasignar roles. Asegúrese de que las columnas de Fecha, Descripción y Monto sean correctas.</string>
     <string name="btn_confirm_extract">Confirmar y Extraer Transacciones</string>
@@ -974,4 +976,16 @@
     <!-- Settings Tab Order -->
     <string name="settings_tab_home_fixed">Pestaña 1: %1$s (Fija)</string>
     <string name="settings_tab_format">Pestaña %1$d: %2$s</string>
+    <string name="settings_attachments">Archivos adjuntos</string>
+    <string name="settings_enable_attachments">Habilitar archivos adjuntos</string>
+    <string name="settings_change_attachment_folder">Cambiar carpeta de adjuntos</string>
+    <string name="settings_select_attachment_folder">Seleccionar carpeta de adjuntos</string>
+    <string name="title_warning">Advertencia</string>
+    <string name="msg_attachment_backup_warning">La copia de seguridad de la base de datos no incluirá archivos adjuntos. Debe hacer una copia de seguridad manual de los archivos adjuntos regularmente.</string>
+    <string name="label_attachment">Archivo adjunto</string>
+    <string name="label_new_attachment">Nuevo archivo adjunto %1$d</string>
+    <string name="btn_attach">Adjuntar</string>
+    <string name="title_add_attachment">Añadir archivo adjunto</string>
+    <string name="btn_upload_from_gallery">Subir desde la galería</string>
+    <string name="btn_capture_from_camera">Capturar desde la cámara</string>
 </resources>

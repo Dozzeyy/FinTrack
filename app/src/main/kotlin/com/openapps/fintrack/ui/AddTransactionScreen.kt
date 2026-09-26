@@ -14,13 +14,13 @@
  GNU General Public License for more details.
  */
 
+ 
 package com.openapps.fintrack.ui
 
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.os.Bundle
 import android.widget.Toast
-import com.openapps.fintrack.data.FdDashboardItem
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
@@ -128,6 +128,7 @@ class AddTransactionState(
     var toAccountError by mutableStateOf<String?>(null)
     var categoryError by mutableStateOf<String?>(null)
     
+    val attachments = androidx.compose.runtime.mutableStateListOf<String>()
     var isNegotiated by mutableStateOf(false)
     var negotiationAmountOriginal by mutableStateOf("")
     var merchantName by mutableStateOf("")
@@ -147,8 +148,7 @@ class AddTransactionState(
     var fdLast4 by mutableStateOf("")
     var fdMaturityDate by mutableStateOf("")
     var selectedFdCreationHeaderId by mutableStateOf<Int?>(null)
-    var selectedFdItem by mutableStateOf<FdDashboardItem?>(null)
-    var showFdRedemptionDialog by mutableStateOf(false)
+    var showFdSelectionDialog by mutableStateOf(false)
 }
 
 @Composable
@@ -232,10 +232,14 @@ fun rememberAddTransactionState(
     }.collectAsState(initial = null)
 
     LaunchedEffect(headerDetailed) {
-        if (headerDetailed != null) {
-            val firstLine = headerDetailed?.lines?.firstOrNull()?.line
-            state.fdLast4 = firstLine?.fdLast4 ?: ""
-            state.fdMaturityDate = firstLine?.fdMaturityDate ?: ""
+        val line = headerDetailed?.lines?.firstOrNull()?.line
+        if (line != null) {
+            if (!line.fdLast4.isNullOrBlank()) state.fdLast4 = line.fdLast4
+            if (!line.fdMaturityDate.isNullOrBlank()) state.fdMaturityDate = line.fdMaturityDate
+            val clearances = viewModel.getFdClearancesForRedemption(headerDetailed!!.header.id)
+            clearances.firstOrNull()?.let {
+                state.selectedFdCreationHeaderId = it.creationHeaderId
+            }
         }
     }
 
@@ -972,7 +976,7 @@ fun AddTransactionScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        
+                        // Pending
                         val isPending = currentStatus.equals("PENDING", ignoreCase = true)
                         FilterChip(
                             selected = isPending,
@@ -990,7 +994,7 @@ fun AddTransactionScreen(
                             modifier = Modifier.weight(1f)
                         )
 
-                        
+                        // Verified (Reconciled)
                         val isVerified = currentStatus.equals("VERIFIED", ignoreCase = true)
                         FilterChip(
                             selected = isVerified,
@@ -1013,6 +1017,7 @@ fun AddTransactionScreen(
                             modifier = Modifier.weight(1f)
                         )
 
+                        // Void
                         val isVoid = currentStatus.equals("VOID", ignoreCase = true)
                         FilterChip(
                             selected = isVoid,
@@ -1265,6 +1270,8 @@ fun AddTransactionScreen(
                 )
             }
 
+            AttachmentSection(viewModel, state, headerDetailed?.header?.transactionNumber, isActuallyReadOnly)
+
             if (!isActuallyReadOnly) {
                 val goals by viewModel.allGoals.collectAsState(initial = emptyList())
                 if (goals.isNotEmpty()) {
@@ -1402,17 +1409,20 @@ fun TransactionTypeRow(state: AddTransactionState, readOnly: Boolean, isTemplate
                 IconButton(onClick = {
                     when {
                         !state.isMultiEntry -> {
+                            // Single -> Multi Category
                             state.multiEntryType = "Category"
                             state.isMultiEntry = true
                             state.multiEntryRows.clear()
                             state.multiEntryRows.add(MultiEntryRow(categoryId = state.selectedCategoryId, accountId = state.selectedAccountId, amount = state.amount, currencyCode = viewModel.baseCurrency))
                         }
                         state.multiEntryType == "Category" -> {
+                            // Multi Category -> Multi Account
                             state.multiEntryType = "Account"
                             state.multiEntryRows.clear()
                             state.multiEntryRows.add(MultiEntryRow(categoryId = state.selectedCategoryId, accountId = state.selectedAccountId, amount = state.amount, currencyCode = viewModel.baseCurrency))
                         }
                         else -> {
+                            // Multi Account -> Single
                             state.isMultiEntry = false
                         }
                     }
@@ -1706,87 +1716,6 @@ fun AccountSection(
             isError = state.toAccountError != null
         )
         state.toAccountError?.let { Text(it, color = Color.Red, style = MaterialTheme.typography.labelSmall) }
-
-        val toAcc = accounts.find { it.id == state.selectedToAccountId }
-        val toMinor = minorHeads.find { it.id == toAcc?.minorHeadId }
-        val isToFd = (toMinor?.name?.contains("Fixed Deposit", true) == true ||
-                      toMinor?.name?.contains("FD", true) == true ||
-                      toAcc?.name?.contains("Fixed Deposit", true) == true ||
-                      toAcc?.name?.contains("FD", true) == true)
-
-        if (isToFd) {
-            Spacer(Modifier.height(8.dp))
-            OutlinedTextField(
-                value = state.fdLast4,
-                onValueChange = { if (it.length <= 4) state.fdLast4 = it },
-                label = { Text("Last 4 Digits of FD No.") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                enabled = !readOnly
-            )
-            Spacer(Modifier.height(8.dp))
-            OutlinedTextField(
-                value = state.fdMaturityDate,
-                onValueChange = { state.fdMaturityDate = it },
-                label = { Text("FD Maturity Date (YYYY-MM-DD)") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                enabled = !readOnly
-            )
-        }
-
-        val fromAcc = accounts.find { it.id == state.selectedAccountId }
-        val fromMinor = minorHeads.find { it.id == fromAcc?.minorHeadId }
-        val isFromFd = (fromMinor?.name?.contains("Fixed Deposit", true) == true ||
-                        fromMinor?.name?.contains("FD", true) == true ||
-                        fromAcc?.name?.contains("Fixed Deposit", true) == true ||
-                        fromAcc?.name?.contains("FD", true) == true)
-
-        if (isFromFd) {
-            Spacer(Modifier.height(8.dp))
-            val selectedFd = state.selectedFdItem
-            if (selectedFd != null) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Text("Selected FD for Redemption:", fontWeight = FontWeight.Bold)
-                        Text("FD Last 4: ${selectedFd.fdLast4 ?: "----"}")
-                        Text("Maturity Date: ${selectedFd.maturityDate ?: "N/A"}")
-                        Text("Outstanding: ${viewModel.formatAmount(selectedFd.outstandingAmount)}")
-                        Spacer(Modifier.height(4.dp))
-                        OutlinedButton(onClick = { state.showFdRedemptionDialog = true }, enabled = !readOnly) {
-                            Text("Change FD")
-                        }
-                    }
-                }
-            } else {
-                Button(
-                    onClick = { state.showFdRedemptionDialog = true },
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !readOnly
-                ) {
-                    Text("Select FD to Redeem/Withdraw")
-                }
-            }
-            if (state.showFdRedemptionDialog && state.selectedAccountId != null) {
-                FdRedemptionDialog(
-                    viewModel = viewModel,
-                    accountId = state.selectedAccountId!!,
-                    onDismiss = { state.showFdRedemptionDialog = false },
-                    onSelect = { fd ->
-                        state.selectedFdCreationHeaderId = fd.creationHeaderId
-                        state.selectedFdItem = fd
-                        if (state.amountForeign.isBlank() || state.amountForeign == "0" || state.amountForeign == "0.0") {
-                            state.amountForeign = fd.outstandingAmount.toString()
-                            state.amountLocal = fd.outstandingAmount.toString()
-                        }
-                        state.showFdRedemptionDialog = false
-                    }
-                )
-            }
-        }
     } else {
         AccountSelectionDialog(
             label = stringResource(R.string.label_account),
@@ -1853,6 +1782,127 @@ fun AccountSection(
             onAdd = { onNavigate?.invoke("add_category") },
             displayValue = if (readOnly) displayToPartyName else null
         )
+    }
+
+    val context = LocalContext.current
+
+    if (state.type == "transfer") {
+        val selectedToAccount = accounts.find { it.id == state.selectedToAccountId }
+        val selectedToMinor = minorHeads.find { it.id == selectedToAccount?.minorHeadId }
+        val isToFdAccount = selectedToAccount != null && ((selectedToMinor?.name?.contains("Fixed Deposit", ignoreCase = true) == true) || selectedToAccount.name.contains("Fixed Deposit", ignoreCase = true))
+
+        if (isToFdAccount) {
+            Spacer(Modifier.height(8.dp))
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(Modifier.padding(12.dp)) {
+                    Text("Fixed Deposit Details", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.height(4.dp))
+                    OutlinedTextField(
+                        value = state.fdLast4,
+                        onValueChange = { state.fdLast4 = it },
+                        label = { Text("Last 4 Digits of FD No.") },
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        shape = CircleShape,
+                        enabled = !readOnly
+                    )
+                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable(enabled = !readOnly) {
+                        val today = LocalDate.now()
+                        val current = try { LocalDate.parse(state.fdMaturityDate) } catch (e: Exception) { today }
+                        DatePickerDialog(context, { _, year, month, dayOfMonth ->
+                            state.fdMaturityDate = String.format("%d-%02d-%02d", year, month + 1, dayOfMonth)
+                        }, current.year, current.monthValue - 1, current.dayOfMonth).show()
+                    }) {
+                        OutlinedTextField(
+                            value = state.fdMaturityDate,
+                            onValueChange = {},
+                            label = { Text("FD Maturity Date (YYYY-MM-DD)") },
+                            readOnly = true,
+                            enabled = false,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = CircleShape,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                                disabledBorderColor = MaterialTheme.colorScheme.outline,
+                                disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
+        val selectedFromAccount = accounts.find { it.id == state.selectedAccountId }
+        val selectedFromMinor = minorHeads.find { it.id == selectedFromAccount?.minorHeadId }
+        val isFromFdAccount = selectedFromAccount != null && ((selectedFromMinor?.name?.contains("Fixed Deposit", ignoreCase = true) == true) || selectedFromAccount.name.contains("Fixed Deposit", ignoreCase = true))
+
+        if (isFromFdAccount) {
+            Spacer(Modifier.height(8.dp))
+            val activeFds by viewModel.getAllActiveFdsForAccount(selectedFromAccount!!.id).collectAsState(initial = emptyList())
+            val selectedFd = activeFds.find { it.creationHeaderId == state.selectedFdCreationHeaderId }
+
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(Modifier.padding(12.dp)) {
+                    Text("FD Redemption / Withdrawal", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.height(4.dp))
+                    Button(
+                        onClick = { state.showFdSelectionDialog = true },
+                        enabled = !readOnly,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            if (selectedFd != null)
+                                "Redeeming FD: ${selectedFd.fdLast4 ?: "----"} (Matures: ${selectedFd.maturityDate ?: "N/A"}, Rem: ${viewModel.formatAmount(selectedFd.outstandingAmount)})"
+                            else "Select FD to Redeem/Withdraw"
+                        )
+                    }
+                }
+            }
+
+            if (state.showFdSelectionDialog) {
+                AlertDialog(
+                    onDismissRequest = { state.showFdSelectionDialog = false },
+                    title = { Text("Select FD to Redeem/Withdraw") },
+                    text = {
+                        if (activeFds.isEmpty()) {
+                            Text("No active Fixed Deposits found in this account.", style = MaterialTheme.typography.bodyMedium)
+                        } else {
+                            LazyColumn(
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                items(activeFds) { fd ->
+                                    Card(
+                                        onClick = {
+                                            state.selectedFdCreationHeaderId = fd.creationHeaderId
+                                            state.showFdSelectionDialog = false
+                                        },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(Modifier.padding(12.dp)) {
+                                            Text("FD A/c Last 4: ${fd.fdLast4 ?: "----"}", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                                            Spacer(Modifier.height(4.dp))
+                                            Text("Maturity: ${fd.maturityDate ?: "N/A"}", style = MaterialTheme.typography.bodySmall)
+                                            Text("Outstanding: ${viewModel.formatAmount(fd.outstandingAmount)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { state.showFdSelectionDialog = false }) {
+                            Text("Cancel")
+                        }
+                    }
+                )
+            }
+        }
     }
 }
 
@@ -2160,6 +2210,7 @@ fun SubscriptionSection(state: AddTransactionState, viewModel: ExpenseViewModel,
                         state.isExistingSubscription = true
                         subExpanded = false
                         
+                        // Auto-fill logic
                         scope.launch {
                             val lastTxn = viewModel.getLastTransactionForSubscription(name)
                             if (lastTxn != null) {
@@ -2336,6 +2387,7 @@ fun validateAndSave(
     }
 
     if (isTemplateMode) {
+        // Added as safety - This shouldn't be reached if UI logic is correct.
         Toast.makeText(context, context.getString(R.string.msg_cannot_save_template_mode), Toast.LENGTH_SHORT).show()
         return false
     }
@@ -2363,6 +2415,7 @@ fun validateAndSave(
         }
 
         if (state.multiEntryType == "Account") {
+            // Multi-account mode
             val entries = state.multiEntryRows.map { r ->
                 val rowTags = if (!r.tags.isNullOrBlank()) r.tags else tagsString
                 com.openapps.fintrack.ui.MultiEntryRowData(
@@ -2374,8 +2427,9 @@ fun validateAndSave(
                     rowTags
                 )
             }
-            viewModel.addMultiEntryTransactionExtended(state.date, state.time, 0, entries, tagsString, state.type, state.selectedPartyId, state.subName, state.subFrequency.toIntOrNull(), updateId)
+            viewModel.addMultiEntryTransactionExtended(state.date, state.time, 0, entries, tagsString, state.type, state.selectedPartyId, state.subName, state.subFrequency.toIntOrNull(), updateId, state.attachments.toList())
         } else {
+            // Multi-category mode
             val entries = state.multiEntryRows.map { r ->
                 val rowTags = if (!r.tags.isNullOrBlank()) r.tags else tagsString
                 com.openapps.fintrack.ui.MultiEntryRowData(
@@ -2387,7 +2441,7 @@ fun validateAndSave(
                     rowTags
                 )
             }
-            viewModel.addMultiEntryTransactionExtended(state.date, state.time, state.selectedAccountId ?: 0, entries, tagsString, state.type, state.selectedPartyId, state.subName, state.subFrequency.toIntOrNull(), updateId)
+            viewModel.addMultiEntryTransactionExtended(state.date, state.time, state.selectedAccountId ?: 0, entries, tagsString, state.type, state.selectedPartyId, state.subName, state.subFrequency.toIntOrNull(), updateId, state.attachments.toList())
         }
         
         viewModel.currentRecordingImportTxnKey?.let { key ->
@@ -2417,7 +2471,13 @@ fun validateAndSave(
         }
 
         if (state.type == "transfer") {
-            viewModel.addTransaction(state.date, state.time, state.selectedAccountId!!, null, amtBase, state.note, state.selectedToAccountId, tagsString, state.type, state.selectedPartyId, state.selectedToPartyId, subNameVal, subFreqVal, updateId = updateId, isNegotiated = state.isNegotiated, negotiationAmountOriginal = state.negotiationAmountOriginal.toDoubleOrNull(), merchantName = state.merchantName, isDiscretionary = state.isDiscretionary, clearInvoiceIds = state.selectedInvoiceIds.toList(), goalId = if (state.isForGoal) state.selectedGoalId else null, fdLast4 = state.fdLast4.ifBlank { null }, fdMaturityDate = state.fdMaturityDate.ifBlank { null }, selectedFdCreationHeaderId = state.selectedFdCreationHeaderId)
+            viewModel.addTransaction(
+                state.date, state.time, state.selectedAccountId!!, null, amtBase, state.note, state.selectedToAccountId, tagsString, state.type, state.selectedPartyId, state.selectedToPartyId, subNameVal, subFreqVal, updateId = updateId, isNegotiated = state.isNegotiated, negotiationAmountOriginal = state.negotiationAmountOriginal.toDoubleOrNull(), merchantName = state.merchantName, isDiscretionary = state.isDiscretionary, clearInvoiceIds = state.selectedInvoiceIds.toList(), goalId = if (state.isForGoal) state.selectedGoalId else null,
+                fdLast4 = state.fdLast4.ifBlank { null },
+                fdMaturityDate = state.fdMaturityDate.ifBlank { null },
+                selectedFdCreationHeaderId = state.selectedFdCreationHeaderId,
+                attachments = state.attachments.toList()
+            )
             
             if (subNameVal?.startsWith("LOAN:") == true && updateId == null) {
                 val loanId = subNameVal.removePrefix("LOAN:").toLongOrNull()
@@ -2426,7 +2486,7 @@ fun validateAndSave(
                 }
             }
         } else {
-            viewModel.addTransaction(state.date, state.time, state.selectedAccountId!!, state.selectedCategoryId, amtBase, state.note, null, tagsString, state.type, state.selectedPartyId, null, subNameVal, subFreqVal, amtOriginal, state.foreignCurrency, amtBase, updateId = updateId, isNegotiated = state.isNegotiated, negotiationAmountOriginal = state.negotiationAmountOriginal.toDoubleOrNull(), merchantName = state.merchantName, isDiscretionary = state.isDiscretionary, invoiceNumber = if (viewModel.invoiceAgeTrackingEnabled) state.invoiceNumber else null, dueDays = if (viewModel.invoiceAgeTrackingEnabled) state.dueDays.toIntOrNull() else null, goalId = if (state.isForGoal) state.selectedGoalId else null)
+            viewModel.addTransaction(state.date, state.time, state.selectedAccountId!!, state.selectedCategoryId, amtBase, state.note, null, tagsString, state.type, state.selectedPartyId, null, subNameVal, subFreqVal, amtOriginal, state.foreignCurrency, amtBase, updateId = updateId, isNegotiated = state.isNegotiated, negotiationAmountOriginal = state.negotiationAmountOriginal.toDoubleOrNull(), merchantName = state.merchantName, isDiscretionary = state.isDiscretionary, invoiceNumber = if (viewModel.invoiceAgeTrackingEnabled) state.invoiceNumber else null, dueDays = if (viewModel.invoiceAgeTrackingEnabled) state.dueDays.toIntOrNull() else null, goalId = if (state.isForGoal) state.selectedGoalId else null, attachments = state.attachments.toList())
         }
 
         if (state.isForGoal && state.selectedGoalId != null) {
@@ -2480,50 +2540,6 @@ fun TemplateSelectionDialog(templates: List<TemplateLegacy>, onDismiss: () -> Un
         },
         confirmButton = { if (templates.isEmpty()) Button(onClick = { onDismiss(); onNavigate?.invoke("templates") }) { Text(stringResource(R.string.menu_templates)) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.btn_cancel)) } }
-    )
-}
-
-@Composable
-fun FdRedemptionDialog(
-    viewModel: ExpenseViewModel,
-    accountId: Int,
-    onDismiss: () -> Unit,
-    onSelect: (FdDashboardItem) -> Unit
-) {
-    val activeFds by viewModel.getAllActiveFdsForAccount(accountId).collectAsState(initial = emptyList())
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Select FD to Redeem/Withdraw") },
-        text = {
-            if (activeFds.isEmpty()) {
-                Text("No active Fixed Deposits found for this account.")
-            } else {
-                Box(modifier = Modifier.heightIn(max = 300.dp)) {
-                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(activeFds) { fd ->
-                            Card(
-                                onClick = { onSelect(fd) },
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                            ) {
-                                Column(modifier = Modifier.padding(12.dp)) {
-                                    Text("FD Last 4: ${fd.fdLast4 ?: "----"}", fontWeight = FontWeight.Bold)
-                                    Text("Maturity Date: ${fd.maturityDate ?: "N/A"}", style = MaterialTheme.typography.bodySmall)
-                                    Text("Outstanding: ${viewModel.formatAmount(fd.outstandingAmount)}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.btn_cancel))
-            }
-        }
     )
 }
 

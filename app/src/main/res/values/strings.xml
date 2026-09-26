@@ -284,6 +284,8 @@
     <string name="msg_template_exists">Template with this name already exists</string>
     <string name="title_database_management">Database Management</string>
     <string name="label_current_database">Current Database:</string>
+    <string name="btn_database_info">DB Info</string>
+    <string name="title_database_info">Database Details</string>
     <string name="btn_backup_database">Backup Current Database</string>
     <string name="btn_schedule_backup">Schedule Backup</string>
     <string name="btn_open_different_db">Open Different Database</string>
@@ -362,7 +364,7 @@
     <string name="label_all_categories">All Categories</string>
     <string name="label_column_grouping">Column Grouping</string>
     <string name="label_select_period">Select Period</string>
-    <string name="label_budget_variances_pct">Budget Variances (%)</string>
+    <string name="label_budget_variances_pct" formatted="false">Budget Variances (%)</string>
     <string name="title_app_tutorial">App Tutorial &amp; Guide</string>
     <string name="tut_getting_started_title">Getting Started</string>
     <string name="tut_getting_started_content">Welcome to FinTrack! This app helps you track expenses, manage budgets, and analyze your financial health locally on your device.\n\n1. Accounts: Set up your bank accounts, cash, and credit cards first.\n2. Categories: Define where your money goes (Food, Rent, etc.).\n3. Transactions: Use the \'+\' button to record daily spending or income.</string>
@@ -404,7 +406,7 @@
     <string name="label_months_odd_days">Months + Odd Days</string>
     <string name="label_est_gap_interest">Estimated Gap Interest: %1$s</string>
     <string name="msg_gap_interest_note">Note: This will be covered by the first EMI payment. Total cash outflow remains constant.</string>
-    <string name="label_annual_rate_pct">Annual Interest Rate (%)</string>
+    <string name="label_annual_rate_pct" formatted="false">Annual Interest Rate (%)</string>
     <string name="btn_compute_emi">Compute EMI</string>
     <string name="msg_enter_p_n_r">Enter Principal, Tenure and Rate</string>
     <string name="label_periodic_emi">Periodic EMI</string>
@@ -479,19 +481,28 @@
     <string name="label_scheduled">Scheduled</string>
     <string name="label_subscription">Subscription</string>
     <string name="title_add_loan">Add Loan</string>
+    <string name="title_loan_calculator">Loan Calculator</string>
+    <string name="label_loan_amount">Loan Amount</string>
+    <string name="label_tenure">Tenure</string>
+    <string name="label_interest_rate_pct" formatted="false">Interest Rate (%)</string>
+    <string name="label_yr">Yr</string>
+    <string name="label_mo">Mo.</string>
+    <string name="label_monthly_emi">Monthly EMI</string>
+    <string name="label_total_interest_payable">Total Interest Payable</string>
+    <string name="btn_see_loan_schedule">See Loan Schedule</string>
     <string name="btn_resume">Resume</string>
     <string name="btn_stop">Stop</string>
     <string name="label_total_paid">Total Paid</string>
-    <string name="msg_parsing_csv">Parsing CSV...</string>
+    <string name="msg_parsing_csv">Parsing file (CSV/Excel)...</string>
     <string name="msg_extracting_txns">Extracting Transactions...</string>
     <string name="msg_no_new_txns">No new transactions found.</string>
     <string name="msg_found_n_txns">Found %1$d new entries.</string>
-    <string name="title_import_statement">Import Statement (CSV)</string>
+    <string name="title_import_statement">Import Statement (CSV / Excel)</string>
     <string name="btn_bulk_record">Bulk Record</string>
     <string name="btn_reset">Reset</string>
     <string name="label_how_it_works">How it works</string>
     <string name="label_choose_account">Choose Account</string>
-    <string name="btn_select_csv_file">Select CSV File</string>
+    <string name="btn_select_csv_file">Select Statement File (CSV / Excel)</string>
     <string name="title_confirm_col_mapping">Confirm Column Mapping</string>
     <string name="msg_col_mapping_desc">Tap headers to re-assign roles. Ensure Date, Description, and Amount columns are correct.</string>
     <string name="btn_confirm_extract">Confirm and Extract Transactions</string>
@@ -930,7 +941,7 @@
     <string name="goal_transaction_visibility">Transaction Visibility</string>
     <string name="goal_tap_transaction_details">Tap any transaction to view details.</string>
     <string name="goal_no_transactions_linked">No transactions linked to this goal yet.</string>
-    <string name="goal_allocate_funds">Allocate Funds from Accounts</string>
+    <string name="goal_allocate_funds">Allocate Funds to Goal</string>
     <string name="goal_allocate_funds_title">Allocate Funds to %1$s</string>
     <string name="goal_amount_to_allocate">Amount to Allocate</string>
     <string name="goal_recurring_auto_contributions">Recurring Auto-Contributions</string>
@@ -969,7 +980,7 @@
     <!-- Goals Localization -->
     <string name="menu_goals">Goals</string>
     <string name="goal_see_account_balances">See Account Balances</string>
-    <string name="goal_transfer_funds_between_accounts">Transfer Funds Between Accounts</string>
+    <string name="goal_transfer_funds_between_accounts">Transfer Allocated Funds</string>
     <string name="goal_actual_balance">Actual Balance: %1$s</string>
     <string name="goal_allocated_to_goal">Allocated to Goal: %1$s</string>
     <string name="goal_true_balance_available">True Balance (Available): %1$s</string>
@@ -994,4 +1005,16 @@
     <string name="goal_true_available_balance">True Available Balance: %1$s</string>
     <string name="settings_tab_home_fixed">Tab 1: %1$s (Fixed)</string>
     <string name="settings_tab_format">Tab %1$d: %2$s</string>
+    <string name="settings_attachments">Attachments</string>
+    <string name="settings_enable_attachments">Enable attachments</string>
+    <string name="settings_change_attachment_folder">Change attachment folder</string>
+    <string name="settings_select_attachment_folder">Select attachment folder</string>
+    <string name="title_warning">Warning</string>
+    <string name="msg_attachment_backup_warning">Database backup will not include attachments. You have to manually backup attachments regularly.</string>
+    <string name="label_attachment">Attachment</string>
+    <string name="label_new_attachment">New Attachment %1$d</string>
+    <string name="btn_attach">Attach</string>
+    <string name="title_add_attachment">Add Attachment</string>
+    <string name="btn_upload_from_gallery">Upload from gallery</string>
+    <string name="btn_capture_from_camera">Capture from camera</string>
 </resources>

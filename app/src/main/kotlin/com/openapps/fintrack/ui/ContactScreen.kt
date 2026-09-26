@@ -201,7 +201,7 @@ fun ContactScreen(onBack: () -> Unit) {
                     color = Color.Gray
                 )
                 Text(
-                    "Version 1.0.20",
+                    "Version 1.0.22",
                     style = MaterialTheme.typography.labelSmall,
                     color = Color.Gray,
                     modifier = Modifier.padding(top = 4.dp)

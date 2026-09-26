@@ -20,6 +20,9 @@ FinTrack is a robust, privacy-focused Android expense tracker designed to help y
 - **Negotiation tracker:** Lets user fill in original amount and negotiated amount. Track savings through negotiation for a transaction.
 - **CSV Import:** Import bank statements using CSV files in any format, app lets to assign input fields for each of csv columns letting user decide what to import. (Use Amount if csv columns are negative and positive values to indicate deposit and withdrawals and use combination of Amount and DR_CR if deposit and withdrawals are in one single column with an additional single column to indicate deposit and withdrawal). Apps also takes care of de-duplication so that any transaction already recorded will not be repeated again.
 - **Invoice age tracking:** For On Account (Loan), record invoice numbers and track aging of those invoices.
+- **FD Maturities Tracker:** Set up FD maturities and track all FDs in one view.
+- **Financials Goals:** Mark an account balance or transaction as towards a specific financial goals and track its fund using dedicated goals dashboard. Set up auto allocation rules.
+- **Attach images or Files:** Attach files or images when creating a transaction. Please note that files attached will be saved un-encrypted (even if E2EE or ultra secure mode is turned on) and database backup will not include file attachments and user has to manually keep the backup of file attachments. 
 
 ## Other Features
 - **Multi Category:** In same Add transaction screen, pick more than one expense/ income categories to save your time by avoiding creation of multiple entries for the same shopping transaction.
@@ -38,6 +41,9 @@ FinTrack is a robust, privacy-focused Android expense tracker designed to help y
 [<img src="https://f-droid.org/badge/get-it-on.png"
     alt="Get it on F-Droid"
     height="80">](https://f-droid.org/packages/com.openapps.fintrack)
+
+[<img alt="Get it on GitHub" src="https://raw.githubusercontent.com/Kunzisoft/Github-badge/main/get-it-on-github.png" width="240">](https://github.com/Dozzeyy/FinTrack/releases/latest)
+[<img alt="Get it on Google Play" src="http://steverichey.github.io/google-play-badge-svg/img/en_get.svg" width="240">](https://play.google.com/store/apps/details?id=org.vahak.xpent)
 
 [Visit us for more info](https://vahak.org)
 

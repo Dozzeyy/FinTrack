@@ -140,7 +140,7 @@
     <string name="title_loans">Kredite</string>
     <string name="title_add_rule">Automatisierungsregel hinzufügen</string>
     <string name="title_automation_rules">Automatisierungsregeln</string>
-    <string name="title_import_csv">Kontoauszug importieren (CSV)</string>
+    <string name="title_import_csv">Kontoauszug importieren (CSV/Excel)</string>
     <string name="title_select_invoices">Rechnungen auswählen</string>
 
     <string name="msg_saved_success">Transaktion erfolgreich gespeichert!</string>

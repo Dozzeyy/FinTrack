@@ -33,6 +33,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.activity.compose.BackHandler
+import com.openapps.fintrack.data.Tag
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,9 +43,29 @@ fun ManageTagsScreen(
     onEditTag: () -> Unit,
     onBack: () -> Unit
 ) {
-    val tags by viewModel.getAllTags().collectAsState(initial = emptyList())
+    var selectedTagForTxns by remember { mutableStateOf<Tag?>(null) }
     
-    Scaffold(
+    if (viewModel.selectedTransactionDetail != null) {
+        BackHandler { viewModel.selectedTransactionDetail = null }
+        AddTransactionScreen(
+            viewModel = viewModel,
+            onBack = { viewModel.selectedTransactionDetail = null },
+            onNavigate = {},
+            readOnly = true
+        )
+    } else if (selectedTagForTxns != null) {
+        BackHandler { selectedTagForTxns = null }
+        Surface(modifier = Modifier.fillMaxSize()) {
+            TransactionHistoryView(
+                viewModel = viewModel,
+                initialTagId = selectedTagForTxns?.id,
+                onBack = { selectedTagForTxns = null }
+            )
+        }
+    } else {
+        val tags by viewModel.getAllTags().collectAsState(initial = emptyList())
+        
+        Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.title_manage_tags)) },
@@ -66,6 +88,7 @@ fun ManageTagsScreen(
         LazyColumn(modifier = Modifier.padding(padding).fillMaxSize()) {
             items(tags) { tag ->
                 ListItem(
+                    modifier = Modifier.clickable { selectedTagForTxns = tag },
                     headlineContent = { Text(tag.name) },
                     trailingContent = {
                         Row {
@@ -88,6 +111,7 @@ fun ManageTagsScreen(
                 Divider()
             }
         }
+    }
     }
 }
 

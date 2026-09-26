@@ -15,11 +15,12 @@
  */
 
 package com.openapps.fintrack.ui
-
 import android.content.Intent
+
 import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.res.stringResource
 import com.openapps.fintrack.R
 import androidx.compose.foundation.background
@@ -53,6 +54,19 @@ import com.journeyapps.barcodescanner.ScanOptions
 @Composable
 fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: (String) -> Unit, onRequireAuth: (() -> Unit) -> Unit) {
     val accounts by viewModel.getEnabledAccounts().collectAsState(initial = emptyList())
+    val context = LocalContext.current
+
+    val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        if (uri != null) {
+            context.contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            )
+            viewModel.updateAttachmentFolderUri(uri.toString())
+        }
+    }
+    
+    var showAttachmentWarning by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = Modifier.imePadding(),
@@ -843,6 +857,48 @@ fun SettingsScreen(viewModel: ExpenseViewModel, onBack: () -> Unit, onNavigate: 
                 Switch(
                     checked = viewModel.ccAlertEnabled,
                     onCheckedChange = { viewModel.updateCcAlertEnabled(it) }
+                )
+            }
+
+            Spacer(Modifier.height(16.dp))
+            Text(stringResource(R.string.settings_attachments), style = MaterialTheme.typography.titleMedium)
+            
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.settings_enable_attachments))
+                Switch(
+                    checked = viewModel.attachmentsEnabled,
+                    onCheckedChange = { 
+                        if (it) {
+                            showAttachmentWarning = true
+                        } else {
+                            viewModel.updateAttachmentsEnabled(false)
+                        }
+                    }
+                )
+            }
+            if (viewModel.attachmentsEnabled) {
+                Button(onClick = { folderPicker.launch(null) }, modifier = Modifier.fillMaxWidth()) {
+                    Text(if (viewModel.attachmentFolderUri != null) stringResource(R.string.settings_change_attachment_folder) else stringResource(R.string.settings_select_attachment_folder))
+                }
+                if (viewModel.attachmentFolderUri != null) {
+                    Text(viewModel.attachmentFolderUri!!, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                }
+            }
+
+            if (showAttachmentWarning) {
+                AlertDialog(
+                    onDismissRequest = { showAttachmentWarning = false },
+                    title = { Text(stringResource(R.string.title_warning)) },
+                    text = { Text(stringResource(R.string.msg_attachment_backup_warning)) },
+                    confirmButton = {
+                        Button(onClick = {
+                            viewModel.updateAttachmentsEnabled(true)
+                            showAttachmentWarning = false
+                        }) { Text(stringResource(R.string.btn_confirm)) }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showAttachmentWarning = false }) { Text(stringResource(R.string.btn_cancel)) }
+                    }
                 )
             }
 

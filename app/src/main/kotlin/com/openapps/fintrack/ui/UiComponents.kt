@@ -637,6 +637,7 @@ fun TransactionHistoryView(
     onOpenDrawer: (() -> Unit)? = null,
     initialCategoryId: Int? = null,
     initialAccountId: Int? = null,
+    initialTagId: Int? = null,
     onBack: (() -> Unit)? = null,
     isEmbedded: Boolean = false
 ) {
@@ -653,7 +654,11 @@ fun TransactionHistoryView(
     val allTags by viewModel.getEnabledTags().collectAsState(initial = emptyList())
     val allAccounts by viewModel.getEnabledAccounts().collectAsState(initial = emptyList())
     
-    val selectedTagIds = remember { mutableStateListOf<Int>() }
+    val selectedTagIds = remember { 
+        mutableStateListOf<Int>().apply {
+            if (initialTagId != null) add(initialTagId)
+        }
+    }
     val selectedAccountIds = remember { 
         mutableStateListOf<Int>().apply {
             if (initialAccountId != null) add(initialAccountId)
@@ -743,7 +748,7 @@ fun TransactionHistoryView(
                 }
             )
         } else {
-            if (onBack != null || onOpenDrawer != null) {
+            if (onBack != null || onOpenDrawer != null || isMultiSelectMode) {
                 Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (isMultiSelectMode) {
@@ -816,7 +821,7 @@ fun TransactionHistoryView(
                 }) { Icon(Icons.Default.ChevronLeft, "") }
                 
                 Text(
-                    month.format(DateTimeFormatter.ofPattern("MMMM yyyy")), 
+                    month.format(DateTimeFormatter.ofPattern("MMM yyyy")), 
                     modifier = Modifier.weight(1f).clickable { showFilterDialog = true }, 
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
@@ -2128,7 +2133,7 @@ fun AccountDetailView(viewModel: ExpenseViewModel, account: AccountBalance, onBa
                 startDate = month.withDayOfMonth(1).format(DateTimeFormatter.ISO_DATE)
                 endDate = month.with(TemporalAdjusters.lastDayOfMonth()).format(DateTimeFormatter.ISO_DATE) 
             }) { Icon(Icons.Default.ChevronLeft, "") }
-            Text(month.format(DateTimeFormatter.ofPattern("MMMM yyyy")), modifier = Modifier.weight(1f).clickable { showFilterDialog = true }, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            Text(month.format(DateTimeFormatter.ofPattern("MMM yyyy")), modifier = Modifier.weight(1f).clickable { showFilterDialog = true }, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
             IconButton(onClick = { 
                 month = month.plusMonths(1)
                 startDate = month.withDayOfMonth(1).format(DateTimeFormatter.ISO_DATE)
@@ -2260,6 +2265,12 @@ fun AmortizationScheduleOverlay(
         onResult = { uri -> uri?.let { exportScheduleToUri(context, schedule, it) } }
     )
 
+    val groupedByYear = remember(schedule) {
+        schedule.groupBy { it.dueDate.year }
+    }
+
+    val expandedYears = remember { mutableStateListOf<Int>() }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -2274,47 +2285,114 @@ fun AmortizationScheduleOverlay(
         }
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
-            Row(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant).padding(8.dp)) {
-                Text("#", modifier = Modifier.width(30.dp), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
-                Text("Date", modifier = Modifier.weight(1.2f), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
-                Text("Installment", modifier = Modifier.weight(1.5f), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
-                Text("Interest", modifier = Modifier.weight(1.5f), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .padding(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Year / Date", modifier = Modifier.weight(1.3f), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
+                Text("Installment", modifier = Modifier.weight(1.4f), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
+                Text("Interest", modifier = Modifier.weight(1.4f), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
+                Text("Principal", modifier = Modifier.weight(1.4f), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
                 Text("Balance", modifier = Modifier.weight(1.5f), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
             }
+
             Box(modifier = Modifier.weight(1f)) {
                 LazyColumn(Modifier.fillMaxSize()) {
-                    items(schedule) { row ->
-                        Row(
-                            Modifier.fillMaxWidth().padding(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("${row.period}", modifier = Modifier.width(30.dp), style = MaterialTheme.typography.bodySmall)
-                            Text(row.dueDate.format(DateTimeFormatter.ofPattern("dd/MM/yy")), modifier = Modifier.weight(1.2f), style = MaterialTheme.typography.bodySmall)
-                            Text(viewModel.formatAmountWhole(row.installment), modifier = Modifier.weight(1.5f), style = MaterialTheme.typography.bodySmall)
-                            Text(viewModel.formatAmountWhole(row.interestPortion), modifier = Modifier.weight(1.5f), style = MaterialTheme.typography.bodySmall)
-                            Text(viewModel.formatAmountWhole(row.closingBalance), modifier = Modifier.weight(1.5f), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                    groupedByYear.forEach { (year, yearRows) ->
+                        val totalYearInstallment = yearRows.sumOf { it.installment }
+                        val totalYearInterest = yearRows.sumOf { it.interestPortion }
+                        val totalYearPrincipal = yearRows.sumOf { it.principalPortion }
+                        val endingBalance = yearRows.last().closingBalance
+                        val isExpanded = year in expandedYears
+
+                        item(key = "year_$year") {
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                                    .clickable {
+                                        if (isExpanded) expandedYears.remove(year) else expandedYears.add(year)
+                                    },
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                                )
+                            ) {
+                                Row(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .padding(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(modifier = Modifier.weight(1.3f), verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(Modifier.width(2.dp))
+                                        Text("$year", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+                                    }
+                                    Text(viewModel.formatAmountWhole(totalYearInstallment), modifier = Modifier.weight(1.4f), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall)
+                                    Text(viewModel.formatAmountWhole(totalYearInterest), modifier = Modifier.weight(1.4f), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall)
+                                    Text(viewModel.formatAmountWhole(totalYearPrincipal), modifier = Modifier.weight(1.4f), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall)
+                                    Text(viewModel.formatAmountWhole(endingBalance), modifier = Modifier.weight(1.5f), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
                         }
-                        HorizontalDivider(modifier = Modifier.alpha(0.3f))
+
+                        if (isExpanded) {
+                            items(yearRows, key = { "row_${it.period}_${it.dueDate}" }) { row ->
+                                Row(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f))
+                                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        "#${row.period} (${row.dueDate.format(DateTimeFormatter.ofPattern("dd/MM/yy"))})",
+                                        modifier = Modifier.weight(1.3f),
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                    Text(viewModel.formatAmountWhole(row.installment), modifier = Modifier.weight(1.4f), style = MaterialTheme.typography.bodySmall)
+                                    Text(viewModel.formatAmountWhole(row.interestPortion), modifier = Modifier.weight(1.4f), style = MaterialTheme.typography.bodySmall)
+                                    Text(viewModel.formatAmountWhole(row.principalPortion), modifier = Modifier.weight(1.4f), style = MaterialTheme.typography.bodySmall)
+                                    Text(viewModel.formatAmountWhole(row.closingBalance), modifier = Modifier.weight(1.5f), style = MaterialTheme.typography.bodySmall)
+                                }
+                                HorizontalDivider(modifier = Modifier.alpha(0.2f))
+                            }
+                        }
                     }
                 }
             }
-            
+
             val totalInstallment = schedule.sumOf { it.installment }
             val totalInterest = schedule.sumOf { it.interestPortion }
-            
+            val totalPrincipal = schedule.sumOf { it.principalPortion }
+
             Surface(tonalElevation = 8.dp, shadowElevation = 8.dp, modifier = Modifier.fillMaxWidth()) {
-                Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Total", modifier = Modifier.width(60.dp), fontWeight = FontWeight.ExtraBold)
-                    Spacer(Modifier.weight(0.1f))
-                    Column(Modifier.weight(1.5f)) {
+                Row(
+                    Modifier
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                        .fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Total", modifier = Modifier.width(50.dp), fontWeight = FontWeight.ExtraBold)
+                    Column(Modifier.weight(1f)) {
                         Text("Installments", style = MaterialTheme.typography.labelSmall)
-                        Text(viewModel.formatAmountWhole(totalInstallment), fontWeight = FontWeight.Bold)
+                        Text(viewModel.formatAmountWhole(totalInstallment), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall)
                     }
-                    Column(Modifier.weight(1.5f)) {
+                    Column(Modifier.weight(1f)) {
                         Text("Interest", style = MaterialTheme.typography.labelSmall)
-                        Text(viewModel.formatAmountWhole(totalInterest), fontWeight = FontWeight.Bold)
+                        Text(viewModel.formatAmountWhole(totalInterest), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall)
                     }
-                    Spacer(Modifier.weight(1.5f))
+                    Column(Modifier.weight(1f)) {
+                        Text("Principal", style = MaterialTheme.typography.labelSmall)
+                        Text(viewModel.formatAmountWhole(totalPrincipal), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall)
+                    }
                 }
             }
         }

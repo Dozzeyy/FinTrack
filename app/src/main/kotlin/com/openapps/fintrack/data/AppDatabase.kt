@@ -1022,8 +1022,8 @@ abstract class AppDatabase : RoomDatabase() {
             val legacyFiles = listOf("expensesrepository", "expenses_database.ftd", "expensesrepository.ftd")
             for (name in legacyFiles) {
                 val legacyFile = context.getDatabasePath(name)
-                if (legacyFile.exists() && (!dbFile.exists() || dbFile.length() < 1024)) {
-                    Log.w("AppDatabase", "Found legacy data file '$name'. Migrating to '$DB_NAME'...")
+                if (legacyFile.exists() && EncryptionService.isValidSQLite(legacyFile) && (!dbFile.exists() || dbFile.length() < 1024)) {
+                    Log.w("AppDatabase", "Found valid legacy data file '$name'. Migrating to '$DB_NAME'...")
                     try {
                         if (dbFile.exists()) dbFile.delete()
                         legacyFile.renameTo(dbFile)
@@ -1040,7 +1040,18 @@ abstract class AppDatabase : RoomDatabase() {
             val encryptedFile = File(dbFile.path + ".xpt")
             if (encryptedFile.exists() && (!dbFile.exists() || dbFile.length() < 1024)) {
                 Log.w("AppDatabase", "Database is currently encrypted at rest (.xpt exists). Awaiting user decryption.")
+            } else if (dbFile.exists() && !EncryptionService.isValidSQLite(dbFile)) {
+                Log.e("AppDatabase", "Database file on disk is corrupted or invalid SQLite. Deleting to allow clean creation...")
+                try {
+                    dbFile.delete()
+                    File(dbFile.path + "-shm").delete()
+                    File(dbFile.path + "-wal").delete()
+                    File(dbFile.path + "-journal").delete()
+                } catch (e: Exception) {
+                    Log.e("AppDatabase", "Failed to delete corrupted db file", e)
+                }
             }
+
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: let {
                     val instance = Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, DB_NAME)
@@ -1080,6 +1091,278 @@ abstract class AppDatabase : RoomDatabase() {
                     Log.e("AppDatabase", "Error during close", e)
                 }
                 INSTANCE = null
+            }
+        }
+
+        fun sanitizeDatabaseForRoom(dbFile: File) {
+            if (!dbFile.exists() || dbFile.length() < 1024L) return
+            Log.d("SanitizeDB", "Starting database sanitization for ${dbFile.absolutePath}")
+            try {
+                val rawDb = android.database.sqlite.SQLiteDatabase.openDatabase(dbFile.absolutePath, null, android.database.sqlite.SQLiteDatabase.OPEN_READWRITE)
+                try {
+                    rawDb.execSQL("PRAGMA foreign_keys=OFF;")
+
+                    val accCursor = rawDb.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name='accounts'", null)
+                    val hasAccounts = accCursor.moveToFirst()
+                    accCursor.close()
+
+                    if (hasAccounts) {
+                        val colCursor = rawDb.rawQuery("PRAGMA table_info(accounts)", null)
+                        val accCols = mutableSetOf<String>()
+                        while (colCursor.moveToNext()) {
+                            accCols.add(colCursor.getString(colCursor.getColumnIndexOrThrow("name")))
+                        }
+                        colCursor.close()
+
+                        val expectedAccCols = mapOf(
+                            "last4Digits" to "TEXT",
+                            "ifscCode" to "TEXT",
+                            "branchName" to "TEXT",
+                            "websiteUrl" to "TEXT",
+                            "contactPerson" to "TEXT",
+                            "minimumBalance" to "REAL",
+                            "minimumBalanceMinorUnits" to "INTEGER",
+                            "maturityDate" to "TEXT",
+                            "bankName" to "TEXT",
+                            "defaultDueDays" to "INTEGER",
+                            "minorHeadId" to "INTEGER",
+                            "creditLimit" to "REAL",
+                            "creditLimitMinorUnits" to "INTEGER",
+                            "billingCycleStart" to "TEXT",
+                            "billingCycleEnd" to "TEXT",
+                            "paymentDueDate" to "TEXT",
+                            "icon" to "TEXT",
+                            "isEmergencyFund" to "INTEGER NOT NULL DEFAULT 0",
+                            "description" to "TEXT",
+                            "openingBalanceMinorUnits" to "INTEGER",
+                            "editedAt" to "INTEGER NOT NULL DEFAULT 0",
+                            "isDeleted" to "INTEGER NOT NULL DEFAULT 0"
+                        )
+
+                        expectedAccCols.forEach { (colName, colType) ->
+                            if (colName !in accCols) {
+                                try {
+                                    rawDb.execSQL("ALTER TABLE accounts ADD COLUMN `$colName` $colType")
+                                    Log.d("SanitizeDB", "Added missing column '$colName' to accounts")
+                                } catch (e: Exception) {
+                                    Log.e("SanitizeDB", "Error adding column $colName to accounts", e)
+                                }
+                            }
+                        }
+
+                        try {
+                            rawDb.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_accounts_name_minorHeadId` ON `accounts` (`name`, `minorHeadId`)")
+                        } catch (e: Exception) {}
+                    }
+
+                    val lineCursor = rawDb.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name='transaction_lines'", null)
+                    val hasTxnLines = lineCursor.moveToFirst()
+                    lineCursor.close()
+
+                    if (hasTxnLines) {
+                        val colCursor = rawDb.rawQuery("PRAGMA table_info(transaction_lines)", null)
+                        val lineCols = mutableSetOf<String>()
+                        while (colCursor.moveToNext()) {
+                            lineCols.add(colCursor.getString(colCursor.getColumnIndexOrThrow("name")))
+                        }
+                        colCursor.close()
+
+                        val expectedLineCols = mapOf(
+                            "fdLast4" to "TEXT",
+                            "fdMaturityDate" to "TEXT",
+                            "reconciliationStatus" to "TEXT NOT NULL DEFAULT 'PENDING'",
+                            "tags" to "TEXT"
+                        )
+
+                        expectedLineCols.forEach { (colName, colType) ->
+                            if (colName !in lineCols) {
+                                try {
+                                    rawDb.execSQL("ALTER TABLE transaction_lines ADD COLUMN `$colName` $colType")
+                                } catch (e: Exception) {}
+                            }
+                        }
+                    }
+
+                    val headerCursor = rawDb.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name='transaction_headers'", null)
+                    val hasHeaders = headerCursor.moveToFirst()
+                    headerCursor.close()
+
+                    if (hasHeaders) {
+                        val colCursor = rawDb.rawQuery("PRAGMA table_info(transaction_headers)", null)
+                        val headerCols = mutableSetOf<String>()
+                        while (colCursor.moveToNext()) {
+                            headerCols.add(colCursor.getString(colCursor.getColumnIndexOrThrow("name")))
+                        }
+                        colCursor.close()
+
+                        val expectedHeaderCols = mapOf(
+                            "invoiceNumber" to "TEXT",
+                            "dueDays" to "INTEGER",
+                            "goalId" to "INTEGER"
+                        )
+
+                        expectedHeaderCols.forEach { (colName, colType) ->
+                            if (colName !in headerCols) {
+                                try {
+                                    rawDb.execSQL("ALTER TABLE transaction_headers ADD COLUMN `$colName` $colType")
+                                } catch (e: Exception) {}
+                            }
+                        }
+
+                        try {
+                            rawDb.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_transaction_headers_transactionNumber` ON `transaction_headers` (`transactionNumber`)")
+                        } catch (e: Exception) {}
+                    }
+
+                    rawDb.execSQL("""
+                        CREATE TABLE IF NOT EXISTS `fd_clearances` (
+                            `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                            `redemptionHeaderId` INTEGER NOT NULL,
+                            `creationHeaderId` INTEGER NOT NULL,
+                            `amountCleared` REAL NOT NULL
+                        )
+                    """)
+
+                    try { rawDb.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_major_heads_name` ON `major_heads` (`name`)") } catch(e: Exception) {}
+                    try { rawDb.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_minor_heads_name_majorHeadId` ON `minor_heads` (`name`, `majorHeadId`)") } catch(e: Exception) {}
+                    try { rawDb.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_categories_name_type` ON `categories` (`name`, `type`)") } catch(e: Exception) {}
+                    try { rawDb.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_tags_name` ON `tags` (`name`)") } catch(e: Exception) {}
+
+                    val loansCursor = rawDb.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name='loans'", null)
+                    val hasLoans = loansCursor.moveToFirst()
+                    loansCursor.close()
+
+                    if (hasLoans) {
+                        val colCursor = rawDb.rawQuery("PRAGMA table_info(loans)", null)
+                        var hasTotalPeriods = false
+                        val oldCols = mutableSetOf<String>()
+                        while (colCursor.moveToNext()) {
+                            val colName = colCursor.getString(colCursor.getColumnIndexOrThrow("name"))
+                            oldCols.add(colName)
+                            if (colName.equals("totalPeriods", true)) {
+                                hasTotalPeriods = true
+                            }
+                        }
+                        colCursor.close()
+
+                        if (hasTotalPeriods) {
+                            Log.w("SanitizeDB", "Legacy 'totalPeriods' column found in loans table. Re-creating loans table for Room compatibility...")
+                            rawDb.execSQL("PRAGMA foreign_keys=OFF;")
+                            rawDb.beginTransaction()
+                            try {
+                                rawDb.execSQL("""
+                                    CREATE TABLE loans_fixed (
+                                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                                        name TEXT NOT NULL,
+                                        loanType TEXT NOT NULL,
+                                        principalAmount REAL NOT NULL,
+                                        principalAmountMinorUnits INTEGER,
+                                        interestRateAnnual REAL NOT NULL,
+                                        frequency TEXT NOT NULL,
+                                        periodsTotal INTEGER NOT NULL,
+                                        disbursementDate INTEGER NOT NULL,
+                                        firstRepaymentDate INTEGER NOT NULL,
+                                        installmentAmount REAL NOT NULL,
+                                        installmentAmountMinorUnits INTEGER,
+                                        totalInterestPaid REAL NOT NULL,
+                                        totalInterestPaidMinorUnits INTEGER,
+                                        totalPrincipalRepaid REAL NOT NULL,
+                                        totalPrincipalRepaidMinorUnits INTEGER,
+                                        outstandingBalance REAL NOT NULL,
+                                        outstandingBalanceMinorUnits INTEGER,
+                                        accountId INTEGER NOT NULL,
+                                        partyId INTEGER NOT NULL,
+                                        nextDueDate INTEGER NOT NULL,
+                                        isClosed INTEGER NOT NULL,
+                                        periodsPassed INTEGER NOT NULL,
+                                        gapMethod TEXT NOT NULL,
+                                        gapInterest REAL NOT NULL,
+                                        gapInterestMinorUnits INTEGER,
+                                        isActualEmiDifferent INTEGER NOT NULL,
+                                        actualRepaymentAmount REAL NOT NULL,
+                                        actualRepaymentAmountMinorUnits INTEGER,
+                                        isAutoRecordEnabled INTEGER NOT NULL,
+                                        sourceAccountId INTEGER,
+                                        isUpdateBank INTEGER NOT NULL,
+                                        tags TEXT,
+                                        notes TEXT,
+                                        editedAt INTEGER NOT NULL,
+                                        isDeleted INTEGER NOT NULL
+                                    )
+                                """)
+
+                                val nameExpr = if ("name" in oldCols) "COALESCE(name, '')" else "''"
+                                val loanTypeExpr = if ("loanType" in oldCols) "COALESCE(loanType, 'BORROWING')" else "'BORROWING'"
+                                val principalAmtExpr = if ("principalAmount" in oldCols) "COALESCE(principalAmount, 0.0)" else "0.0"
+                                val principalAmtMinorExpr = if ("principalAmountMinorUnits" in oldCols) "principalAmountMinorUnits" else "NULL"
+                                val interestRateExpr = if ("interestRateAnnual" in oldCols) "COALESCE(interestRateAnnual, 0.0)" else "0.0"
+                                val frequencyExpr = if ("frequency" in oldCols) "COALESCE(frequency, 'MONTHLY')" else "'MONTHLY'"
+                                val periodsTotalExpr = when {
+                                    "periodsTotal" in oldCols -> "COALESCE(periodsTotal, 0)"
+                                    "totalPeriods" in oldCols -> "COALESCE(totalPeriods, 0)"
+                                    else -> "0"
+                                }
+                                val disburseDateExpr = if ("disbursementDate" in oldCols) "COALESCE(disbursementDate, 0)" else "0"
+                                val firstRepayExpr = if ("firstRepaymentDate" in oldCols) "COALESCE(firstRepaymentDate, 0)" else "0"
+                                val installmentAmtExpr = if ("installmentAmount" in oldCols) "COALESCE(installmentAmount, 0.0)" else "0.0"
+                                val installmentAmtMinorExpr = if ("installmentAmountMinorUnits" in oldCols) "installmentAmountMinorUnits" else "NULL"
+                                val totalIntPaidExpr = if ("totalInterestPaid" in oldCols) "COALESCE(totalInterestPaid, 0.0)" else "0.0"
+                                val totalIntPaidMinorExpr = if ("totalInterestPaidMinorUnits" in oldCols) "totalInterestPaidMinorUnits" else "NULL"
+                                val totalPrinRepaidExpr = if ("totalPrincipalRepaid" in oldCols) "COALESCE(totalPrincipalRepaid, 0.0)" else "0.0"
+                                val totalPrinRepaidMinorExpr = if ("totalPrincipalRepaidMinorUnits" in oldCols) "totalPrincipalRepaidMinorUnits" else "NULL"
+                                val outBalExpr = if ("outstandingBalance" in oldCols) "COALESCE(outstandingBalance, 0.0)" else "0.0"
+                                val outBalMinorExpr = if ("outstandingBalanceMinorUnits" in oldCols) "outstandingBalanceMinorUnits" else "NULL"
+                                val accIdExpr = if ("accountId" in oldCols) "COALESCE(accountId, 0)" else "0"
+                                val partyIdExpr = if ("partyId" in oldCols) "COALESCE(partyId, 0)" else "0"
+                                val nextDueDateExpr = if ("nextDueDate" in oldCols) "COALESCE(nextDueDate, 0)" else "0"
+                                val isClosedExpr = if ("isClosed" in oldCols) "COALESCE(isClosed, 0)" else "0"
+                                val periodsPassedExpr = if ("periodsPassed" in oldCols) "COALESCE(periodsPassed, 0)" else "0"
+                                val gapMethodExpr = if ("gapMethod" in oldCols) "COALESCE(gapMethod, 'DAYS')" else "'DAYS'"
+                                val gapInterestExpr = if ("gapInterest" in oldCols) "COALESCE(gapInterest, 0.0)" else "0.0"
+                                val gapInterestMinorExpr = if ("gapInterestMinorUnits" in oldCols) "gapInterestMinorUnits" else "NULL"
+                                val isActualEmiDiffExpr = if ("isActualEmiDifferent" in oldCols) "COALESCE(isActualEmiDifferent, 0)" else "0"
+                                val actualRepayAmtExpr = if ("actualRepaymentAmount" in oldCols) "COALESCE(actualRepaymentAmount, 0.0)" else "0.0"
+                                val actualRepayAmtMinorExpr = if ("actualRepaymentAmountMinorUnits" in oldCols) "actualRepaymentAmountMinorUnits" else "NULL"
+                                val isAutoRecordExpr = if ("isAutoRecordEnabled" in oldCols) "COALESCE(isAutoRecordEnabled, 0)" else "0"
+                                val sourceAccIdExpr = if ("sourceAccountId" in oldCols) "sourceAccountId" else "NULL"
+                                val isUpdateBankExpr = if ("isUpdateBank" in oldCols) "COALESCE(isUpdateBank, 1)" else "1"
+                                val tagsExpr = if ("tags" in oldCols) "tags" else "NULL"
+                                val notesExpr = if ("notes" in oldCols) "notes" else "NULL"
+                                val editedAtExpr = if ("editedAt" in oldCols) "COALESCE(editedAt, 0)" else "0"
+                                val isDeletedExpr = if ("isDeleted" in oldCols) "COALESCE(isDeleted, 0)" else "0"
+
+                                rawDb.execSQL("""
+                                    INSERT INTO loans_fixed (
+                                        name, loanType, principalAmount, principalAmountMinorUnits, interestRateAnnual, frequency, periodsTotal, disbursementDate, firstRepaymentDate, installmentAmount, installmentAmountMinorUnits, totalInterestPaid, totalInterestPaidMinorUnits, totalPrincipalRepaid, totalPrincipalRepaidMinorUnits, outstandingBalance, outstandingBalanceMinorUnits, accountId, partyId, nextDueDate, isClosed, periodsPassed, gapMethod, gapInterest, gapInterestMinorUnits, isActualEmiDifferent, actualRepaymentAmount, actualRepaymentAmountMinorUnits, isAutoRecordEnabled, sourceAccountId, isUpdateBank, tags, notes, editedAt, isDeleted
+                                    ) SELECT 
+                                        $nameExpr, $loanTypeExpr, $principalAmtExpr, $principalAmtMinorExpr, $interestRateExpr, $frequencyExpr, $periodsTotalExpr, $disburseDateExpr, $firstRepayExpr, $installmentAmtExpr, $installmentAmtMinorExpr, $totalIntPaidExpr, $totalIntPaidMinorExpr, $totalPrinRepaidExpr, $totalPrinRepaidMinorExpr, $outBalExpr, $outBalMinorExpr, $accIdExpr, $partyIdExpr, $nextDueDateExpr, $isClosedExpr, $periodsPassedExpr, $gapMethodExpr, $gapInterestExpr, $gapInterestMinorExpr, $isActualEmiDiffExpr, $actualRepayAmtExpr, $actualRepayAmtMinorExpr, $isAutoRecordExpr, $sourceAccIdExpr, $isUpdateBankExpr, $tagsExpr, $notesExpr, $editedAtExpr, $isDeletedExpr 
+                                    FROM loans
+                                """)
+
+                                rawDb.execSQL("DROP TABLE loans")
+                                rawDb.execSQL("ALTER TABLE loans_fixed RENAME TO loans")
+
+                                rawDb.setTransactionSuccessful()
+                            } finally {
+                                rawDb.endTransaction()
+                                rawDb.execSQL("PRAGMA foreign_keys=ON;")
+                            }
+                        }
+                    }
+
+                    try {
+                        rawDb.execSQL("CREATE TABLE IF NOT EXISTS `room_master_table` (`id` INTEGER PRIMARY KEY, `identity_hash` TEXT)")
+                        rawDb.execSQL("INSERT OR REPLACE INTO `room_master_table` (`id`, `identity_hash`) VALUES (42, 'db65f80d004a68624a9b6c59286fb754')")
+                    } catch (e: Exception) {
+                        Log.e("SanitizeDB", "Error updating room_master_table identity hash", e)
+                    }
+
+                    rawDb.execSQL("PRAGMA user_version = 58;")
+                } finally {
+                    rawDb.close()
+                }
+            } catch (e: Exception) {
+                Log.e("AppDatabase", "Error sanitizing database for Room", e)
             }
         }
 

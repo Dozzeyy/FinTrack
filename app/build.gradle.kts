@@ -44,8 +44,8 @@ android {
         applicationId = "com.openapps.fintrack"
         minSdk = 26
         targetSdk = 37
-        versionCode = 11
-        versionName = "1.0.20"
+        versionCode = 12
+        versionName = "1.0.22"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -78,7 +78,7 @@ android {
         release {
             isMinifyEnabled = false
             isShrinkResources = false
-            //signingConfig = null
+            signingConfig = null
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -145,8 +145,10 @@ dependencies {
 
     implementation("com.google.zxing:core:3.5.4")
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
-    
-    
+
+    implementation("org.apache.poi:poi:5.2.3")
+    implementation("org.apache.poi:poi-ooxml:5.2.3")
+        
     implementation("androidx.room:room-runtime:2.8.4")
     implementation("androidx.room:room-ktx:2.8.4")
     ksp("androidx.room:room-compiler:2.8.4")

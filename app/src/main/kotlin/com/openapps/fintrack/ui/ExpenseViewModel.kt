@@ -167,6 +167,8 @@ class ExpenseViewModel @Inject constructor(
                 )
             )
             val tagIds = tags?.split(",")?.mapNotNull { it.trim().toIntOrNull() } ?: emptyList()
+
+        val headerId = 
             
             addTransactionUseCase(
                 date = draft.date,
@@ -246,6 +248,8 @@ class ExpenseViewModel @Inject constructor(
     var reminderTime by mutableStateOf(prefs.getString("reminder_time", "20:00") ?: "20:00")
     var reminderMessage by mutableStateOf(prefs.getString("reminder_message", "Record expenses!") ?: "Record expenses!")
     var ccAlertEnabled by mutableStateOf(prefs.getBoolean("cc_alert_enabled", false))
+    var attachmentsEnabled by mutableStateOf(prefs.getBoolean("attachments_enabled", false))
+    var attachmentFolderUri by mutableStateOf(prefs.getString("attachment_folder_uri", null))
     var dismissedCcAlertIds by mutableStateOf(prefs.getStringSet("dismissed_cc_alerts", emptySet()) ?: emptySet())
     var disableScreenshots by mutableStateOf(prefs.getBoolean("disable_screenshots", false))
     var tapToShowNetPosition by mutableStateOf(prefs.getBoolean("tap_to_show_net_position", false))
@@ -335,15 +339,10 @@ class ExpenseViewModel @Inject constructor(
         val lastVersion = prefs.getInt("last_seen_version", 0)
         if (currentVersion > lastVersion) {
             keyChanges = """
-                - Introducing Financial Goals section to save money for specific goals.
-                - Introducing Fintrack linux desktop application (More info coming on our site).
-                - Added upload and download button from cloud url in homescreen for easy tap and upload / download.
-                - Added FD Maturity trackers and quick dashboard.
-                - Supports custom port during web server creation.
-                - Background wallpaper can be changed to preset ones for total expense and income summary card in home screen.
-                - Home screen pill customization.
-                - Transaction level drill down in Categories screen.
-                - Transaction raw string export and import.
+                - Transaction import through Excel (.xlsx or .xls).
+                - Attach files when recording entries.
+                - Database info in database selection.
+                - Other compatibility bug fixes.
             """.trimIndent()
             showWhatIsNew = true
             prefs.edit().putInt("last_seen_version", currentVersion).apply()
@@ -389,6 +388,8 @@ class ExpenseViewModel @Inject constructor(
     fun updateReminderTime(t: String) { reminderTime = t; prefs.edit().putString("reminder_time", t).apply(); scheduleReminders() }
     fun updateReminderMessage(m: String) { reminderMessage = m; prefs.edit().putString("reminder_message", m).apply() }
     fun updateCcAlertEnabled(e: Boolean) { ccAlertEnabled = e; prefs.edit().putBoolean("cc_alert_enabled", e).apply(); scheduleCcAlerts() }
+    fun updateAttachmentsEnabled(e: Boolean) { attachmentsEnabled = e; prefs.edit().putBoolean("attachments_enabled", e).apply() }
+    fun updateAttachmentFolderUri(uri: String?) { attachmentFolderUri = uri; prefs.edit().putString("attachment_folder_uri", uri).apply() }
     fun updateRemoteSyncEnabled(e: Boolean) { remoteSyncEnabled = e; prefs.edit().putBoolean("remote_sync_enabled", e).apply() }
     fun updateSyncFrequency(f: String) { syncFrequency = f; prefs.edit().putString("sync_frequency", f).apply() }
     fun updateWebdavUrl(u: String) { 
@@ -995,6 +996,7 @@ class ExpenseViewModel @Inject constructor(
     fun getMinorHeadsByMajor(id: Int) = _refreshTrigger.flatMapLatest { repository.getMinorHeadsByMajor(id) }
     fun getMajorHeadBalances(d: String) = _refreshTrigger.flatMapLatest { repository.getMajorHeadBalances(d) }
     fun getMinorHeadBalances(d: String) = _refreshTrigger.flatMapLatest { repository.getMinorHeadBalances(d) }
+    suspend fun getFdClearancesForRedemption(redemptionHeaderId: Int): List<FdClearance> = repository.getFdClearancesForRedemption(redemptionHeaderId)
     fun getAllBudgetsDetailed() = _refreshTrigger.flatMapLatest { repository.getBudgetsWithRelations() }
     @OptIn(ExperimentalCoroutinesApi::class)
     private val templatesFlow: Flow<List<TemplateLegacy>> = _refreshTrigger.flatMapLatest { 
@@ -1337,7 +1339,7 @@ class ExpenseViewModel @Inject constructor(
     }
 
     // TransactionLegacy Management
-    private suspend fun executeAddTransaction(date: String, time: String, accId: Int, catId: Int?, amount: Double, note: String?, toAccId: Int?, tags: String?, type: String, pId: Int? = null, toPId: Int? = null, subN: String? = null, subF: Int? = null, amtO: Double? = null, cur: String? = null, amtB: Double? = null, updId: Int? = null, isNeg: Boolean = false, negOrig: Double? = null, merch: String? = null, isDisc: Boolean = false, invNo: String? = null, dueD: Int? = null, clearInvIds: List<Int> = emptyList(), goalId: Int? = null, fdLast4: String? = null, fdMaturityDate: String? = null, selectedFdCreationHeaderId: Int? = null) {
+    private suspend fun executeAddTransaction(date: String, time: String, accId: Int, catId: Int?, amount: Double, note: String?, toAccId: Int?, tags: String?, type: String, pId: Int? = null, toPId: Int? = null, subN: String? = null, subF: Int? = null, amtO: Double? = null, cur: String? = null, amtB: Double? = null, updId: Int? = null, isNeg: Boolean = false, negOrig: Double? = null, merch: String? = null, isDisc: Boolean = false, invNo: String? = null, dueD: Int? = null, clearInvIds: List<Int> = emptyList(), goalId: Int? = null, fdLast4: String? = null, fdMaturityDate: String? = null, selectedFdCreationHeaderId: Int? = null, attachments: List<String> = emptyList()) {
         val lines = listOf(
             TransactionLineData(
                 accountId = accId,
@@ -1357,7 +1359,7 @@ class ExpenseViewModel @Inject constructor(
         )
         val tagIds = tags?.split(",")?.mapNotNull { it.trim().toIntOrNull() } ?: emptyList()
 
-        addTransactionUseCase(
+        val headerId = addTransactionUseCase(
             date = date,
             time = time,
             note = note,
@@ -1377,10 +1379,17 @@ class ExpenseViewModel @Inject constructor(
             goalId = goalId,
             selectedFdCreationHeaderId = selectedFdCreationHeaderId
         )
+
+        if (attachments.isNotEmpty()) {
+            val header = repository.getTransactionsDetailed().first().find { it.header.id == headerId }?.header
+            if (header?.transactionNumber != null) {
+                copyAttachmentsToSaf(getApplication(), attachmentFolderUri, header.transactionNumber, attachments)
+            }
+        }
     }
-    fun addTransaction(date: String, time: String, accountId: Int, categoryId: Int?, amount: Double, note: String?, toAccountId: Int?, tags: String?, type: String, partyId: Int? = null, toPartyId: Int? = null, subName: String? = null, subFrequency: Int? = null, amountOriginal: Double? = null, currencyCode: String? = null, amountBase: Double? = null, updateId: Int? = null, isNegotiated: Boolean = false, negotiationAmountOriginal: Double? = null, merchantName: String? = null, isDiscretionary: Boolean = false, invoiceNumber: String? = null, dueDays: Int? = null, clearInvoiceIds: List<Int> = emptyList(), goalId: Int? = null, fdLast4: String? = null, fdMaturityDate: String? = null, selectedFdCreationHeaderId: Int? = null) {
+    fun addTransaction(date: String, time: String, accountId: Int, categoryId: Int?, amount: Double, note: String?, toAccountId: Int?, tags: String?, type: String, partyId: Int? = null, toPartyId: Int? = null, subName: String? = null, subFrequency: Int? = null, amountOriginal: Double? = null, currencyCode: String? = null, amountBase: Double? = null, updateId: Int? = null, isNegotiated: Boolean = false, negotiationAmountOriginal: Double? = null, merchantName: String? = null, isDiscretionary: Boolean = false, invoiceNumber: String? = null, dueDays: Int? = null, clearInvoiceIds: List<Int> = emptyList(), goalId: Int? = null, fdLast4: String? = null, fdMaturityDate: String? = null, selectedFdCreationHeaderId: Int? = null, attachments: List<String> = emptyList()) {
         viewModelScope.launch { 
-            executeAddTransaction(date, time, accountId, categoryId, amount, note, toAccountId, tags, type, partyId, toPartyId, subName, subFrequency, amountOriginal, currencyCode, amountBase, updateId, isNegotiated, negotiationAmountOriginal, merchantName, isDiscretionary, invoiceNumber, dueDays, clearInvoiceIds, goalId, fdLast4, fdMaturityDate, selectedFdCreationHeaderId)
+            executeAddTransaction(date, time, accountId, categoryId, amount, note, toAccountId, tags, type, partyId, toPartyId, subName, subFrequency, amountOriginal, currencyCode, amountBase, updateId, isNegotiated, negotiationAmountOriginal, merchantName, isDiscretionary, invoiceNumber, dueDays, clearInvoiceIds, goalId, fdLast4, fdMaturityDate, selectedFdCreationHeaderId, attachments)
             triggerRefresh()
             triggerSyncOnNewRecord()
         }
@@ -1444,7 +1453,7 @@ class ExpenseViewModel @Inject constructor(
         }
     }
 
-    fun addMultiEntryTransactionExtended(date: String, time: String, accountId: Int, entries: List<MultiEntryRowData>, tags: String?, type: String, partyId: Int?, subName: String?, subFrequency: Int?, updateId: Int? = null) {
+    fun addMultiEntryTransactionExtended(date: String, time: String, accountId: Int, entries: List<MultiEntryRowData>, tags: String?, type: String, partyId: Int?, subName: String?, subFrequency: Int?, updateId: Int? = null, attachments: List<String> = emptyList()) {
         viewModelScope.launch {
             val lines = entries.map { e -> 
                 TransactionLineData(
@@ -1464,7 +1473,7 @@ class ExpenseViewModel @Inject constructor(
                 e.tags?.split(",")?.mapNotNull { it.trim().toIntOrNull() }?.let { allTagIds.addAll(it) }
             }
 
-            addTransactionUseCase(
+            val headerId = addTransactionUseCase(
                 date = date,
                 time = time,
                 note = null,
@@ -1477,6 +1486,13 @@ class ExpenseViewModel @Inject constructor(
                 updateId = updateId,
                 baseCurrency = baseCurrency
             )
+
+            if (attachments.isNotEmpty()) {
+                val header = repository.getTransactionsDetailed().first().find { it.header.id == headerId }?.header
+                if (header?.transactionNumber != null) {
+                    copyAttachmentsToSaf(getApplication(), attachmentFolderUri, header.transactionNumber, attachments)
+                }
+            }
 
             triggerRefresh()
             triggerSyncOnNewRecord()

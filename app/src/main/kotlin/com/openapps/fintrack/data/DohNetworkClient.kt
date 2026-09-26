@@ -34,12 +34,15 @@ object DohNetworkClient {
     val dnsOverHttps by lazy {
         DnsOverHttps.Builder()
             .client(bootstrapClient)
-            .url("https://dns.google/dns-query".toHttpUrl())
+            //.url("https://dns.google/dns-query".toHttpUrl())
+            .url("https://cloudflare-dns.com/dns-query".toHttpUrl())
             .bootstrapDnsHosts(
-                InetAddress.getByName("8.8.8.8"),
-                InetAddress.getByName("8.8.4.4"),
+                //InetAddress.getByName("8.8.8.8"),
+                //InetAddress.getByName("8.8.4.4"),
                 InetAddress.getByName("1.1.1.1"),
-                InetAddress.getByName("1.0.0.1")
+                InetAddress.getByName("1.0.0.1"),
+                InetAddress.getByName("1.1.1.2"),
+                InetAddress.getByName("1.0.0.2")
             )
             .build()
     }

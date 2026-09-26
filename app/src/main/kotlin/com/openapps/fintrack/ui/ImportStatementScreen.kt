@@ -17,7 +17,10 @@
 package com.openapps.fintrack.ui
 
 import android.net.Uri
+import android.util.Log
 import android.widget.Toast
+import org.apache.poi.ss.usermodel.DataFormatter
+import org.apache.poi.ss.usermodel.WorkbookFactory
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.horizontalScroll
@@ -96,7 +99,7 @@ fun ImportStatementScreen(
         viewModel.importStatus = parsingCsvMsg
         scope.launch {
             try {
-                val rows = extractBlocksFromCsv(context, uri)
+                val rows = extractBlocksFromFile(context, uri)
                 viewModel.rawRows = rows
                 
                 val assignments = mutableListOf<ColumnAssignment>()
@@ -244,7 +247,7 @@ fun ImportStatementScreen(
 
                 Spacer(Modifier.height(24.dp))
                 Button(
-                    onClick = { fileLauncher.launch("text/*") },
+                    onClick = { fileLauncher.launch("*/*") },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = selectedAccount != null && !isProcessing
                 ) {
@@ -514,11 +517,58 @@ fun ColumnTablePreview(
     }
 }
 
-private suspend fun extractBlocksFromCsv(
+private suspend fun extractBlocksFromFile(
     context: android.content.Context,
     uri: Uri
 ): List<List<String>> = withContext(Dispatchers.IO) {
     val rows = mutableListOf<List<String>>()
+    val contentResolver = context.contentResolver
+    val mimeType = contentResolver.getType(uri)
+    val fileName = getFileName(context, uri).lowercase()
+
+    val isExcel = fileName.endsWith(".xlsx") || 
+                  fileName.endsWith(".xls") || 
+                  mimeType?.contains("excel") == true || 
+                  mimeType?.contains("spreadsheet") == true
+
+    if (isExcel) {
+        try {
+            contentResolver.openInputStream(uri)?.use { inputStream ->
+                val workbook = WorkbookFactory.create(inputStream)
+                val sheet = workbook.getSheetAt(0)
+                val formatter = DataFormatter()
+
+                for (row in sheet) {
+                    val rowValues = mutableListOf<String>()
+                    val lastCellNum = row.lastCellNum.toInt()
+                    if (lastCellNum > 0) {
+                        for (cn in 0 until lastCellNum) {
+                            val cell = row.getCell(cn)
+                            val cellValue = if (cell != null) {
+                                formatter.formatCellValue(cell).trim()
+                            } else ""
+                            rowValues.add(cellValue)
+                        }
+                        if (rowValues.any { it.isNotEmpty() }) {
+                            rows.add(rowValues)
+                        }
+                    }
+                }
+                workbook.close()
+            }
+        } catch (e: Exception) {
+            Log.e("ExcelParser", "Error parsing excel file, falling back to CSV parser", e)
+            rows.clear()
+            readCsvRows(context, uri, rows)
+        }
+    } else {
+        readCsvRows(context, uri, rows)
+    }
+
+    return@withContext rows
+}
+
+private fun readCsvRows(context: android.content.Context, uri: Uri, rows: MutableList<List<String>>) {
     context.contentResolver.openInputStream(uri)?.use { inputStream ->
         BufferedReader(InputStreamReader(inputStream)).use { reader ->
             var line: String? = reader.readLine()
@@ -531,7 +581,25 @@ private suspend fun extractBlocksFromCsv(
             }
         }
     }
-    return@withContext rows
+}
+
+private fun getFileName(context: android.content.Context, uri: Uri): String {
+    var name = ""
+    if (uri.scheme == "content") {
+        val cursor = context.contentResolver.query(uri, null, null, null, null)
+        cursor?.use {
+            if (it.moveToFirst()) {
+                val displayNameIndex = it.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                if (displayNameIndex != -1) {
+                    name = it.getString(displayNameIndex) ?: ""
+                }
+            }
+        }
+    }
+    if (name.isBlank()) {
+        name = uri.path?.substringAfterLast('/') ?: ""
+    }
+    return name
 }
 
 private fun splitCsvLine(line: String): List<String> {

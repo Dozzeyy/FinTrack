@@ -28,11 +28,19 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Color
+import java.io.File
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -53,7 +61,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.withLock
-import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.util.concurrent.TimeUnit
@@ -79,6 +86,9 @@ fun DatabaseScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
     var showBackupOptionsDialog by remember { mutableStateOf(false) }
     var showRemoteSyncWarning by remember { mutableStateOf(false) }
     var showOpenDifferentDbConfirm by remember { mutableStateOf(false) }
+    var showDbInfoDialog by remember { mutableStateOf(false) }
+    var isLoadingDbInfo by remember { mutableStateOf(false) }
+    var dbInfoDetails by remember { mutableStateOf<DatabaseInfoDetails?>(null) }
 
     val openDbLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
@@ -337,6 +347,76 @@ fun DatabaseScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
         )
     }
 
+    if (showDbInfoDialog) {
+        AlertDialog(
+            onDismissRequest = { showDbInfoDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Storage, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.title_database_info), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                }
+            },
+            text = {
+                if (isLoadingDbInfo || dbInfoDetails == null) {
+                    Box(modifier = Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
+                } else {
+                    val info = dbInfoDetails!!
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text("Storage & System Info", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                                HorizontalDivider(modifier = Modifier.alpha(0.2f))
+
+                                InfoRow("File Path", info.path)
+                                InfoRow("Size", info.sizeFormatted)
+                                InfoRow("Last Modified", info.lastModifiedFormatted)
+                                InfoRow("SQLite Version", "v${info.version}")
+                                InfoRow("Journal Mode", info.journalMode)
+                                InfoRow("Encryption", if (info.isEncryptedAtRest) "Encrypted (At Rest)" else "Unencrypted")
+                                InfoRow("Total Tables", info.tableCount.toString())
+                            }
+                        }
+
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text("Record Statistics", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                                HorizontalDivider(modifier = Modifier.alpha(0.2f))
+
+                                InfoRow("Transactions", "${info.totalTransactions} headers (${info.totalLines} lines)")
+                                InfoRow("Accounts", info.totalAccounts.toString())
+                                InfoRow("Categories", info.totalCategories.toString())
+                                InfoRow("Tags", info.totalTags.toString())
+                                InfoRow("Loans", info.totalLoans.toString())
+                                InfoRow("Budgets", info.totalBudgets.toString())
+                                InfoRow("Notes", info.totalNotes.toString())
+                                InfoRow("Parties", info.totalParties.toString())
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showDbInfoDialog = false }) {
+                    Text(stringResource(R.string.btn_ok))
+                }
+            }
+        )
+    }
+
     val exportConfigsLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json"),
         onResult = { uri ->
@@ -392,8 +472,43 @@ fun DatabaseScreen(viewModel: ExpenseViewModel, onBack: () -> Unit) {
                 .verticalScroll(scrollState)
                 .padding(16.dp)
         ) {
-            Text(stringResource(R.string.label_current_database), style = MaterialTheme.typography.labelSmall)
-            Text(dbFile.absolutePath, style = MaterialTheme.typography.bodySmall)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(stringResource(R.string.label_current_database), style = MaterialTheme.typography.labelSmall)
+                            Text(dbFile.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                            Text(dbFile.absolutePath, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                scope.launch {
+                                    isLoadingDbInfo = true
+                                    showDbInfoDialog = true
+                                    dbInfoDetails = getDatabaseCompleteInfo(context, dbFile)
+                                    isLoadingDbInfo = false
+                                }
+                            }
+                        ) {
+                            Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text(stringResource(R.string.btn_database_info))
+                        }
+                    }
+                }
+            }
             
             Spacer(Modifier.height(24.dp))
             
@@ -1073,6 +1188,8 @@ suspend fun importFileDirectly(
                 }
             }
 
+            com.openapps.fintrack.data.AppDatabase.sanitizeDatabaseForRoom(dbFile)
+
             if (!importPassword.isNullOrEmpty()) {
                 EncryptedPrefsHelper.putString("remote_master_password", importPassword)
                 if (viewModel != null) {
@@ -1127,5 +1244,142 @@ suspend fun performBackupFile(context: Context, dbFile: File, destUri: Uri) = wi
         withContext(Dispatchers.Main) {
             Toast.makeText(context, context.getString(R.string.msg_backup_failed) + ": ${e.message}", Toast.LENGTH_SHORT).show()
         }
+    }
+}
+
+data class DatabaseInfoDetails(
+    val path: String,
+    val sizeFormatted: String,
+    val lastModifiedFormatted: String,
+    val version: Int,
+    val journalMode: String,
+    val tableCount: Int,
+    val totalTransactions: Long,
+    val totalLines: Long,
+    val totalAccounts: Long,
+    val totalCategories: Long,
+    val totalTags: Long,
+    val totalLoans: Long,
+    val totalBudgets: Long,
+    val totalNotes: Long,
+    val totalParties: Long,
+    val isEncryptedAtRest: Boolean
+)
+
+suspend fun getDatabaseCompleteInfo(context: Context, file: File): DatabaseInfoDetails = withContext(Dispatchers.IO) {
+    val sizeBytes = if (file.exists()) file.length() else 0L
+    val sizeStr = when {
+        sizeBytes < 1024 -> "$sizeBytes B"
+        sizeBytes < 1024 * 1024 -> String.format(Locale.getDefault(), "%.2f KB", sizeBytes / 1024.0)
+        else -> String.format(Locale.getDefault(), "%.2f MB", sizeBytes / (1024.0 * 1024.0))
+    }
+
+    val lastMod = if (file.exists()) {
+        try {
+            java.time.Instant.ofEpochMilli(file.lastModified())
+                .atZone(java.time.ZoneId.systemDefault())
+                .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
+        } catch (e: Exception) { "Unknown" }
+    } else "File Not Found"
+
+    var version = 0
+    var journalMode = "Unknown"
+    var tableCount = 0
+    var totalTxns = 0L
+    var totalLines = 0L
+    var totalAccs = 0L
+    var totalCats = 0L
+    var totalTags = 0L
+    var totalLoans = 0L
+    var totalBudgets = 0L
+    var totalNotes = 0L
+    var totalParties = 0L
+
+    val encryptedFile = File(file.path + ".xpt")
+    val isEncrypted = encryptedFile.exists()
+
+    if (file.exists() && EncryptionService.isValidSQLite(file)) {
+        var rawDb: android.database.sqlite.SQLiteDatabase? = null
+        try {
+            rawDb = android.database.sqlite.SQLiteDatabase.openDatabase(file.path, null, android.database.sqlite.SQLiteDatabase.OPEN_READONLY)
+            version = rawDb.version
+
+            try {
+                val jCursor = rawDb.rawQuery("PRAGMA journal_mode;", null)
+                if (jCursor.moveToFirst()) {
+                    journalMode = jCursor.getString(0).uppercase()
+                }
+                jCursor.close()
+            } catch (e: Exception) {}
+
+            try {
+                val tCursor = rawDb.rawQuery("SELECT count(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'android_%' AND name NOT LIKE 'sqlite_%';", null)
+                if (tCursor.moveToFirst()) {
+                    tableCount = tCursor.getInt(0)
+                }
+                tCursor.close()
+            } catch (e: Exception) {}
+
+            fun countTable(tableName: String): Long {
+                return try {
+                    val c = rawDb.rawQuery("SELECT count(*) FROM `$tableName`", null)
+                    val count = if (c.moveToFirst()) c.getLong(0) else 0L
+                    c.close()
+                    count
+                } catch (e: Exception) { 0L }
+            }
+
+            totalTxns = countTable("transaction_headers")
+            totalLines = countTable("transaction_lines")
+            totalAccs = countTable("accounts")
+            totalCats = countTable("categories")
+            totalTags = countTable("tags")
+            totalLoans = countTable("loans")
+            totalBudgets = countTable("budgets")
+            totalNotes = countTable("notes")
+            totalParties = countTable("parties")
+
+        } catch (e: Exception) {
+            Log.e("DatabaseInfo", "Error reading database info", e)
+        } finally {
+            rawDb?.close()
+        }
+    }
+
+    DatabaseInfoDetails(
+        path = file.absolutePath,
+        sizeFormatted = sizeStr,
+        lastModifiedFormatted = lastMod,
+        version = version,
+        journalMode = journalMode,
+        tableCount = tableCount,
+        totalTransactions = totalTxns,
+        totalLines = totalLines,
+        totalAccounts = totalAccs,
+        totalCategories = totalCats,
+        totalTags = totalTags,
+        totalLoans = totalLoans,
+        totalBudgets = totalBudgets,
+        totalNotes = totalNotes,
+        totalParties = totalParties,
+        isEncryptedAtRest = isEncrypted
+    )
+}
+
+@Composable
+private fun InfoRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.Top
+    ) {
+        Text(label, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+        Spacer(Modifier.width(8.dp))
+        Text(
+            value,
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.weight(1f, fill = false)
+        )
     }
 }

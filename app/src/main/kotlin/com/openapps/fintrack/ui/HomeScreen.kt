@@ -238,7 +238,7 @@ fun HomeScreen(
                     }
                     
                     Text(
-                        "v1.0.20",
+                        "v1.0.22",
                         modifier = Modifier.padding(16.dp),
                         style = MaterialTheme.typography.labelSmall,
                         color = Color.Gray
@@ -1538,7 +1538,7 @@ fun AnalysisView(
                 Box(modifier = Modifier.weight(1f)) {
                     TextButton(onClick = { monthMenuExpanded = true }, modifier = Modifier.fillMaxWidth()) {
                         val locale = Locale.getDefault()
-                        Text(month.format(DateTimeFormatter.ofPattern("MMMM", locale)))
+                        Text(month.format(DateTimeFormatter.ofPattern("MMM", locale)))
                         Icon(Icons.Default.ArrowDropDown, "")
                     }
                     DropdownMenu(expanded = monthMenuExpanded, onDismissRequest = { monthMenuExpanded = false }) {
@@ -1546,7 +1546,7 @@ fun AnalysisView(
                         (1..12).forEach { m ->
                             val mObj = Month.of(m)
                             DropdownMenuItem(
-                                text = { Text(mObj.getDisplayName(java.time.format.TextStyle.FULL, locale)) },
+                                text = { Text(mObj.getDisplayName(java.time.format.TextStyle.SHORT, locale)) },
                                 onClick = {
                                     month = month.withMonth(m)
                                     startDate = month.withDayOfMonth(1).format(DateTimeFormatter.ISO_DATE)

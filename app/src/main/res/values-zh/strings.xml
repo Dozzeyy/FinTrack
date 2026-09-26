@@ -13,7 +13,6 @@
  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  GNU General Public License for more details.
 -->
-
 <resources>
     <string name="app_name">FinTrack</string>
 
@@ -257,6 +256,8 @@
     <string name="msg_template_exists">该名称的模板已存在</string>
     <string name="title_database_management">数据库管理</string>
     <string name="label_current_database">当前数据库:</string>
+    <string name="btn_database_info">数据库信息</string>
+    <string name="title_database_info">数据库详细信息</string>
     <string name="btn_backup_database">备份当前数据库</string>
     <string name="btn_schedule_backup">计划备份</string>
     <string name="btn_open_different_db">打开其他数据库</string>
@@ -459,12 +460,12 @@
     <string name="msg_extracting_txns">提取交易中...</string>
     <string name="msg_no_new_txns">未发现新交易。</string>
     <string name="msg_found_n_txns">发现 %1$d 条新记录。</string>
-    <string name="title_import_statement">导入对账单 (CSV)</string>
+    <string name="title_import_statement">导入对账单 (CSV/Excel)</string>
     <string name="btn_bulk_record">批量记录</string>
     <string name="btn_reset">重置</string>
     <string name="label_how_it_works">操作指南</string>
     <string name="label_choose_account">选择账户</string>
-    <string name="btn_select_csv_file">选择 CSV 文件</string>
+    <string name="btn_select_csv_file">选择 CSV/Excel 文件</string>
     <string name="title_confirm_col_mapping">确认列映射</string>
     <string name="msg_col_mapping_desc">点击表头重新分配角色。确保日期、描述和金额列正确。</string>
     <string name="btn_confirm_extract">确认并提取交易</string>
@@ -967,4 +968,16 @@
     <!-- Settings Tab Order -->
     <string name="settings_tab_home_fixed">标签页 1：%1$s（固定）</string>
     <string name="settings_tab_format">标签页 %1$d：%2$s</string>
+    <string name="settings_attachments">附件</string>
+    <string name="settings_enable_attachments">启用附件</string>
+    <string name="settings_change_attachment_folder">更改附件文件夹</string>
+    <string name="settings_select_attachment_folder">选择附件文件夹</string>
+    <string name="title_warning">警告</string>
+    <string name="msg_attachment_backup_warning">数据库备份将不包括附件。您必须定期手动备份附件。</string>
+    <string name="label_attachment">附件</string>
+    <string name="label_new_attachment">新附件 %1$d</string>
+    <string name="btn_attach">添加附件</string>
+    <string name="title_add_attachment">添加附件</string>
+    <string name="btn_upload_from_gallery">从图库上传</string>
+    <string name="btn_capture_from_camera">从相机拍摄</string>
 </resources>
